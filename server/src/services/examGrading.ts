@@ -7,6 +7,13 @@ import { judgeCppCode } from "../utils/cppRunner";
 import { safeJsonParse } from "./examTypes";
 import { resolveCodeLanguage } from "./examAttemptService";
 import { chatCompletion, hasLLM } from "../utils/llmClient";
+import { recordSkillEvidenceBatch, fromExamAttempt } from "./skillEvidence";
+import { queueMasteryRecalculation } from "./skillMastery";
+import { awardXp, awardStreakDay } from "../utils/xpLedger";
+import { awardTokens } from "../utils/tokens";
+import { getRates } from "../utils/gamificationSettings";
+import { checkBadges } from "../utils/badgeEngine";
+import { notifyNotificationChanged } from "./notificationEvents";
 
 /**
  * AI viết nhận xét cho câu trả lời ngắn theo phong cách GV yêu cầu.
@@ -257,6 +264,123 @@ async function gradeOneAttempt(attemptId: string) {
       }),
     },
   });
+
+  if (!needsReview) {
+    await finalizeGradedAttemptEffects(attemptId);
+  }
+}
+
+async function finalizeGradedAttemptEffects(attemptId: string) {
+  try {
+    const attempt = await prisma.examAttempt.findUnique({
+      where: { id: attemptId },
+      include: {
+        exam: { select: { id: true, title: true } },
+        student: { select: { id: true, role: true } },
+        answers: { include: { question: true } },
+      },
+    });
+    if (!attempt || attempt.gradeStatus !== "graded" || attempt.student.role !== "student") return;
+
+    const studentId = attempt.studentId;
+    const examId = attempt.examId;
+    const occurredAt = attempt.submittedAt ?? new Date();
+
+    // 1. SkillEvidence + Mastery recalculation (only valid Skill IDs)
+    try {
+      const candidateIds = new Set<string>();
+      const parsedAnswers = attempt.answers.map((a) => {
+        const skillIds = safeJsonParse<string[]>(a.question.skillIdsJson, []);
+        for (const sid of skillIds) {
+          if (typeof sid === "string" && sid.trim()) candidateIds.add(sid.trim());
+        }
+        const max = a.maxScore ?? a.question.points;
+        const isCorrect = max > 0 && (a.finalScore ?? 0) >= max * 0.8;
+        return {
+          questionId: a.questionId,
+          isCorrect,
+          skillIds: skillIds.filter((s): s is string => typeof s === "string" && !!s.trim()),
+          difficulty: a.question.difficulty,
+        };
+      });
+
+      if (candidateIds.size > 0) {
+        const validSkills = await prisma.skill.findMany({
+          where: { skillId: { in: [...candidateIds] } },
+          select: { skillId: true },
+        });
+        const validSet = new Set(validSkills.map((s) => s.skillId));
+        const evidenceRows = fromExamAttempt(studentId, examId, attemptId, parsedAnswers, validSet, occurredAt);
+        if (evidenceRows.length > 0) {
+          await recordSkillEvidenceBatch(evidenceRows);
+          queueMasteryRecalculation(studentId);
+        }
+      }
+    } catch (err) {
+      console.error("[examGrading] skill evidence failed:", err);
+    }
+
+    const maxScore = attempt.maxScore ?? attempt.answers.reduce((s, a) => s + (a.maxScore ?? a.question.points), 0);
+    const totalScore = attempt.totalScore ?? attempt.answers.reduce((s, a) => s + (a.finalScore ?? 0), 0);
+
+    // 2. XP, Streak, Tokens, Badges (idempotent via refType + refId)
+    try {
+      const ratio = maxScore > 0 ? Math.min(1, Math.max(0, totalScore / maxScore)) : 0;
+      const xpAmount = Math.max(10, Math.round(10 + ratio * 30));
+      await awardXp(studentId, xpAmount, {
+        reason: "exam_graded",
+        description: `Phòng thi: ${attempt.exam.title}`,
+        refType: "Exam",
+        refId: examId,
+      });
+      await awardStreakDay(studentId);
+    } catch (err) {
+      console.error("[examGrading] xp/streak award failed:", err);
+    }
+
+    try {
+      const { tokens } = await getRates();
+      if (tokens.contestFinishTokens > 0) {
+        await awardTokens(studentId, tokens.contestFinishTokens, {
+          reason: "exam_graded",
+          description: `Phòng thi: ${attempt.exam.title}`,
+          refType: "Exam",
+          refId: examId,
+        });
+      }
+    } catch (err) {
+      console.error("[examGrading] token award failed:", err);
+    }
+
+    checkBadges(studentId).catch(() => {});
+
+    // 3. Deduped notification
+    try {
+      const existing = await prisma.notification.findFirst({
+        where: { userId: studentId, type: "exam_graded", relatedEntityId: examId },
+        select: { id: true },
+      });
+      if (!existing) {
+        const roundedScore = Math.round(totalScore * 10) / 10;
+        const roundedMax = Math.round(maxScore * 10) / 10;
+        await prisma.notification.create({
+          data: {
+            userId: studentId,
+            title: "Đã có điểm phòng thi",
+            message: `Bài thi "${attempt.exam.title}" đã được chấm: ${roundedScore}/${roundedMax} điểm.`,
+            type: "exam_graded",
+            relatedEntityType: "exam",
+            relatedEntityId: examId,
+          },
+        });
+        notifyNotificationChanged(studentId);
+      }
+    } catch (err) {
+      console.error("[examGrading] notification failed:", err);
+    }
+  } catch (err) {
+    console.error("[examGrading] finalizeGradedAttemptEffects failed:", err);
+  }
 }
 
 export async function startExamGradeJob(examId: string, startedById: string, force = false) {
@@ -391,6 +515,10 @@ export async function applyTeacherShortGrade(params: {
       gradeStatus: pendingShort > 0 ? "needs_review" : "graded",
     },
   });
+
+  if (pendingShort === 0) {
+    await finalizeGradedAttemptEffects(params.attemptId);
+  }
 
   return { finalScore, totalScore: total };
 }

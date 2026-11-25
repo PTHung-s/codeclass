@@ -132,7 +132,7 @@ function QuestionCard({ q, index }: { q: ArenaReviewQuestion; index: number }) {
  <span className="rounded-md border border-border px-1.5 py-0.5 font-mono text-[10px] font-semibold uppercase tracking-wider">
  {langLabel(q.language)}
  </span>
- <span className="rounded-full /15 px-2 py-0.5 text-[10px] font-bold">
+ <span className="rounded-full bg-rose-500/15 px-2 py-0.5 text-[10px] font-bold text-rose-300">
  🔴 Dòng lỗi: {q.buggyLineNumbers.length ? q.buggyLineNumbers.join(",") :"—"}
  </span>
  </div>
@@ -152,7 +152,7 @@ function QuestionCard({ q, index }: { q: ArenaReviewQuestion; index: number }) {
  </div>
 
  {q.bugDescription && (
- <div className="rounded-lg /10 p-2.5 text-xs">
+ <div className="rounded-lg border border-amber-500/20 bg-amber-500/10 p-2.5 text-xs text-amber-200">
  <b>Lỗi:</b> {q.bugDescription}
  </div>
  )}
@@ -242,21 +242,21 @@ function AnswerRow({
  <button
  type="button"
  onClick={onSelect}
- className={cn("flex w-full items-center gap-2 rounded-lg border border-border px-2 py-1.5 text-left text-xs transition",
- active ?"/50 /10" :"border-transparent hover:60",
+ className={cn("flex w-full items-center gap-2 rounded-lg border px-2 py-1.5 text-left text-xs transition",
+ active ?"border-primary/50 bg-primary/10" :"border-transparent hover:bg-white/5",
  )}
  >
  <span className="min-w-0 flex-1 truncate font-medium">
  {a.fullName}
- {isMe && <span className="ml-1 text-[10px]">(bạn)</span>}
+ {isMe && <span className="ml-1 text-[10px] text-primary">(bạn)</span>}
  </span>
  <span
  className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
  a.identified
- ?"/15"
+ ?"bg-emerald-500/15 text-emerald-300"
  : picked
- ?"/10"
- :"",
+ ?"bg-rose-500/10 text-rose-300"
+ :"text-slate-400",
  )}
  >
  {a.identified ?"🎯 Tô trúng" : picked ?"Tô trượt" :"—"}
@@ -264,17 +264,17 @@ function AnswerRow({
  <span
  className={cn("shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
  a.fixed
- ?"/15"
+ ?"bg-emerald-500/15 text-emerald-300"
  : attempted
- ?"/10"
- :"",
+ ?"bg-amber-500/10 text-amber-300"
+ :"text-slate-400",
  )}
  >
  {a.fixed ?"🔧 Sửa OK" :"—"}
  </span>
  <span
  className={cn("w-16 shrink-0 text-right font-bold tabular-nums",
- a.score > 0 ?"" :"",
+ a.score > 0 ?"text-emerald-300" :"text-slate-400",
  )}
  >
  {a.score > 0 ? `+${a.score}` :"0"}

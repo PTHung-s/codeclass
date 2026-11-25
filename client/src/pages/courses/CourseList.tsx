@@ -128,17 +128,17 @@ export default function CourseList() {
   const filtered = courses;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         title="Khóa học của tôi"
         actions={
           isTeacher ? (
             <>
-              <Button variant="outline" onClick={() => createSessionCourse.mutate()} disabled={createSessionCourse.isPending}>
-                <FlaskConical className="h-4 w-4" /> Tạo khóa thi đấu
+              <Button variant="outline" size="sm" onClick={() => createSessionCourse.mutate()} disabled={createSessionCourse.isPending}>
+                <FlaskConical className="size-3.5" /> Tạo khóa thi đấu
               </Button>
-              <Button onClick={() => navigate("/courses/new")}><Plus className="h-4 w-4" />
-                Tạo khóa học
+              <Button size="sm" onClick={() => navigate("/courses/new")}>
+                <Plus className="size-3.5" /> Tạo khóa học
               </Button>
             </>
           ) : undefined
@@ -146,9 +146,9 @@ export default function CourseList() {
       />
 
       {courses.length > 0 ? (
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="relative min-w-[200px] max-w-sm flex-1" role="search">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative min-w-[200px] max-w-xs flex-1" role="search">
+            <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
             <label htmlFor="course-search" className="sr-only">
               Tìm kiếm khóa học
             </label>
@@ -160,10 +160,10 @@ export default function CourseList() {
                 setPage(1);
               }}
               placeholder="Tìm kiếm khóa học..."
-              className="pl-9"
+              className="h-8 pl-8 text-xs"
             />
           </div>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="flex flex-wrap gap-1">
             {statusOptions.map((option) => (
               <Button
                 key={option.value}
@@ -173,7 +173,7 @@ export default function CourseList() {
                 }}
                 variant={statusFilter === option.value ? "secondary" : "outline"}
                 size="xs"
-                className="rounded-full"
+                className="h-7 rounded-full px-2.5 text-[11px]"
               >
                 {option.label}
               </Button>
@@ -278,15 +278,15 @@ function CourseCard({
         }
       }}
     >
-      <div className="relative flex h-40 items-center justify-center overflow-hidden bg-secondary">
+      <div className="relative flex h-36 items-center justify-center overflow-hidden bg-secondary">
         {coverUrl ? (
           <>
             <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-black/25" />
           </>
         ) : null}
-        {!coverUrl ? <span className="relative text-3xl font-semibold text-foreground/30">{String(course.title || "?").charAt(0)}</span> : null}
-        <div className="absolute left-4 top-4">
+        {!coverUrl ? <span className="relative text-2xl font-semibold text-foreground/30">{String(course.title || "?").charAt(0)}</span> : null}
+        <div className="absolute left-3 top-3">
           <CourseStatusBadge status={course.status} onImage={Boolean(coverUrl)} />
         </div>
         {canArchive && !archived ? (
@@ -298,21 +298,21 @@ function CourseCard({
             disabled={isArchiving}
             variant="ghost"
             size="icon-sm"
-            className="absolute right-4 top-4 bg-card/85 text-muted-foreground shadow-sm backdrop-blur hover:bg-card hover:text-destructive"
+            className="absolute right-3 top-3 size-7 bg-card/85 text-muted-foreground shadow-sm backdrop-blur hover:bg-card hover:text-destructive"
             title="Lưu trữ khóa học"
             aria-label="Lưu trữ khóa học"
           >
-            <Archive className="h-4 w-4" />
+            <Archive className="size-3.5" />
           </Button>
         ) : null}
       </div>
-      <div className="p-4">
-        <h3 className="mb-1 line-clamp-1 text-[15px] font-semibold text-foreground">{course.title}</h3>
-        <p className="mb-3 line-clamp-1 text-sm text-muted-foreground">
+      <div className="p-3.5">
+        <h3 className="mb-0.5 line-clamp-1 text-sm font-semibold text-foreground">{course.title}</h3>
+        <p className="mb-2.5 line-clamp-1 text-xs text-muted-foreground">
           {course.description || "Chưa có mô tả"}
         </p>
-        <div className="mt-2 flex items-center justify-between gap-2">
-          <p className="text-xs text-muted-foreground">bởi {course.owner?.fullName || "CodeClass"}</p>
+        <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
+          <p className="truncate text-[11px] text-muted-foreground">bởi {course.owner?.fullName || "CodeClass"}</p>
           {canArchive ? (
             <select
               aria-label={`Trạng thái khóa học ${course.title || ""}`}
@@ -323,7 +323,7 @@ function CourseCard({
                 event.stopPropagation();
                 onStatusChange(event.target.value);
               }}
-              className="max-w-[142px] rounded-md border border-border bg-card px-2 py-1 text-[11px] font-medium text-muted-foreground outline-none focus:border-ring disabled:opacity-60"
+              className="h-6 max-w-[130px] rounded-md border border-border bg-card px-1.5 text-[11px] font-medium text-muted-foreground outline-none focus:border-ring disabled:opacity-60"
             >
               <option value="draft">Nháp</option>
               <option value="active">Đang hoạt động</option>

@@ -34,62 +34,45 @@ export interface CalibrationResult extends BktParams {
  * Returns Map<skillId, { studentId, correct, timestamp }[]> — raw events
  * ready to be grouped into sequences by the caller.
  */
+export interface RawSkillEvent {
+  studentId: string;
+  sessionKey?: string;
+  correct: boolean;
+  timestamp: Date;
+}
+
+/**
+ * Extract per-skill observation sequences from the unified SkillEvidence sink
+ * (all 8 sources: quizzes, problems, exams, adaptive tests, session quizzes,
+ * arena quizzes, challenges, and code duels).
+ */
 export async function extractRawEvents(skillIds?: string[]) {
-  const rawBySkill = new Map<string, { studentId: string; correct: boolean; timestamp: Date }[]>();
+  const rawBySkill = new Map<string, RawSkillEvent[]>();
 
-  const push = (skillId: string, ev: { studentId: string; correct: boolean; timestamp: Date }) => {
-    if (!rawBySkill.has(skillId)) rawBySkill.set(skillId, []);
-    rawBySkill.get(skillId)!.push(ev);
-  };
-
-  // 1. QuizAttempt — per-question approved skill tags
-  const quizAttempts = await prisma.quizAttempt.findMany({
-    orderBy: { createdAt: "asc" },
-    include: {
-      quiz: {
-        include: {
-          questions: { select: { id: true, skillId: true, skillTagStatus: true } },
-        },
-      },
+  const rows = await prisma.skillEvidence.findMany({
+    where: skillIds && skillIds.length > 0 ? { skillId: { in: skillIds } } : undefined,
+    orderBy: { occurredAt: "asc" },
+    select: {
+      skillId: true,
+      userId: true,
+      sessionKey: true,
+      isCorrect: true,
+      occurredAt: true,
     },
   });
 
-  for (const attempt of quizAttempts) {
-    const answers: Array<{ questionId?: string; isCorrect: boolean }> = JSON.parse(attempt.answers || "[]");
-    if (answers.length === 0) continue;
-    const qById = new Map((attempt.quiz?.questions || []).map((q) => [q.id, q]));
-    for (const a of answers) {
-      const q = a.questionId ? qById.get(a.questionId) : undefined;
-      if (!q || q.skillTagStatus !== "approved" || !q.skillId) continue;
-      if (skillIds && !skillIds.includes(q.skillId)) continue;
-      push(q.skillId, { studentId: attempt.userId, correct: a.isCorrect, timestamp: attempt.createdAt });
+  for (const row of rows) {
+    let list = rawBySkill.get(row.skillId);
+    if (!list) {
+      list = [];
+      rawBySkill.set(row.skillId, list);
     }
-  }
-
-  // 2. ProblemSubmission — approved skill tags
-  const submissions = await prisma.problemSubmission.findMany({
-    orderBy: { createdAt: "asc" },
-    include: { problem: { select: { skillId: true, skillTagStatus: true } } },
-  });
-
-  for (const sub of submissions) {
-    if (sub.problem?.skillTagStatus !== "approved" || !sub.problem.skillId) continue;
-    if (skillIds && !skillIds.includes(sub.problem.skillId)) continue;
-    push(sub.problem.skillId, { studentId: sub.studentId, correct: sub.passed, timestamp: sub.createdAt });
-  }
-
-  // 3. AdaptiveTestAttempt — per-question skillId
-  const adaptiveTests = await prisma.adaptiveTestAttempt.findMany({
-    orderBy: { createdAt: "asc" },
-  });
-
-  for (const test of adaptiveTests) {
-    const answers: Array<{ isCorrect: boolean; skillId?: string | null }> = JSON.parse(test.answers || "[]");
-    for (const a of answers) {
-      if (!a.skillId) continue;
-      if (skillIds && !skillIds.includes(a.skillId)) continue;
-      push(a.skillId, { studentId: test.userId, correct: a.isCorrect, timestamp: test.createdAt });
-    }
+    list.push({
+      studentId: row.userId,
+      sessionKey: row.sessionKey,
+      correct: Boolean(row.isCorrect),
+      timestamp: row.occurredAt,
+    });
   }
 
   return rawBySkill;
@@ -97,33 +80,42 @@ export async function extractRawEvents(skillIds?: string[]) {
 
 /**
  * Group raw events per skill into per-student boolean sequences.
- * Returns Map<skillId, boolean[][]> where each inner array is one student's
- * chronologically-ordered correct/wrong observations.
+ * Events sharing a sessionKey are consolidated into one session observation
+ * (correctRate >= 0.65) so EM calibration matches runtime session-level BKT.
  */
 export function groupSequences(
-  rawBySkill: Map<string, { studentId: string; correct: boolean; timestamp: Date }[]>,
+  rawBySkill: Map<string, RawSkillEvent[]>,
 ): Map<string, boolean[][]> {
   const result = new Map<string, boolean[][]>();
 
   for (const [skillId, events] of rawBySkill) {
-    // Group by student
-    const byStudent = new Map<string, { correct: boolean; timestamp: Date }[]>();
+    const byStudent = new Map<string, RawSkillEvent[]>();
     for (const e of events) {
       if (!byStudent.has(e.studentId)) byStudent.set(e.studentId, []);
-      byStudent.get(e.studentId)!.push({ correct: e.correct, timestamp: e.timestamp });
+      byStudent.get(e.studentId)!.push(e);
     }
 
-    // Per student: sort by (timestamp, original order) then build the boolean
-    // sequence. Each answer is a distinct observation — answers within ONE quiz
-    // attempt share the attempt's createdAt, so we must NOT dedup by timestamp
-    // or a single quiz (15 questions) would collapse to one observation.
     const sequences: boolean[][] = [];
     for (const [, evs] of byStudent) {
-      evs.sort((a, b) =>
-        a.timestamp.getTime() - b.timestamp.getTime() || 0, // stable: preserves push order for ties
-      );
-      const seq: boolean[] = evs.map((ev) => ev.correct);
-      if (seq.length >= 2) sequences.push(seq); // need ≥2 for EM
+      evs.sort((a, b) => a.timestamp.getTime() - b.timestamp.getTime());
+
+      // Consolidate items within the same sessionKey into session-level outcomes
+      const sessions = new Map<string, { ok: number; total: number; ts: number }>();
+      let seqIndex = 0;
+      for (const ev of evs) {
+        const skey = ev.sessionKey || `raw:${seqIndex++}`;
+        const cur = sessions.get(skey) || { ok: 0, total: 0, ts: ev.timestamp.getTime() };
+        cur.total += 1;
+        if (ev.correct) cur.ok += 1;
+        if (ev.timestamp.getTime() < cur.ts) cur.ts = ev.timestamp.getTime();
+        sessions.set(skey, cur);
+      }
+
+      const seq: boolean[] = Array.from(sessions.values())
+        .sort((a, b) => a.ts - b.ts)
+        .map((s) => s.ok / s.total >= 0.65);
+
+      if (seq.length >= 2) sequences.push(seq);
     }
 
     if (sequences.length > 0) result.set(skillId, sequences);

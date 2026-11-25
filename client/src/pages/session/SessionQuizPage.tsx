@@ -98,7 +98,7 @@ export default function SessionQuizPage() {
         </p>
         <p
           className={cn(
-            "mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-semibold",
+            "mt-3 inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold sm:text-sm",
             percent >= (result.passScore ?? 70)
               ? "border-emerald-500/30 bg-emerald-500/10 text-emerald-700 dark:text-emerald-400"
               : "border-red-500/30 bg-red-500/10 text-red-700 dark:text-red-400",
@@ -108,6 +108,20 @@ export default function SessionQuizPage() {
             ? "✓ Buổi học đã được Verified"
             : "Chưa đạt — làm lại để hoàn thành"}
         </p>
+        {(result.xpAwarded > 0 || result.tokensAwarded > 0) && (
+          <div className="mt-3 flex flex-wrap items-center justify-center gap-2 text-xs font-semibold">
+            {result.xpAwarded > 0 && (
+              <span className="rounded-full border border-primary/25 bg-primary/10 px-2.5 py-0.5 text-primary">
+                +{result.xpAwarded} XP
+              </span>
+            )}
+            {result.tokensAwarded > 0 && (
+              <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-amber-700 dark:text-amber-300">
+                +{result.tokensAwarded} tokens
+              </span>
+            )}
+          </div>
+        )}
         <div className="mt-6 flex flex-wrap items-center justify-center gap-3">
           {!passed ? (
             <Button variant="outline" onClick={handleRetry}>
@@ -150,13 +164,13 @@ export default function SessionQuizPage() {
       </Button>
 
       <Card>
-        <CardContent className="p-6 md:p-8">
-          <div className="flex flex-wrap items-center justify-between gap-4">
+        <CardContent className="p-4 md:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
-              <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+              <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
                 Bài kiểm tra · Buổi {String(lesson.orderIndex).padStart(2, "0")}
               </p>
-              <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+              <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
                 {lesson.title}
               </h1>
             </div>
@@ -205,19 +219,19 @@ function QuizBody({
   const answered = Object.values(answers).filter((v) => v !== null && v !== undefined).length;
 
   return (
-    <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
-      <div className="flex flex-col gap-4 border-b border-border px-6 py-5 md:flex-row md:items-center md:justify-between">
+    <div className="mt-5 overflow-hidden rounded-xl border border-border bg-card">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-3.5 md:flex-row md:items-center md:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-foreground">Bài kiểm tra bắt buộc</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            {total} câu hỏi • cần hoàn thành để mở khóa buổi tiếp theo
+          <h2 className="text-base font-semibold text-foreground">Bài kiểm tra bắt buộc</h2>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            {total} câu hỏi · cần hoàn thành để mở khóa buổi tiếp theo
           </p>
         </div>
-        <div className="min-w-[220px]">
-          <div className="text-right text-sm font-semibold text-foreground">
+        <div className="min-w-[200px]">
+          <div className="text-right text-xs font-semibold text-foreground tabular-nums">
             Câu {cur + 1} / {total} · đã chọn {answered}
           </div>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-muted">
+          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
             <div
               className="h-full rounded-full bg-primary transition-[width] duration-300 ease-out"
               style={{ width: `${((cur + 1) / total) * 100}%` }}
@@ -226,14 +240,14 @@ function QuizBody({
         </div>
       </div>
 
-      <div className="px-6 py-5">
-        <div className="flex items-start gap-4">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-primary font-bold tabular-nums text-primary-foreground shadow-sm">
+      <div className="px-4 py-4">
+        <div className="flex items-start gap-3">
+          <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary text-xs font-bold tabular-nums text-primary-foreground shadow-sm">
             {cur + 1}
           </div>
-          <h3 className="pt-1 text-xl font-semibold tracking-tight text-foreground">{q.question}</h3>
+          <h3 className="pt-0.5 text-base font-semibold tracking-tight text-foreground">{q.question}</h3>
         </div>
-        <div className="mt-5 space-y-3">
+        <div className="mt-4 space-y-2">
           {q.options.map((opt: string, i: number) => {
             const selected = answers[cur] === i;
             return (
@@ -241,7 +255,7 @@ function QuizBody({
                 key={i}
                 onClick={() => setAnswers((prev: any) => ({ ...prev, [cur]: i }))}
                 className={cn(
-                  "flex w-full items-center gap-4 rounded-xl border-2 px-5 py-4 text-left text-lg transition-all duration-200",
+                  "flex w-full items-center gap-3 rounded-lg border px-3.5 py-2.5 text-left text-sm transition-all duration-150",
                   selected
                     ? "option-selected border-primary bg-primary/10 text-foreground shadow-sm"
                     : "border-border bg-card text-foreground hover:border-primary/30 hover:bg-muted/50",
@@ -249,19 +263,21 @@ function QuizBody({
               >
                 <span
                   className={cn(
-                    "flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200",
+                    "grid h-6 w-6 shrink-0 place-items-center rounded-full border text-xs font-semibold transition-colors",
                     selected
-                      ? "border-primary bg-primary shadow-[inset_0_0_0_3px_hsl(var(--card))]"
-                      : "border-muted-foreground/40",
+                      ? "border-primary bg-primary text-primary-foreground"
+                      : "border-border bg-muted text-muted-foreground",
                   )}
-                />
+                >
+                  {String.fromCharCode(65 + i)}
+                </span>
                 <span className="min-w-0 flex-1 leading-snug">{opt}</span>
               </button>
             );
           })}
         </div>
-        <div className="mt-4 flex items-center gap-3 rounded-lg border border-border bg-muted/40 px-4 py-3 text-sm text-muted-foreground">
-          <Info className="h-4 w-4 shrink-0" />
+        <div className="mt-3.5 flex items-center gap-2 rounded-lg border border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+          <Info className="h-3.5 w-3.5 shrink-0" />
           Chọn đáp án đúng nhất rồi nhấn tiếp tục.
         </div>
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">

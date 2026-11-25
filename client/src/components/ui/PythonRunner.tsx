@@ -1,7 +1,10 @@
 import { useState, useRef, useCallback, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import Editor from "@monaco-editor/react";
-import { Play, Loader2, CheckCircle2, XCircle } from "lucide-react";
+import { Play, Loader2, CheckCircle2, XCircle, Terminal } from "lucide-react";
 import { runCode as executeCode, type SupportedLanguage } from "../../lib/codeRunner";
+import { openInCodeLab } from "../../lib/codeLabBridge";
+import { useDarkMode } from "../../hooks/useDarkMode";
 import api from "../../lib/api";
 import { reportRecordingRun } from "../../hooks/useSessionRecorder";
 
@@ -79,6 +82,8 @@ export default function PythonRunner({
   const [result, setResult] = useState<"pass" | "fail" | null>(null);
   const [editorPct, setEditorPct] = useState(58);
   const [hasRun, setHasRun] = useState(false);
+  const { dark } = useDarkMode();
+  const navigate = useNavigate();
 
   // Auto-save code to localStorage on change (debounced)
   const saveTimer = useRef<ReturnType<typeof setTimeout>>();
@@ -216,7 +221,7 @@ export default function PythonRunner({
       language={monacoLanguage}
       value={code}
       onChange={handleCodeChange}
-      theme="vs-dark"
+      theme={dark ? "vs-dark" : "vs"}
       options={{
         readOnly,
         automaticLayout: fill,
@@ -323,6 +328,23 @@ export default function PythonRunner({
         {result === "pass" && <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400"><CheckCircle2 className="h-3.5 w-3.5" /> Chính xác</span>}
         {result === "fail" && <span className="inline-flex items-center gap-1 text-xs font-medium text-red-500"><XCircle className="h-3.5 w-3.5" /> Chưa đúng</span>}
         <span className="hidden text-[10px] text-muted-foreground sm:inline dark:text-muted-foreground">Ctrl+Enter</span>
+        <button
+          type="button"
+          onClick={() =>
+            openInCodeLab(navigate, {
+              code,
+              language: runLanguage,
+              fileName: `vi_du.${runLanguage === "cpp" ? "cpp" : "py"}`,
+              inputText: userInput,
+              sourceLabel: title || "Bài học",
+            })
+          }
+          title="Mở code này trong Code Lab"
+          className="inline-flex items-center gap-1 rounded-lg border border-border bg-card px-2.5 py-1.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Terminal className="h-3.5 w-3.5 text-primary" />
+          <span className="hidden sm:inline">Code Lab</span>
+        </button>
         <button
           onClick={runCode}
           disabled={running || !code.trim()}

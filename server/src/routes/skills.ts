@@ -6,8 +6,13 @@ import {
   getSkillStates,
   getActiveRecommendations,
   recalculateMasteryForStudent,
+  recalculateMasteryForAllStudents,
   dismissRecommendation,
   estimateMasteryUncertainty,
+  applyMemoryDecay,
+  countSpacedSuccesses,
+  REVIEW_RETENTION_THRESHOLD,
+  type MasteryHistoryEntry,
 } from "../services/skillMastery";
 import { SKILL_SEEDS, TOPICS } from "../utils/skillGraph";
 import {
@@ -188,6 +193,10 @@ router.get("/heatmap/all", async (req: Request, res: Response) => {
       avatarUrl: string | null;
       skills: Record<string, {
         mastery: number;
+        rawMastery: number;
+        retentionRate: number;
+        dueForReview: boolean;
+        daysSinceLastPractice: number;
         lowerBound: number;
         upperBound: number;
         confidenceLevel: "low" | "forming" | "medium" | "high";
@@ -195,6 +204,7 @@ router.get("/heatmap/all", async (req: Request, res: Response) => {
       }>;
     }>();
 
+    const nowMs = Date.now();
     for (const m of masteries) {
       if (!userMap.has(m.userId)) {
         userMap.set(m.userId, {
@@ -205,12 +215,25 @@ router.get("/heatmap/all", async (req: Request, res: Response) => {
           skills: {},
         });
       }
-      let history: { ts: string; value: number }[] = [];
+      let history: MasteryHistoryEntry[] = [];
       try { history = JSON.parse(m.historyJson || "[]"); } catch { history = []; }
-      const band = estimateMasteryUncertainty(m.value, history);
+      if (history.length === 0) continue;
+
+      const lastEntry = history[history.length - 1];
+      const lastMs = Date.parse(lastEntry.ts);
+      const daysSinceLastPractice = Number.isFinite(lastMs)
+        ? Math.max(0, Math.round(((nowMs - lastMs) / 86_400_000) * 10) / 10)
+        : 0;
+      const spacedCount = countSpacedSuccesses(history);
+      const decayed = applyMemoryDecay(m.value, daysSinceLastPractice, spacedCount);
+      const band = estimateMasteryUncertainty(decayed.effectiveMastery, history);
       if (!band) continue;
       userMap.get(m.userId)!.skills[m.skillId] = {
-        mastery: m.value,
+        mastery: decayed.effectiveMastery,
+        rawMastery: Math.round(m.value * 1e4) / 1e4,
+        retentionRate: decayed.retentionRate,
+        dueForReview: decayed.retentionRate < REVIEW_RETENTION_THRESHOLD && m.value >= 0.5,
+        daysSinceLastPractice,
         evidenceCount: history.length,
         ...band,
       };
@@ -260,7 +283,7 @@ router.get("/admin/engine", async (req: Request, res: Response) => {
     const row = await prisma.engineSetting.findUnique({ where: { key: "mastery_engine" } });
     const bktRow = await prisma.engineSetting.findUnique({ where: { key: "bkt_params" } });
     res.json({
-      activeEngine: row?.value || "ewma",
+      activeEngine: row?.value === "ewma" ? "ewma" : "bkt",
       bktParams: bktRow ? JSON.parse(bktRow.value) : null,
     });
   } catch (err: any) {
@@ -286,7 +309,8 @@ router.post("/admin/engine", async (req: Request, res: Response) => {
       create: { key: "mastery_engine", value: engine },
       update: { value: engine },
     });
-    res.json({ ok: true, activeEngine: engine });
+    const summary = await recalculateMasteryForAllStudents();
+    res.json({ ok: true, activeEngine: engine, recalculatedStudents: summary.updated, totalStudents: summary.totalStudents });
   } catch (err: any) {
     console.error("set engine config error:", err);
     res.status(500).json({ error: "Không thể cập nhật cấu hình engine." });
@@ -323,10 +347,30 @@ router.post("/admin/calibrate", async (req: Request, res: Response) => {
       maxIterations: Number(req.body?.maxIterations) || 100,
       minSequences: Number(req.body?.minSequences) || 2,
     });
-    res.json({ ok: true, skills: results });
+    const engineRow = await prisma.engineSetting.findUnique({ where: { key: "mastery_engine" } });
+    const activeEngine = engineRow?.value === "ewma" ? "ewma" : "bkt";
+    const summary = activeEngine === "bkt"
+      ? await recalculateMasteryForAllStudents()
+      : { totalStudents: 0, updated: 0, failed: 0 };
+    res.json({ ok: true, skills: results, recalculatedStudents: summary.updated, totalStudents: summary.totalStudents });
   } catch (err: any) {
     console.error("calibrate error:", err);
     res.status(500).json({ error: err.message || "Không thể chạy calibrate." });
+  }
+});
+
+// ── Admin: POST /api/skills/admin/recalculate-all — Rebuild mastery for all students ──
+router.post("/admin/recalculate-all", async (req: Request, res: Response) => {
+  try {
+    if (!isStaff(req.user!.role)) {
+      res.status(403).json({ error: "Chỉ giáo viên mới có quyền này." });
+      return;
+    }
+    const summary = await recalculateMasteryForAllStudents();
+    res.json({ ok: true, ...summary });
+  } catch (err: any) {
+    console.error("recalculate-all error:", err);
+    res.status(500).json({ error: "Không thể tính lại mastery toàn lớp." });
   }
 });
 

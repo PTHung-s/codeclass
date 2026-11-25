@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
+import { motion } from "framer-motion";
 import api from "../../lib/api";
 import { PageHeader } from "../../components/ui/page-header";
 import { Button } from "../../components/ui/button";
@@ -105,82 +106,93 @@ export default function MyAssignments() {
 
   return (
     <ErrorBoundary>
-    <div className="space-y-6">
+    <div className="mx-auto max-w-5xl space-y-4">
       <PageHeader
         eyebrow="Bài tập"
         title="Bài tập của tôi"
-        description="Các bài tập giáo viên giao cho bạn. Vào đề, làm bài và nộp như khi luyện tập — kết quả chấm tự động cập nhật vào đây."
+        description="Các bài tập giáo viên giao cho bạn. Kết quả chấm tự động sẽ cập nhật tại đây."
       />
 
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-24 w-full rounded-xl" />
+            <Skeleton key={i} className="h-[76px] w-full rounded-xl" />
           ))}
         </div>
       ) : isError ? (
         <Card>
-          <CardContent className="p-8 text-center text-sm text-muted-foreground">Không tải được bài tập. Vui lòng thử lại sau.</CardContent>
+          <CardContent className="p-8 text-center text-xs text-muted-foreground">Không tải được bài tập. Vui lòng thử lại sau.</CardContent>
         </Card>
       ) : !data?.length ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <ListChecks className="h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">Hiện bạn chưa được giao bài tập nào. Bài mới sẽ xuất hiện ở đây khi giáo viên giao.</p>
+          <CardContent className="flex flex-col items-center gap-2.5 p-8 text-center">
+            <ListChecks className="size-8 text-muted-foreground/50" />
+            <p className="text-xs text-muted-foreground">Hiện bạn chưa được giao bài tập nào. Bài mới sẽ xuất hiện ở đây khi giáo viên giao.</p>
           </CardContent>
         </Card>
       ) : (
         <>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="inline-flex h-8 items-center rounded-[7px] border border-border bg-muted/50 p-0.5">
             {(
               [
                 ["todo", `Cần làm (${counts.todo})`],
                 ["done", `Đã đạt (${counts.done})`],
                 ["all", `Tất cả (${counts.all})`],
               ] as const
-            ).map(([key, label]) => (
-              <button
-                key={key}
-                onClick={() => setFilter(key)}
-                className={cn(
-                  "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-                  filter === key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            ).map(([key, label]) => {
+              const active = filter === key;
+              return (
+                <button
+                  key={key}
+                  type="button"
+                  onClick={() => setFilter(key)}
+                  className={cn(
+                    "relative h-7 rounded-[5px] px-3 text-xs font-medium transition-colors",
+                    active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                  )}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="my-assignments-filter-pill"
+                      transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                      className="absolute inset-0 rounded-[5px] bg-card shadow-sm"
+                    />
+                  )}
+                  <span className="relative z-10">{label}</span>
+                </button>
+              );
+            })}
           </div>
 
-          <div className="space-y-3">
+          <div className="stagger-in space-y-2.5">
             {rows.map((a) => (
-              <Card key={a.id} className={cn("transition-colors", a.overdue && "border-destructive/40")}>
-                <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
-                  <div className="min-w-0 flex-1 space-y-1.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold">{a.title}</p>
+              <Card key={a.id} className={cn("surface-interactive group", a.overdue && "border-destructive/40")}>
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3.5">
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-[13px] font-semibold">{a.title}</p>
                       <StatusChip a={a} />
                       {a.overdue && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">
-                          <AlarmClock className="h-3 w-3" /> Quá hạn
+                        <span className="inline-flex items-center gap-1 rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">
+                          <AlarmClock className="size-3" /> Quá hạn
                         </span>
                       )}
                     </div>
                     {a.description && <p className="line-clamp-2 text-xs text-muted-foreground">{a.description}</p>}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <div className="flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] text-muted-foreground">
                       {a.problem && (
                         <span className="inline-flex items-center gap-1">
-                          <Code className="h-3.5 w-3.5" /> {a.problem.title}
+                          <Code className="size-3" /> {a.problem.title}
                           {difficultyLabel(a.problem.difficulty) && <span className="opacity-70">· {difficultyLabel(a.problem.difficulty)}</span>}
                         </span>
                       )}
                       {a.course && (
                         <span className="inline-flex items-center gap-1">
-                          <BookOpen className="h-3.5 w-3.5" /> {a.course.title}
+                          <BookOpen className="size-3" /> {a.course.title}
                         </span>
                       )}
                       <span className={cn("inline-flex items-center gap-1", a.overdue && "font-medium text-destructive")}>
-                        <AlarmClock className="h-3.5 w-3.5" /> Hạn: {a.deadline ? fmtDate(a.deadline) : "Không có"}
+                        <AlarmClock className="size-3" /> Hạn: {a.deadline ? fmtDate(a.deadline) : "Không có"}
                       </span>
                       {a.attempts > 0 && <span>Lần nộp gần nhất: {fmtDate(a.lastAttemptAt)}</span>}
                     </div>
@@ -192,7 +204,7 @@ export default function MyAssignments() {
                       onClick={() => navigate(`/problems/${a.problem!.id}`)}
                     >
                       {a.status === "not_started" ? "Vào làm bài" : a.status === "passed" ? "Xem đề" : "Làm tiếp"}
-                      <ExternalLink className="ml-1.5 h-3.5 w-3.5" />
+                      <ExternalLink className="size-3.5 transition-transform duration-150 group-hover:translate-x-0.5" />
                     </Button>
                   )}
                 </CardContent>

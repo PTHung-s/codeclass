@@ -9,6 +9,7 @@
     "prisma:generate": "prisma generate",
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
+    "test": "tsx scripts/run-tests.ts",
     "test:quiz-arena": "tsx scripts/test-quiz-arena.ts",
     "test:exam-import": "tsx scripts/smoke-exam-import.ts",
     "seed:rewards": "tsx scripts/seed-rewards.ts",

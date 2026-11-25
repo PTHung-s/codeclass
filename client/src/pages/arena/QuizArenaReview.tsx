@@ -130,12 +130,12 @@ function QuestionCard({ q, index }: { q: ArenaReviewQuestion; index: number }) {
  return (
  <div
  key={i}
- className={cn("flex items-start gap-2.5 rounded-xl border border-border p-2.5 text-sm",
+ className={cn("flex items-start gap-2.5 rounded-xl border p-2.5 text-sm",
  correct
- ?"/50 /10"
+ ?"border-emerald-500/50 bg-emerald-500/10"
  : myPick
- ?"/40 /10"
- :"",
+ ?"border-rose-500/40 bg-rose-500/10"
+ :"border-border",
  )}
  >
  <b className="shrink-0">{LETTERS[i]}.</b>
@@ -161,13 +161,13 @@ function QuestionCard({ q, index }: { q: ArenaReviewQuestion; index: number }) {
  <div
  key={a.userId}
  className={cn("flex items-center gap-2 rounded-lg px-2 py-1.5 text-xs",
- a.userId === user?.id &&"/10 ring-1 ring-inset",
+ a.userId === user?.id &&"bg-primary/10 ring-1 ring-inset ring-primary/30",
  )}
  >
- <span className={cn("size-2 shrink-0 rounded-full", a.isCorrect ?"" :"")} />
+ <span className={cn("size-2 shrink-0 rounded-full", a.isCorrect ?"bg-emerald-400" :"bg-rose-400")} />
  <span className="min-w-0 flex-1 truncate font-medium">
  {a.fullName}
- {a.userId === user?.id && <span className="ml-1 text-[10px]">(bạn)</span>}
+ {a.userId === user?.id && <span className="ml-1 text-[10px] text-primary">(bạn)</span>}
  </span>
  <span className="shrink-0">
  {a.selectedIndex === null || a.selectedIndex === undefined ?"Không trả lời" : LETTERS[a.selectedIndex]}
@@ -178,7 +178,7 @@ function QuestionCard({ q, index }: { q: ArenaReviewQuestion; index: number }) {
  </span>
  <span
  className={cn("w-12 shrink-0 text-right font-bold tabular-nums",
- a.score > 0 ?"" :"",
+ a.score > 0 ?"text-emerald-300" :"text-slate-400",
  )}
  >
  {a.score > 0 ? `+${a.score}` :"0"}

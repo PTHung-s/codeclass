@@ -107,15 +107,16 @@ router.post("/challenge-attempts", authenticate, async (req: Request, res: Respo
         data: { passed: true },
       });
 
-      // Skill evidence → unified sink (fail-soft). skillId comes from the
-      // teacher-managed SkillTagMapping (scope "challenge"); the sink's dedup
-      // key keeps this to one evidence row per student per challenge.
+      // Skill evidence → unified sink (fail-soft) for first pass.
       try {
         const skillId = await resolveChallengeSkill(challengeKey);
         if (skillId) {
           await recordSkillEvidenceBatch(
             fromChallengeAttempt(userId, challengeKey, lessonId, skillId, true, now),
           );
+          import("../services/skillMastery")
+            .then(({ queueMasteryRecalculation }) => queueMasteryRecalculation(userId))
+            .catch(() => {});
         }
       } catch (err) {
         console.error("[challengeAttempts] skill evidence record failed:", err);
@@ -127,6 +128,19 @@ router.post("/challenge-attempts", authenticate, async (req: Request, res: Respo
         where: { userId, challengeKey, passed: null },
         data: { passed: false },
       });
+      try {
+        const skillId = await resolveChallengeSkill(challengeKey);
+        if (skillId) {
+          await recordSkillEvidenceBatch(
+            fromChallengeAttempt(userId, challengeKey, lessonId, skillId, false, now),
+          );
+          import("../services/skillMastery")
+            .then(({ queueMasteryRecalculation }) => queueMasteryRecalculation(userId))
+            .catch(() => {});
+        }
+      } catch (err) {
+        console.error("[challengeAttempts] failure evidence record failed:", err);
+      }
     }
 
     res.json({ ok: true });

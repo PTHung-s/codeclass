@@ -1,7 +1,7 @@
 import prisma from "../utils/prisma";
 
 export const QUESTION_CALIBRATION_MODEL = "smoothed-rate-v1";
-export const QUESTION_CALIBRATION_ENABLED = process.env.QUESTION_CALIBRATION_ENABLED === "true";
+export const QUESTION_CALIBRATION_ENABLED = process.env.QUESTION_CALIBRATION_ENABLED !== "false";
 
 export type CalibratedQuestion = {
   authoredDifficulty: number;

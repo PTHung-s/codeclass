@@ -2,6 +2,9 @@ import { useEffect, useRef, useState, useCallback } from"react";
 import { useQuery, useMutation, useQueryClient } from"@tanstack/react-query";
 import { useParams, useNavigate } from"react-router-dom";
 import { useAuthContext } from"../../contexts/AuthContext";
+import { isStaff } from"../../lib/roles";
+import { openInCodeLab } from"../../lib/codeLabBridge";
+import type { SupportedLanguage } from"../../lib/codeRunner";
 import { getAvatarBgColor } from"../../lib/utils";
 import api from"../../lib/api";
 import ProblemViewer from"../../components/ui/ProblemViewer";
@@ -9,6 +12,7 @@ import ConfirmDialog from"../../components/ui/ConfirmDialog";
 import PythonCodeWorkspace from"../../components/ui/PythonCodeWorkspace";
 import { StudentWorkspacePanel } from"../../components/ui/StudentWorkspaceShell";
 import { useToast } from"../../hooks/useToast";
+import { useDarkMode } from"../../hooks/useDarkMode";
 import { useReward } from"../../hooks/useReward";
 import { useMascot, msgSolved } from"../../components/mascot";
 import { fireACConfetti } from"../../lib/confetti";
@@ -19,7 +23,7 @@ import { Button } from"../../components/ui/button";
 import { SkeletonProblemDetail } from"../../components/ui/skeletons/SkeletonProblemDetail";
 import { StudentName } from"../../components/ui/StudentName";
 import Editor from"@monaco-editor/react";
-import { ArrowLeft, Bug, CheckCircle2, Clock, ClipboardList, Database, Edit, FileText, Loader2, Send, ShieldCheck, Tag, Users, XCircle } from"lucide-react";
+import { ArrowLeft, Bug, CheckCircle2, Clock, ClipboardList, Database, Edit, FileText, Loader2, Send, ShieldCheck, Tag, Terminal, Users, XCircle } from"lucide-react";
 
 type PracticeTrackingState = {
  startedAt: number;
@@ -61,18 +65,20 @@ export default function ProblemDetail() {
  const navigate = useNavigate();
  const qc = useQueryClient();
  const toast = useToast();
+ const { dark } = useDarkMode();
  const reward = useReward();
  const { say } = useMascot();
- const isTeacher = user?.role ==="teacher" || user?.role ==="admin";
+ const isTeacher = isStaff(user?.role);
  const isStudent = !isTeacher;
 
  const [activeTab, setActiveTab] = useState(0);
  const [code, setCode] = useState("");
+ const [language, setLanguage] = useState<SupportedLanguage>("python");
  const [answer, setAnswer] = useState("");
  const [note, setNote] = useState("");
  const [showConfirm, setShowConfirm] = useState(false);
  const [checklistStudent, setChecklistStudent] = useState<{ id: string; fullName: string; nickname?: string | null; email: string } | null>(null);
- const [practiceSubmissionId, setPracticeSubmissionId] = useState<string | null>(null);
+ const [viewingSubmission, setViewingSubmission] = useState<{ id: string; kind: "practice" | "assignment" } | null>(null);
  const [submitError, setSubmitError] = useState("");
  const [submitSuccess, setSubmitSuccess] = useState("");
  const [hackInput, setHackInput] = useState("");
@@ -164,9 +170,15 @@ export default function ProblemDetail() {
  });
 
  const practiceSubmissionQuery = useQuery({
- queryKey: ["practiceSubmission", practiceSubmissionId],
- queryFn: () => api.get(`/problem-submissions/${practiceSubmissionId}`).then((r) => r.data),
- enabled: !!practiceSubmissionId,
+ queryKey: ["practiceSubmission", viewingSubmission?.kind, viewingSubmission?.id],
+ queryFn: () => {
+   if (!viewingSubmission) return null;
+   const endpoint = viewingSubmission.kind === "assignment"
+     ? `/submissions/${viewingSubmission.id}`
+     : `/problem-submissions/${viewingSubmission.id}`;
+   return api.get(endpoint).then((r) => r.data);
+ },
+ enabled: !!viewingSubmission,
  });
 
  const tabs = isTeacher ? TEACHER_TABS : STUDENT_TABS;
@@ -188,6 +200,11 @@ export default function ProblemDetail() {
  try {
  const parsed = JSON.parse(saved);
  if (parsed.code) setCodeWithoutTracking(parsed.code);
+ if (parsed.language === "cpp" || parsed.language === "python") {
+   setLanguage(parsed.language);
+ } else if (parsed.code && (/#include\s*</.test(parsed.code) || /\bint\s+main\s*\(/.test(parsed.code))) {
+   setLanguage("cpp");
+ }
  if (parsed.answer) setAnswer(parsed.answer);
  if (parsed.note) setNote(parsed.note);
  restoredDraftRef.current = true;
@@ -200,7 +217,13 @@ export default function ProblemDetail() {
 
  // No draft: use starter code
  if (problem && !codeInitialized.current) {
- setCodeWithoutTracking(problem.starterCode ||"");
+ const starter = problem.starterCode || "";
+ setCodeWithoutTracking(starter);
+ if (/#include\s*</.test(starter) || /\bint\s+main\s*\(/.test(starter)) {
+   setLanguage("cpp");
+ } else {
+   setLanguage("python");
+ }
  codeInitialized.current = true;
  }
  }, [problemId, problem, setCodeWithoutTracking]);
@@ -208,6 +231,7 @@ export default function ProblemDetail() {
  // Auto-save draft with debounce (but don't trigger re-renders)
  const saveTimer = useRef<ReturnType<typeof setTimeout>>();
  const codeRef = useRef(code);
+ const langRef = useRef(language);
  const answerRef = useRef(answer);
  const noteRef = useRef(note);
  const workspaceRef = useRef<HTMLDivElement>(null); // anchor for floating reward on solve
@@ -216,6 +240,7 @@ export default function ProblemDetail() {
  const prevPendingRef = useRef<Set<string>>(new Set());
  const celebratedRef = useRef<Set<string>>(new Set());
  codeRef.current = code;
+ langRef.current = language;
  answerRef.current = answer;
  noteRef.current = note;
 
@@ -224,6 +249,7 @@ export default function ProblemDetail() {
  if (codeRef.current || answerRef.current || noteRef.current) {
  localStorage.setItem(draftKeyRef.current, JSON.stringify({
  code: codeRef.current,
+ language: langRef.current,
  answer: answerRef.current,
  note: noteRef.current,
  }));
@@ -237,7 +263,7 @@ export default function ProblemDetail() {
  }, []);
 
  const submitMutation = useMutation({
- mutationFn: (payload: { code: string; answer: string; note: string; typingSpeed: number | null; activeTimeSeconds: number; totalTimeSeconds: number }) =>
+ mutationFn: (payload: { code: string; language: SupportedLanguage; answer: string; note: string; typingSpeed: number | null; activeTimeSeconds: number; totalTimeSeconds: number }) =>
  api.post(`/problems/${problemId}/submissions`, payload).then((r) => r.data),
  onSuccess: (data) => {
  qc.invalidateQueries({ queryKey: ["problemSubmissions", problemId] });
@@ -387,14 +413,14 @@ export default function ProblemDetail() {
  </Button>
 
  <section className="overflow-hidden rounded-xl border border-border bg-card shadow-card">
- <div className="border-b border-border px-5 py-4">
- <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+ <div className="border-b border-border px-4 py-3.5">
+ <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
  <div>
- <h1 className="text-2xl font-semibold tracking-tight text-foreground">{problem.title}</h1>
- <div className="mt-2 flex flex-wrap items-center gap-2">
+ <h1 className="text-lg font-semibold tracking-tight text-foreground">{problem.title}</h1>
+ <div className="mt-1.5 flex flex-wrap items-center gap-2">
  {isStudent && isSolved && (
- <span className="inline-flex items-center gap-1 rounded-full /10 px-2 py-0.5 text-xs font-semibold">
- <CheckCircle2 className="h-3.5 w-3.5" /> Đã nộp
+ <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400">
+ <CheckCircle2 className="h-3 w-3" /> Đã nộp
  </span>
  )}
  <DifficultyBadge difficulty={problem.difficulty} />
@@ -404,13 +430,15 @@ export default function ProblemDetail() {
  </span>
  )}
  </div>
- <div className="mt-3 flex flex-wrap gap-2">
- {problem.tags?.map((tag: any) => (
- <span key={tag.tag} className="inline-flex items-center gap-1 rounded-lg bg-muted px-2 py-1 text-xs font-medium text-muted-foreground">
- <Tag className="h-3 w-3" /> {tag.tag}
+ {problem.tags?.length > 0 && (
+ <div className="mt-2 flex flex-wrap gap-1.5">
+ {problem.tags.map((tag: any) => (
+ <span key={tag.tag} className="inline-flex items-center gap-1 rounded-md bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+ <Tag className="h-2.5 w-2.5" /> {tag.tag}
  </span>
  ))}
  </div>
+ )}
  </div>
 
  {isTeacher && (
@@ -423,31 +451,31 @@ export default function ProblemDetail() {
  </div>
  </div>
 
- <div className="flex overflow-x-auto border-b border-border">
+ <div className="no-scrollbar flex overflow-x-auto border-b border-border bg-muted/25 px-2">
  {tabs.filter((tab) => isTeacher || tab.id !== 3 || hasAccepted).map((tab) => (
  <button
  key={tab.id}
  onClick={() => setActiveTab(tab.id)}
- className={`inline-flex items-center gap-2 border-b-2 px-5 py-3 text-sm font-medium transition-colors ${ activeTab === tab.id ?"border-foreground text-foreground" :"border-transparent text-muted-foreground hover:text-foreground" }`}
+ className={`inline-flex items-center gap-1.5 border-b-2 px-3.5 py-2.5 text-xs font-medium transition-colors ${ activeTab === tab.id ?"border-primary text-foreground" :"border-transparent text-muted-foreground hover:text-foreground" }`}
  >
- <tab.icon className="h-4 w-4" />
+ <tab.icon className="h-3.5 w-3.5" />
  {tab.label}
  {tab.id === 2 && isStudent && submissions.length > 0 && (
- <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">{submissions.length}</span>
+ <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">{submissions.length}</span>
  )}
  {tab.id === 1 && isTeacher && assignedStudentsQuery.data && (
- <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs text-muted-foreground">
+ <span className="rounded-full bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground">
  {assignedStudentsQuery.data.totalSubmitted || 0}/{assignedStudentsQuery.data.totalAssigned || assignedStudentsQuery.data.students?.length || 0}
  </span>
  )}
  {tab.id === 2 && isTeacher && pendingHackTests > 0 && (
- <span className="rounded-full /10 px-1.5 py-0.5 text-xs">{pendingHackTests}</span>
+ <span className="rounded-full bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-400">{pendingHackTests}</span>
  )}
  </button>
  ))}
  </div>
 
- <div className="p-5">
+ <div className="p-4">
  {activeTab === 0 && (
  <StudentWorkspacePanel
  eyebrow="Đề luyện tập"
@@ -472,9 +500,29 @@ export default function ProblemDetail() {
  title={problem.title}
  bare
  action={(
- <span className="rounded-full bg-muted px-3 py-1 text-sm font-medium text-muted-foreground">
- Python
+ <div className="flex items-center gap-2">
+ <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+ {language === "cpp" ? "C++" : "Python"}
  </span>
+ <Button
+ type="button"
+ variant="outline"
+ size="sm"
+ className="h-7 gap-1 px-2.5 text-xs"
+ onClick={() =>
+ openInCodeLab(navigate, {
+ code: code || problem.starterCode || "",
+ language,
+ fileName: `bai_${problem.id.slice(0, 6)}.${language === "cpp" ? "cpp" : "py"}`,
+ inputText: problem.sampleInput || "",
+ sourceLabel: problem.title,
+ })
+ }
+ >
+ <Terminal className="h-3.5 w-3.5 text-primary" />
+ Mở Code Lab
+ </Button>
+ </div>
  )}
  minHeightClassName="min-h-[680px]"
  >
@@ -497,6 +545,8 @@ export default function ProblemDetail() {
  <PythonCodeWorkspace
  code={code}
  onCodeChange={handleTrackedCodeChange}
+ language={language}
+ onLanguageChange={setLanguage}
  starterCode={problem.starterCode}
  sampleInput={problem.sampleInput}
  sampleOutput={problem.sampleOutput}
@@ -529,17 +579,17 @@ export default function ProblemDetail() {
  <>
  {/* Summary cards */}
  <div className="grid grid-cols-3 gap-3">
- <div className="rounded-xl border border-border bg-card p-4 text-center shadow-sm">
- <p className="text-2xl font-semibold tabular-nums text-foreground">{assignedStudentsQuery.data?.totalAssigned || 0}</p>
- <p className="text-xs text-muted-foreground mt-1">Được giao</p>
+ <div className="rounded-xl border border-border bg-card p-3.5 text-center shadow-sm">
+ <p className="text-xl font-semibold tabular-nums text-foreground">{assignedStudentsQuery.data?.totalAssigned || 0}</p>
+ <p className="mt-0.5 text-xs text-muted-foreground">Được giao</p>
  </div>
- <div className="rounded-xl border /10 p-4 text-center">
- <p className="text-2xl font-semibold tabular-nums">{assignedStudentsQuery.data?.totalSubmitted || 0}</p>
- <p className="text-xs /80 mt-1">Đã nộp</p>
+ <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-center">
+ <p className="text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{assignedStudentsQuery.data?.totalSubmitted || 0}</p>
+ <p className="mt-0.5 text-xs text-emerald-700/80 dark:text-emerald-400/80">Đã nộp</p>
  </div>
- <div className="rounded-xl border /10 p-4 text-center">
- <p className="text-2xl font-semibold tabular-nums">{assignedStudentsQuery.data?.totalPending || 0}</p>
- <p className="text-xs /80 mt-1">Chưa nộp</p>
+ <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-center">
+ <p className="text-xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">{assignedStudentsQuery.data?.totalPending || 0}</p>
+ <p className="mt-0.5 text-xs text-amber-700/80 dark:text-amber-400/80">Chưa nộp</p>
  </div>
  </div>
 
@@ -592,11 +642,11 @@ export default function ProblemDetail() {
  </td>
  <td className="px-4 py-3 text-center">
  {s.hasSubmitted ? (
- <span className="inline-flex items-center gap-1 text-xs font-semibold dark:/10 px-2 py-0.5 rounded-full">
+ <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
  <CheckCircle2 className="w-3 h-3" /> Đã nộp
  </span>
  ) : (
- <span className="inline-flex items-center gap-1 text-xs font-semibold dark:/10 px-2 py-0.5 rounded-full">
+ <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
  <Clock className="w-3 h-3" /> Chưa nộp
  </span>
  )}
@@ -622,8 +672,10 @@ export default function ProblemDetail() {
  <button
  onClick={(e) => {
  e.stopPropagation();
- if (s.submissionKind ==="practice") setPracticeSubmissionId(s.submissionId);
- else navigate(`/submissions/${s.submissionId}`);
+ setViewingSubmission({
+   id: s.submissionId,
+   kind: s.submissionKind === "assignment" ? "assignment" : "practice",
+ });
  }}
  className="text-sm font-medium text-primary hover:underline"
  >
@@ -679,9 +731,9 @@ export default function ProblemDetail() {
  {submission.code && (
  <Editor
  height="220px"
- language="python"
+ language={submission.language === "cpp" || /#include\s*</.test(submission.code) ? "cpp" : "python"}
  value={submission.code}
- theme="vs-dark"
+ theme={dark ? "vs-dark" : "vs"}
  options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false }}
  />
  )}
@@ -776,14 +828,14 @@ export default function ProblemDetail() {
  <div key={hackTest.id} className="rounded-lg border border-border bg-card p-3">
  <div className="flex items-center justify-between gap-2">
  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
- hackTest.status ==="approved" ?"/10 " :
- hackTest.status ==="rejected" ?"bg-destructive/10 text-destructive" :"/10 "
+ hackTest.status ==="approved" ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :
+ hackTest.status ==="rejected" ?"bg-destructive/10 text-destructive" :"bg-amber-500/15 text-amber-700 dark:text-amber-400"
  }`}>
  {hackTest.status ==="approved" ?"Đã duyệt" : hackTest.status ==="rejected" ?"Từ chối" :"Chờ duyệt"}
  </span>
  <span className="text-xs text-muted-foreground">{new Date(hackTest.createdAt).toLocaleDateString("vi-VN")}</span>
  </div>
- <pre className="mt-2 max-h-24 overflow-auto rounded bg-foreground p-2 font-mono text-xs">{hackTest.inputPreview}</pre>
+ <pre className="mt-2 max-h-24 overflow-auto rounded border border-border bg-muted/60 p-2 font-mono text-xs text-foreground">{hackTest.inputPreview}</pre>
  {hackTest.validationNote && <p className="mt-2 text-xs leading-5 text-muted-foreground">{hackTest.validationNote}</p>}
  </div>
  ))
@@ -812,8 +864,8 @@ export default function ProblemDetail() {
  <div>
  <div className="flex flex-wrap items-center gap-2">
  <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
- hackTest.status ==="approved" ?"/10 " :
- hackTest.status ==="rejected" ?"bg-destructive/10 text-destructive" :"/10 "
+ hackTest.status ==="approved" ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :
+ hackTest.status ==="rejected" ?"bg-destructive/10 text-destructive" :"bg-amber-500/15 text-amber-700 dark:text-amber-400"
  }`}>
  {hackTest.status ==="approved" ?"Đã duyệt" : hackTest.status ==="rejected" ?"Từ chối" :"Chờ duyệt"}
  </span>
@@ -850,11 +902,11 @@ export default function ProblemDetail() {
  <div className="mt-3 grid gap-3 md:grid-cols-2">
  <div>
  <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Input</p>
- <pre className="max-h-56 overflow-auto rounded-lg bg-foreground p-3 font-mono text-xs">{hackTest.input}</pre>
+ <pre className="max-h-56 overflow-auto rounded-lg border border-border bg-muted/60 p-3 font-mono text-xs text-foreground">{hackTest.input}</pre>
  </div>
  <div>
  <p className="mb-1 text-xs font-medium uppercase text-muted-foreground">Output đúng</p>
- <pre className="max-h-56 overflow-auto rounded-lg bg-foreground p-3 font-mono text-xs">{hackTest.expectedOutput}</pre>
+ <pre className="max-h-56 overflow-auto rounded-lg border border-border bg-muted/60 p-3 font-mono text-xs text-foreground">{hackTest.expectedOutput}</pre>
  </div>
  </div>
  </div>
@@ -915,6 +967,7 @@ export default function ProblemDetail() {
  setShowConfirm(false);
  submitMutation.mutate({
  code: code.trim(),
+ language,
  answer: answer.trim(),
  note: note.trim(),
  ...getPracticeTrackingPayload(),
@@ -924,7 +977,7 @@ export default function ProblemDetail() {
  />
 
 
- {practiceSubmissionId && (
+ {viewingSubmission && (
  <div
  className="fixed inset-0 z-[100] flex items-center justify-center"
  role="dialog"
@@ -933,10 +986,10 @@ export default function ProblemDetail() {
  >
  <div
  className="absolute inset-0 bg-black/40 backdrop-blur-sm"
- onClick={() => setPracticeSubmissionId(null)}
+ onClick={() => setViewingSubmission(null)}
  aria-hidden="true"
  />
- <EscapeOnOpen onEscape={() => setPracticeSubmissionId(null)} />
+ <EscapeOnOpen onEscape={() => setViewingSubmission(null)} />
  <div className="relative mx-4 flex max-h-[86vh] w-full max-w-4xl flex-col rounded-2xl border border-border bg-card shadow-elevated">
  <div className="flex items-start justify-between border-b border-border px-5 py-4">
  <div>
@@ -947,7 +1000,7 @@ export default function ProblemDetail() {
  {practiceSubmissionQuery.data?.problem?.title ||"Đang tải..."}
  </p>
  </div>
- <Button variant="ghost" size="sm" onClick={() => setPracticeSubmissionId(null)}>
+ <Button variant="ghost" size="sm" onClick={() => setViewingSubmission(null)}>
  Đóng
  </Button>
  </div>
@@ -963,9 +1016,14 @@ export default function ProblemDetail() {
  )}
  <Editor
  height="460px"
- language="python"
+ language={
+   practiceSubmissionQuery.data?.language === "cpp" ||
+   /#include\s*</.test(practiceSubmissionQuery.data?.code || "")
+     ? "cpp"
+     : "python"
+ }
  value={practiceSubmissionQuery.data?.code || practiceSubmissionQuery.data?.answer ||""}
- theme="vs-dark"
+ theme={dark ? "vs-dark" : "vs"}
  options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false }}
  />
  </div>

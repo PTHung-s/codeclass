@@ -295,7 +295,7 @@ export default function CodeDuelAuthoring() {
  </p>
  </div>
  <div className="flex shrink-0 items-center gap-1.5">
- <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.enabled && r.status ==="ready" ?"" :""}`}>
+ <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${r.enabled && r.status ==="ready" ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :"bg-muted text-muted-foreground"}`}>
  {r.enabled ? (r.status ==="ready" ?"Đang bật" : r.status) :"Đã tắt"}
  </span>
  <button
@@ -371,7 +371,7 @@ export default function CodeDuelAuthoring() {
  <div key={i} className="grid gap-1 rounded-md border border-border bg-background/60 p-2.5 text-xs">
  <div className="flex items-center justify-between">
  <span className="font-semibold text-foreground">Test {i + 1}</span>
- <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.hidden ?"" :""}`}>
+ <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold ${t.hidden ?"bg-amber-500/15 text-amber-700 dark:text-amber-400" :"bg-sky-500/15 text-sky-700 dark:text-sky-400"}`}>
  {t.hidden ?"Ẩn" :"Công khai"}
  </span>
  </div>

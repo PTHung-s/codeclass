@@ -1,15 +1,37 @@
 // ── Skill Assessment Types ──
 
+export interface MasteryBreakdownItem {
+  ts: string;
+  source: string;
+  label: string;
+  delta: number;
+  valueAfter: number;
+  correct?: number;
+  total?: number;
+  hintCount?: number;
+}
+
 export interface SkillState {
   skillId: string;
   name: string;
-  mastery: number; // 0.0 → 1.0
+  mastery: number; // 0.0 → 1.0 (effective mastery today)
   trend: "up" | "down" | "flat";
   hasEvidence?: boolean;
   evidenceCount?: number;
   lowerBound?: number;
   upperBound?: number;
   confidenceLevel?: "low" | "forming" | "medium" | "high";
+  rawMastery?: number;
+  retentionRate?: number;
+  halfLifeDays?: number;
+  daysSinceLastPractice?: number | null;
+  dueForReview?: boolean;
+  nextReviewAt?: string | null;
+  estimatedPrior?: number | null;
+  prerequisites?: string[];
+  weakPrerequisites?: { skillId: string; name: string; mastery: number }[];
+  breakdown?: MasteryBreakdownItem[];
+  sourceSummary?: Record<string, { sessions: number; correct: number; total: number }>;
 }
 
 export interface TopicGroup {
@@ -72,6 +94,10 @@ export interface HeatmapStudent {
   avatarUrl: string | null;
   skills: Record<string, {
     mastery: number;
+    rawMastery?: number;
+    retentionRate?: number;
+    dueForReview?: boolean;
+    daysSinceLastPractice?: number;
     lowerBound: number;
     upperBound: number;
     confidenceLevel: "low" | "forming" | "medium" | "high";

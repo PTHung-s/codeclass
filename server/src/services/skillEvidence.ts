@@ -24,7 +24,8 @@ export type SkillEvidenceSource =
   | "session_quiz"
   | "arena_quiz"
   | "challenge"
-  | "code_duel";
+  | "code_duel"
+  | "exam";
 
 export interface SkillEvidenceInput {
   userId: string;
@@ -117,6 +118,7 @@ export function fromLessonQuizAttempt(
     skillTagStatus?: string;
     difficulty?: number;
     contentVersion?: number;
+    weight?: number;
   }>,
   occurredAt: Date,
   attemptOrdinal: number,
@@ -134,7 +136,7 @@ export function fromLessonQuizAttempt(
       sessionKey,
       isCorrect: Boolean(d.isCorrect),
       difficultyUsed: Number.isFinite(d.difficulty) ? Number(d.difficulty) : 3,
-      weight: 1,
+      weight: Number.isFinite(d.weight) ? Number(d.weight) : 1,
       attempt: Math.max(1, attemptOrdinal),
       occurredAt,
     });
@@ -251,6 +253,41 @@ export function fromSessionQuizAttempt(
 }
 
 /**
+ * Từ một bài thi (ExamAttempt). Chỉ ghi những skillId tồn tại trong bảng Skill.
+ */
+export function fromExamAttempt(
+  userId: string,
+  examId: string,
+  attemptId: string,
+  answers: Array<{ questionId: string; isCorrect: boolean; skillIds: string[]; difficulty?: number }>,
+  validSkillIds: Set<string>,
+  occurredAt: Date,
+): SkillEvidenceInput[] {
+  const sessionKey = `exam:${examId}:${attemptId}`;
+  const rows: SkillEvidenceInput[] = [];
+  for (const ans of answers) {
+    const seen = new Set<string>();
+    for (const skillId of ans.skillIds) {
+      if (!skillId || seen.has(skillId) || !validSkillIds.has(skillId)) continue;
+      seen.add(skillId);
+      rows.push({
+        userId,
+        skillId,
+        source: "exam",
+        contextId: examId,
+        questionKey: `${ans.questionId}:${skillId}`,
+        sessionKey,
+        isCorrect: Boolean(ans.isCorrect),
+        difficultyUsed: Number.isFinite(ans.difficulty) ? Number(ans.difficulty) : 3,
+        weight: 1,
+        occurredAt,
+      });
+    }
+  }
+  return rows;
+}
+
+/**
  * Từ arena quiz answer (DebugArenaQuestion với quizItemId). skillId lấy từ
  * ArenaQuizItem.skillId đã load trong submitQuizAnswer.
  */
@@ -285,7 +322,7 @@ export function fromArenaQuizAnswer(
 
 /**
  * Từ in-lesson challenge. SkillId lấy từ SkillTagMapping (challenge scope).
- * Chỉ emit khi passed === true (lần đầu giải được).
+ * Ghi nhận tối đa 1 lần fail (:fail, weight 0.65) và 1 lần pass để tránh thiên lệch dương.
  */
 export function fromChallengeAttempt(
   userId: string,
@@ -295,26 +332,25 @@ export function fromChallengeAttempt(
   passed: boolean,
   occurredAt: Date,
 ): SkillEvidenceInput[] {
-  if (!skillId || !passed) return [];
+  if (!skillId) return [];
   return [
     {
       userId,
       skillId,
       source: "challenge",
       contextId: challengeKey,
-      questionKey: challengeKey,
-      sessionKey: `challenge:${challengeKey}`,
-      isCorrect: true,
+      questionKey: passed ? challengeKey : `${challengeKey}:fail`,
+      sessionKey: passed ? `challenge:${challengeKey}` : `challenge:${challengeKey}:fail`,
+      isCorrect: Boolean(passed),
       difficultyUsed: 3,
-      weight: 1,
+      weight: passed ? 1 : 0.65,
       occurredAt,
     },
   ];
 }
 
 /**
- * Từ code duel submission với verdict === "AC". skillId từ CodeDuelRound.skillId
- * (mới thêm ở §4.3 của plan).
+ * Từ code duel submission (AC hoặc Fail sau khi chấm vòng). skillId từ CodeDuelRound.skillId.
  */
 export function fromCodeDuelSubmission(
   userId: string,
@@ -323,6 +359,7 @@ export function fromCodeDuelSubmission(
   skillId: string | null,
   difficulty: string,
   occurredAt: Date,
+  isCorrect: boolean = true,
 ): SkillEvidenceInput[] {
   if (!skillId) return [];
   const diffMap: Record<string, number> = { easy: 1, medium: 3, hard: 5 };
@@ -332,11 +369,11 @@ export function fromCodeDuelSubmission(
       skillId,
       source: "code_duel",
       contextId: roundId,
-      questionKey: roundId,
-      sessionKey: `code_duel:${matchId}:${roundId}`,
-      isCorrect: true,
+      questionKey: isCorrect ? roundId : `${roundId}:fail`,
+      sessionKey: `code_duel:${matchId}:${roundId}:${isCorrect ? "ac" : "fail"}`,
+      isCorrect: Boolean(isCorrect),
       difficultyUsed: diffMap[difficulty] ?? 3,
-      weight: 1,
+      weight: isCorrect ? 1 : 0.75,
       occurredAt,
     },
   ];

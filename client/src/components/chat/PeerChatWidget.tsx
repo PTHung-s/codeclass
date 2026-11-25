@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useLocation } from "react-router-dom";
+import { AnimatePresence, motion } from "framer-motion";
 import { usePeerChat } from "../../hooks/usePeerChat";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { getAnimalAvatarUrl, getAvatarBgColor } from "../../lib/utils";
 import { socketSubscribe } from "../../lib/socket";
 import api from "../../lib/api";
-import { Smile, Lock, Info, ImagePlus, X } from "lucide-react";
+import { Smile, Lock, Info, ImagePlus, MessageCircle, X } from "lucide-react";
 
 const BASE_EMOJIS = ["😀", "😂", "🥰", "👍", "👏", "🎉", "🔥", "💯", "🤔", "💡", "🚀", "❤️"];
 const SPECIAL_GACHA_EMOJIS = [
@@ -44,6 +46,8 @@ function getAuraForText(text?: string | null): "" | "msg-aura-mythic" | "msg-aur
 
 export default function PeerChatWidget() {
   const { user } = useAuthContext();
+  const location = useLocation();
+  const isIdeRoute = location.pathname.startsWith("/code-lab");
   const { messages, send, toggleHeart, unread, markRead } = usePeerChat("global", null);
 
   const [collapsed, setCollapsed] = useState(true);
@@ -298,74 +302,90 @@ export default function PeerChatWidget() {
 
   return (
     <>
-      {/* 1. DOCK THU GỌN VÀO VIỀN PHẢI (BÁN NGUYỆT TRÒN + PREVIEW MINI + BADGE ĐẾM CHƯA ĐỌC) */}
-      <div
-        className={`fixed right-0 top-1/2 z-[9999] flex -translate-y-1/2 items-center gap-1.5 transition-all duration-300 ${
-          idleDimmed ? "opacity-30 hover:opacity-100" : "opacity-100"
-        } ${collapsed ? "translate-x-0" : "pointer-events-none translate-x-[120%] opacity-0"}`}
-      >
-        {/* Thẻ preview tin nhắn gần nhất (Tự trượt ẩn sau 6s) */}
-        {lastMessage && (
-          <div
-            onClick={handleOpen}
-            className={`flex max-w-[210px] cursor-pointer items-center gap-2 rounded-full border border-white/10 bg-[#121216]/90 px-2.5 py-1.5 shadow-xl backdrop-blur-xl transition-all duration-300 hover:scale-105 hover:bg-[#1a1a20] ${
-              previewVisible
-                ? "translate-x-0 opacity-100"
-                : "pointer-events-none translate-x-8 opacity-0"
-            }`}
-            title="Mở hộp thoại chat"
+      {/* 1. COMPACT BOTTOM-RIGHT CHAT LAUNCHER PILL */}
+      <AnimatePresence>
+        {collapsed && (
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.92 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 10, scale: 0.92 }}
+            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+            className={`fixed right-3 z-[9998] flex items-center gap-2 transition-opacity duration-300 ${
+              isIdeRoute ? "bottom-8" : "bottom-3.5"
+            } ${idleDimmed ? "opacity-45 hover:opacity-100" : "opacity-100"}`}
           >
-            <div
-              className="relative grid h-5 w-5 shrink-0 overflow-hidden place-items-center rounded-full text-[10px] font-bold text-white shadow-sm"
-              style={{ backgroundColor: getAvatarBgColor(lastMessage.fullName) }}
+            {/* Preview tin nhắn mới */}
+            <AnimatePresence>
+              {lastMessage && previewVisible && (
+                <motion.button
+                  type="button"
+                  initial={{ opacity: 0, x: 10, scale: 0.96 }}
+                  animate={{ opacity: 1, x: 0, scale: 1 }}
+                  exit={{ opacity: 0, x: 10, scale: 0.96 }}
+                  transition={{ type: "spring", stiffness: 420, damping: 30 }}
+                  onClick={handleOpen}
+                  className="flex max-w-[205px] items-center gap-2 rounded-full border border-border bg-card/95 px-2.5 py-1 shadow-lg backdrop-blur-md transition-colors hover:border-primary/40 dark:bg-[#161922]/95"
+                  title="Mở hộp thoại chat"
+                >
+                  <div
+                    className="relative grid size-5 shrink-0 place-items-center overflow-hidden rounded-full text-[9px] font-bold text-white"
+                    style={{ backgroundColor: getAvatarBgColor(lastMessage.fullName) }}
+                  >
+                    <img
+                      src={lastMessage.avatarUrl || getAnimalAvatarUrl(lastMessage.fullName)}
+                      alt={lastMessage.fullName}
+                      className="relative z-10 size-full rounded-full object-cover"
+                      onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <span className="absolute inset-0 z-0 flex items-center justify-center">
+                      {lastMessage.fullName.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="flex min-w-0 flex-col text-left">
+                    <span className="truncate text-[10px] font-semibold text-primary">
+                      {lastMessage.fullName}
+                    </span>
+                    <span className="truncate text-[11px] text-foreground">
+                      {lastMessagePreview}
+                    </span>
+                  </div>
+                </motion.button>
+              )}
+            </AnimatePresence>
+
+            <button
+              type="button"
+              onClick={handleOpen}
+              className="relative inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/95 px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-all hover:border-primary/40 hover:shadow-lg dark:bg-[#161922]/95"
+              title="Mở Live Chat"
+              aria-label="Mở Live Chat"
             >
-              <img
-                src={lastMessage.avatarUrl || getAnimalAvatarUrl(lastMessage.fullName)}
-                alt={lastMessage.fullName}
-                className="relative z-10 size-full rounded-full object-cover"
-                onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
-              />
-              <span className="absolute inset-0 z-0 flex items-center justify-center font-bold text-[9px]">
-                {lastMessage.fullName.charAt(0).toUpperCase()}
-              </span>
-            </div>
-            <div className="flex min-w-0 flex-col overflow-hidden text-left">
-              <span className="truncate text-[10px] font-semibold text-[#0A84FF]">
-                {lastMessage.fullName}
-              </span>
-              <span className="truncate text-[11px] text-[#f5f5f7]">
-                {lastMessagePreview}
-              </span>
-            </div>
-          </div>
+              <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
+              <MessageCircle className="size-3.5 text-primary" />
+              <span>Chat</span>
+              {unread > 0 && (
+                <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 font-mono text-[9px] font-bold text-destructive-foreground">
+                  {unread > 99 ? "99+" : unread}
+                </span>
+              )}
+            </button>
+          </motion.div>
         )}
+      </AnimatePresence>
 
-        {/* Nút bán nguyệt tròn dính sát mép phải kèm Badge đếm tin chưa đọc */}
-        <div
-          onClick={handleOpen}
-          className="relative flex h-[68px] w-8 cursor-pointer flex-col items-center justify-center gap-1.5 rounded-l-full border border-r-0 border-white/10 bg-[#121216]/90 pl-1 shadow-2xl backdrop-blur-xl transition-all hover:w-10 hover:bg-[#1e1e24]"
-          title="Mở Live Chat"
-        >
-          {/* Badge đếm số tin nhắn chưa đọc */}
-          {unread > 0 && (
-            <span className="absolute -top-1.5 -left-1.5 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff453a] px-1 font-mono text-[9px] font-bold text-white shadow-[0_0_8px_#ff453a] animate-pulse">
-              {unread > 99 ? "99+" : unread}
-            </span>
-          )}
-
-          <div className="h-1.5 w-1.5 rounded-full bg-[#30D158] shadow-[0_0_6px_#30D158]" />
-          <svg className="h-3.5 w-3.5 fill-[#86868b] transition hover:fill-white" viewBox="0 0 24 24">
-            <path d="M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z" />
-          </svg>
-        </div>
-      </div>
-
-      {/* 2. KHUNG CHAT COMPACT (CHIỀU CAO 350px, TRONG SUỐT 70% KHI IDLE) */}
-      <div
-        className={`fixed bottom-4 right-4 z-[9998] flex h-[350px] max-h-[calc(100vh-32px)] w-[295px] flex-col overflow-hidden rounded-lg border border-white/10 bg-[#121216]/95 text-[#f5f5f7] shadow-2xl backdrop-blur-2xl transition-all duration-300 ${
-          idleDimmed ? "opacity-30 hover:opacity-100" : "opacity-100"
-        } ${collapsed ? "pointer-events-none scale-75 translate-x-[120%] opacity-0" : "scale-100 translate-x-0"}`}
-      >
+      {/* 2. KHUNG CHAT COMPACT (SPRING POPUP FROM BOTTOM-RIGHT) */}
+      <AnimatePresence>
+        {!collapsed && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.92, y: 12 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.92, y: 10 }}
+            transition={{ type: "spring", stiffness: 420, damping: 30 }}
+            style={{ transformOrigin: "bottom right" }}
+            className={`fixed right-3 z-[9998] flex h-[350px] max-h-[calc(100vh-48px)] w-[295px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121216]/95 text-[#f5f5f7] shadow-2xl backdrop-blur-2xl transition-opacity duration-300 ${
+              isIdeRoute ? "bottom-8" : "bottom-3.5"
+            } ${idleDimmed ? "opacity-45 hover:opacity-100" : "opacity-100"}`}
+          >
         {/* Header */}
         <div className="flex h-9 shrink-0 items-center justify-between border-b border-white/10 px-3 select-none">
           <div className="flex items-center gap-1.5">
@@ -553,12 +573,12 @@ export default function PeerChatWidget() {
         </div>
 
         {/* Quick Action Chips */}
-        <div className="flex shrink-0 gap-1 overflow-x-auto px-2 pb-1 no-scrollbar">
-          {["👋 Chào cả lớp", "📚 Học bài thôi", "💡 Cần giúp?", "🙌 Cảm ơn"].map((chip) => (
+        <div className="flex shrink-0 gap-1 overflow-x-auto px-2 pb-1.5 no-scrollbar">
+          {["👋 Chào lớp", "📚 Học thôi", "💡 Cần giúp?", "🙌 Cảm ơn"].map((chip) => (
             <button
               key={chip}
               onClick={() => handleQuickSend(chip)}
-              className="shrink-0 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9.5px] font-medium text-[#f5f5f7] hover:bg-white/15"
+              className="shrink-0 rounded border border-white/10 bg-white/5 px-1.5 py-0.5 text-[9.5px] font-medium text-[#f5f5f7] transition-colors hover:bg-white/15"
             >
               {chip}
             </button>
@@ -566,8 +586,15 @@ export default function PeerChatWidget() {
         </div>
 
         {/* Emoji / Sticker Picker Popover */}
+        <AnimatePresence>
         {showEmojiPicker && (
-          <div className="absolute bottom-12 left-2 right-2 z-50 rounded-xl border border-white/15 bg-[#1a1a22] p-2.5 shadow-2xl backdrop-blur-2xl max-h-[240px] overflow-y-auto no-scrollbar">
+          <motion.div
+            initial={{ opacity: 0, y: 6, scale: 0.96 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 6, scale: 0.96 }}
+            transition={{ duration: 0.14, ease: [0.22, 1, 0.36, 1] }}
+            className="absolute bottom-12 left-2 right-2 z-50 rounded-xl border border-white/15 bg-[#1a1a22] p-2.5 shadow-2xl backdrop-blur-2xl max-h-[240px] overflow-y-auto no-scrollbar"
+          >
             <div className="flex items-center justify-between border-b border-white/10 pb-1.5 mb-2">
               {/* Tabs Emoji / Sticker */}
               <div className="flex gap-1">
@@ -695,8 +722,9 @@ export default function PeerChatWidget() {
                 </div>
               </div>
             )}
-          </div>
+          </motion.div>
         )}
+        </AnimatePresence>
 
         {/* Preview ảnh chờ gửi (paste hoặc chọn file) */}
         {pendingImages.length > 0 && (
@@ -763,6 +791,7 @@ export default function PeerChatWidget() {
           </button>
 
           <input
+            data-slot="peerchat-input"
             type="text"
             value={input}
             onChange={(e) => {
@@ -798,7 +827,9 @@ export default function PeerChatWidget() {
             </svg>
           </button>
         </div>
-      </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Lightbox xem ảnh giữa màn hình */}
       {lightboxUrl && (

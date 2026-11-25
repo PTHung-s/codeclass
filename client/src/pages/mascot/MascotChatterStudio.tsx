@@ -127,20 +127,20 @@ export default function MascotChatterStudio() {
  };
 
  return (
- <div className="min-h-screen bg-slate-950 p-6">
+ <div className="min-h-screen bg-slate-950 p-6 text-slate-200">
  {/* Studio Control Header */}
  <div className="mx-auto max-w-5xl space-y-6">
- <div className="flex items-center justify-between border-b pb-4">
+ <div className="flex items-center justify-between border-b border-white/10 pb-4">
  <div className="flex items-center gap-3">
- <div className="flex h-10 w-10 items-center justify-center rounded-xl /20">
+ <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-sky-500/20 text-sky-400">
  <Bot className="h-6 w-6" />
  </div>
  <div>
  <h1 className="text-xl font-bold text-white">Mascot Chatter Studio</h1>
- <p className="text-xs">Xem trước 2 Mascot hiển thị trực tiếp trên Web với Khung Chat trong suốt</p>
+ <p className="text-xs text-slate-400">Xem trước 2 Mascot hiển thị trực tiếp trên Web với Khung Chat trong suốt</p>
  </div>
  </div>
- <span className="rounded-full border /10 px-3 py-1 text-xs font-semibold">
+ <span className="rounded-full border border-sky-500/30 bg-sky-500/10 px-3 py-1 text-xs font-semibold text-sky-300">
  Chế độ Sandbox / Testing
  </span>
  </div>
@@ -194,10 +194,10 @@ export default function MascotChatterStudio() {
  <button
  key={num}
  onClick={() => setActiveAction(num)}
- className={`flex flex-col items-start rounded-xl border border-border p-2.5 text-left transition ${
+ className={`flex flex-col items-start rounded-xl border p-2.5 text-left transition ${
  activeAction === num
- ?" /20 shadow-[0_0_15px_rgba(56,189,248,0.3)]"
- :" /80"
+ ?"border-sky-400/60 bg-sky-500/20 shadow-[0_0_15px_rgba(56,189,248,0.3)]"
+ :"border-white/10 bg-slate-900/80 hover:bg-slate-800/80"
  }`}
  >
  <span className="text-xs font-bold text-white">Ô #{num}</span>
@@ -217,8 +217,8 @@ export default function MascotChatterStudio() {
  <span className="text-xs">Tự động chuyển câu thoại:</span>
  <button
  onClick={() => setAutoPlay(!autoPlay)}
- className={`rounded-full px-3 py-1 text-xs font-bold transition ${
- autoPlay ?"/20 border" :""
+ className={`rounded-full border px-3 py-1 text-xs font-bold transition ${
+ autoPlay ?"border-emerald-500/40 bg-emerald-500/20 text-emerald-300" :"border-white/10 bg-white/5 text-slate-400"
  }`}
  >
  {autoPlay ?"ON" :"OFF"}
@@ -229,7 +229,7 @@ export default function MascotChatterStudio() {
  <button
  onClick={() => setCustomSpeaker("fox")}
  className={`flex-1 rounded-lg py-1 text-xs font-bold transition ${
- customSpeaker ==="fox" ?"text-slate-950" :""
+ customSpeaker ==="fox" ?"bg-amber-400 text-slate-950" :"bg-white/10 text-slate-300"
  }`}
  >
  🐱 Mèo (Trái)
@@ -237,7 +237,7 @@ export default function MascotChatterStudio() {
  <button
  onClick={() => setCustomSpeaker("cat")}
  className={`flex-1 rounded-lg py-1 text-xs font-bold transition ${
- customSpeaker ==="cat" ?"text-white" :""
+ customSpeaker ==="cat" ?"bg-sky-500 text-white" :"bg-white/10 text-slate-300"
  }`}
  >
  🐶 Cún (Phải)
@@ -246,15 +246,16 @@ export default function MascotChatterStudio() {
 
  <div className="flex gap-2">
  <input
+ data-slot="mascot-custom-input"
  type="text"
  value={customText}
  onChange={(e) => setCustomText(e.target.value)}
  placeholder="Nhập lời thoại..."
- className="flex-1 rounded-xl border border-border px-3 py-1.5 text-xs text-white placeholder: focus:outline-none focus:ring-1"
+ className="flex-1 rounded-xl border border-white/15 bg-slate-900/80 px-3 py-1.5 text-xs text-white placeholder:text-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-400"
  />
  <button
  onClick={handleSendCustom}
- className="rounded-xl px-3 py-1.5 text-xs font-bold text-white"
+ className="rounded-xl bg-sky-500 px-3 py-1.5 text-xs font-bold text-white transition hover:bg-sky-400"
  >
  Nói
  </button>
@@ -272,7 +273,7 @@ export default function MascotChatterStudio() {
  initial={{ scale: 0.8 }}
  animate={{ scale: 1 }}
  onClick={() => setMinimized(false)}
- className={`${posClasses[widgetPosition]} z-50 flex items-center gap-2 rounded-full border /90 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-2xl backdrop-blur transition hover:scale-105`}
+ className={`${posClasses[widgetPosition]} z-50 flex items-center gap-2 rounded-full border border-sky-400/50 bg-sky-400/90 px-4 py-2.5 text-xs font-bold text-slate-950 shadow-2xl backdrop-blur transition hover:scale-105`}
  >
  <Sparkles className="h-4 w-4 animate-spin" />
  <span>Mascot AI (🐱🐶)</span>
@@ -305,12 +306,12 @@ export default function MascotChatterStudio() {
  <div className="flex items-center gap-1.5">
  <span
  className={`inline-block h-2 w-2 rounded-full ${
- currentLine.speaker ==="fox" ?" animate-pulse" :" animate-pulse"
+ currentLine.speaker ==="fox" ?"bg-amber-400 animate-pulse" :"bg-sky-400 animate-pulse"
  }`}
  />
  <span
  className={`text-[11px] font-black tracking-wide uppercase ${
- currentLine.speaker ==="fox" ?"" :""
+ currentLine.speaker ==="fox" ?"text-amber-300" :"text-sky-300"
  }`}
  >
  {currentLine.speaker ==="fox" ?"🐱 Mèo Pixel" :"🐶 Cún Đốm"}

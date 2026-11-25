@@ -38,12 +38,23 @@ const SHORT_NAMES: Record<string, string> = {
   "C++: Mảng": "C++ Mảng",
   "C++: Hàm": "C++ Hàm",
   "C++: Chuỗi ký tự": "C++ Chuỗi",
+  "Thuật toán: Kỹ năng giải bài": "Giải bài",
+  "Thuật toán: Số học cơ bản": "Số học",
+  "Thuật toán: Sàng và tiền xử lý": "Sàng & Tiền xử lý",
+  "Thuật toán: Kỹ thuật với dãy số": "Dãy số & Prefix",
+  "Thuật toán: Xử lý chuỗi nâng cao": "Chuỗi nâng cao",
+  "Thuật toán: Dictionary và Set": "Dict & Set",
+  "Thuật toán: Tìm kiếm và sắp xếp": "Tìm & Sắp xếp",
+  "Thuật toán: Hai con trỏ và cửa sổ trượt": "2 Con trỏ",
+  "Thuật toán: Đệ quy cơ bản": "Đệ quy",
+  "Thuật toán: Luyện đề và chiến thuật thi": "Chiến thuật thi",
 };
 
-/** Programming language of a skill, from its canonical skill-id prefix. */
-export type SkillLanguage = "py" | "cpp";
+/** Programming language / domain of a skill, from its canonical skill-id prefix. */
+export type SkillLanguage = "py" | "cpp" | "algo";
 
-const langPrefix = (lang: SkillLanguage) => (lang === "cpp" ? "cpp." : "py.");
+const langPrefix = (lang: SkillLanguage) =>
+  lang === "cpp" ? "cpp." : lang === "algo" ? "algo." : "py.";
 
 /** Topics made up of skills of one language (each topic is single-language). */
 export function topicsForLanguage<T extends { skills: Array<{ skillId: string }> }>(

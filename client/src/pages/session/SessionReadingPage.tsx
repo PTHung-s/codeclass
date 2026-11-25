@@ -38,24 +38,24 @@ export default function SessionReadingPage() {
       </Button>
 
       <Card>
-        <CardContent className="p-6 md:p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardContent className="p-4 md:p-6">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Buổi {String(lesson.orderIndex).padStart(2, "0")}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {lesson.title}
           </h1>
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <BookOpen className="h-4 w-4" /> Bài đọc và tài liệu tham khảo
           </p>
 
-          <div className="mt-8 border-t border-border pt-7">
-            <article className="min-w-0 text-[1.05rem] leading-8 text-foreground">
+          <div className="mt-5 border-t border-border pt-5">
+            <article className="min-w-0 text-[0.95rem] leading-7 text-foreground">
               {lesson.readingContent ? (
                 <ArenaMarkdown
                   content={lesson.readingContent}
                   variant="document"
-                  className="text-[1.05rem] leading-8 text-foreground"
+                  className="text-[0.95rem] leading-7 text-foreground"
                 />
               ) : (
                 <p className="text-muted-foreground">Chưa có bài đọc cho buổi này.</p>

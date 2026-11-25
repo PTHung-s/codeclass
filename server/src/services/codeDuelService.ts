@@ -613,13 +613,24 @@ async function judgeRound(matchId: string) {
           }))),
         },
       });
-      // Skill evidence → unified sink (fail-soft). Only AC counts; the sink's
-      // dedup key keeps one evidence row per student per round.
-      if (verdict === "AC" && duelSkillId) {
+      // Skill evidence → unified sink (fail-soft). Record both AC and Fail verdicts
+      // after final round judging so positive/negative outcomes are balanced.
+      if (duelSkillId) {
         try {
           await recordSkillEvidenceBatch(
-            fromCodeDuelSubmission(sub.userId, round.id, matchId, duelSkillId, round.difficulty, sub.submittedAt || new Date()),
+            fromCodeDuelSubmission(
+              sub.userId,
+              round.id,
+              matchId,
+              duelSkillId,
+              round.difficulty,
+              sub.submittedAt || new Date(),
+              verdict === "AC",
+            ),
           );
+          import("./skillMastery")
+            .then(({ queueMasteryRecalculation }) => queueMasteryRecalculation(sub.userId))
+            .catch(() => {});
         } catch (err) {
           console.error(`[CodeDuel] skill evidence record failed for ${sub.id}:`, err);
         }
@@ -1013,8 +1024,11 @@ export async function submitCode(
       const skillId = await resolveCodeDuelRoundSkill(roundId, round.skillId);
       if (skillId) {
         await recordSkillEvidenceBatch(
-          fromCodeDuelSubmission(userId, roundId, matchId, skillId, round.difficulty, submittedAt),
+          fromCodeDuelSubmission(userId, roundId, matchId, skillId, round.difficulty, submittedAt, true),
         );
+        import("./skillMastery")
+          .then(({ queueMasteryRecalculation }) => queueMasteryRecalculation(userId))
+          .catch(() => {});
       }
     } catch (err) {
       console.error("[CodeDuel] skill evidence record failed:", err);

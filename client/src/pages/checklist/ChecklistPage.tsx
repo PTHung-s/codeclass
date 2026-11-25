@@ -176,11 +176,11 @@ export default function ChecklistPage() {
  className={`w-full flex items-center gap-3 py-2.5 px-2 -mx-2 text-left ${hasProblems ?"cursor-pointer" :"cursor-default opacity-50"}`}
  >
  <span className={`w-5 h-5 rounded-full flex items-center justify-center text-xs shrink-0 ${
- isComplete ?"" : pct > 0 ?"" :""
+ isComplete ?"bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" : pct > 0 ?"bg-amber-500/15 text-amber-600 dark:text-amber-400" :"bg-muted text-muted-foreground"
  }`}>{isComplete ?"✓" : pct > 0 ?"◐" :"○"}</span>
  <span className="text-sm flex-1">{item.label}</span>
  <StarDisplay stars={stars} />
- <span className={`text-xs font-medium w-10 text-right ${isComplete ?"" : pct > 0 ?"" :""}`}>
+ <span className={`text-xs font-medium w-10 text-right tabular-nums ${isComplete ?"text-emerald-600 dark:text-emerald-400" : pct > 0 ?"text-amber-600 dark:text-amber-400" :"text-muted-foreground"}`}>
  {hasProblems ? `${passed}/${total}` :""}
  </span>
  {hasProblems && (isExpanded ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />)}

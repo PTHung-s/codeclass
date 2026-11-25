@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "../../contexts/AuthContext";
-import { X, Lock, Check, Star, Coins } from "lucide-react";
+import { X, Lock, Check, Star, Coins, Settings, LogOut } from "lucide-react";
 import { getAnimalAvatarUrl, getAvatarBgColor } from "../../lib/utils";
 import api from "../../lib/api";
 import { useToast } from "../../hooks/useToast";
@@ -36,7 +37,8 @@ interface ProfileDropdownProps {
 }
 
 export default function ProfileDropdown({ open, onClose }: ProfileDropdownProps) {
-  const { user } = useAuthContext();
+  const { user, logout } = useAuthContext();
+  const navigate = useNavigate();
   const toast = useToast();
   const [shop, setShop] = useState<AvatarShopData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -106,7 +108,7 @@ export default function ProfileDropdown({ open, onClose }: ProfileDropdownProps)
       ref={dropdownRef}
       role="dialog"
       aria-label="Hồ sơ học viên"
-      className="absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-[22rem] rounded-2xl border border-border bg-card p-4 shadow-lg sm:w-[22rem]"
+      className="dropdown-in absolute right-0 z-50 mt-2 w-[calc(100vw-2rem)] max-w-[22rem] rounded-2xl border border-border bg-card p-4 shadow-lg sm:w-[22rem]"
     >
       {/* Header */}
       <div className="mb-3 flex items-center justify-between">
@@ -251,6 +253,32 @@ export default function ProfileDropdown({ open, onClose }: ProfileDropdownProps)
         <p className="mt-2 text-[11px] text-muted-foreground">
           Bấm avatar đã mở để đổi. Avatar có ổ khoá: đủ tokens thì bấm để mở khoá.
         </p>
+      </div>
+
+      <div className="mt-3 flex items-center gap-1.5 border-t border-border pt-2.5">
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            navigate("/settings");
+          }}
+          className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-foreground transition-colors hover:bg-muted"
+        >
+          <Settings className="size-3.5 text-muted-foreground" />
+          Cài đặt
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            onClose();
+            logout();
+            navigate("/login");
+          }}
+          className="inline-flex h-8 flex-1 items-center justify-center gap-1.5 rounded-lg border border-border bg-background px-2.5 text-xs font-medium text-rose-600 transition-colors hover:bg-rose-500/10 dark:text-rose-400"
+        >
+          <LogOut className="size-3.5" />
+          Đăng xuất
+        </button>
       </div>
     </div>
   );

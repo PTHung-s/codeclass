@@ -108,27 +108,27 @@ export default function ExamMonitor() {
   const view = paper[Math.min(qIdx, Math.max(0, paper.length - 1))];
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <Button variant="ghost" size="sm" className="-ml-2 mb-3" onClick={() => navigate(`/exams/${examId}/edit`)}>
-        <ArrowLeft className="h-4 w-4" /> Về soạn đề
+    <div className="mx-auto max-w-7xl px-3 py-4 sm:px-5">
+      <Button variant="ghost" size="sm" className="-ml-2 mb-2 h-7 text-xs text-muted-foreground" onClick={() => navigate(`/exams/${examId}/edit`)}>
+        <ArrowLeft className="h-3.5 w-3.5" /> Về soạn đề
       </Button>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="flex items-center gap-2 text-2xl font-semibold">
-            <Radar className="h-6 w-6" /> Giám sát phòng thi
+          <h1 className="flex items-center gap-2 text-lg font-semibold tracking-tight">
+            <Radar className="h-5 w-5 text-primary" /> Giám sát phòng thi
           </h1>
-          <p className="text-sm text-muted-foreground">
-            Xem bài làm realtime đúng như màn hình học sinh · điều khiển tạm dừng khi cần hỗ trợ khẩn cấp.
+          <p className="text-xs text-muted-foreground">
+            Xem bài làm realtime đúng như màn hình học sinh · tạm dừng khẩn cấp khi cần hỗ trợ.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => monQ.refetch()}>
-          <RefreshCw className="h-4 w-4" /> Làm mới
+        <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => monQ.refetch()}>
+          <RefreshCw className="h-3.5 w-3.5" /> Làm mới
         </Button>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[290px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[272px_1fr]">
         {/* Student list */}
-        <div className="space-y-2">
+        <div className="space-y-1.5 lg:max-h-[calc(100vh-12rem)] lg:overflow-y-auto lg:pr-1">
           {students.length === 0 && (
             <p className="text-sm text-muted-foreground">Chưa có học sinh vào thi.</p>
           )}
@@ -137,27 +137,28 @@ export default function ExamMonitor() {
             const live = liveExtra[id];
             const name = s.attempt.student?.fullName || id.slice(0, 8);
             const isPaused = Boolean(s.attempt.pause?.paused);
+            const statusLabel = s.attempt.status === "in_progress" ? "Đang thi" : s.attempt.status === "submitted" ? "Đã nộp" : "Hết giờ";
             return (
               <button
                 key={id}
                 type="button"
                 onClick={() => setSelected(id)}
-                className={`w-full rounded-xl border p-3 text-left text-sm ${
-                  activeId === id ? "border-primary bg-primary/5" : "border-border bg-card"
+                className={`w-full rounded-lg border p-2.5 text-left text-xs transition-colors ${
+                  activeId === id ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card hover:bg-muted/40"
                 }`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-medium">{name}</span>
+                  <span className="truncate font-semibold text-foreground">{name}</span>
                   {isPaused && (
                     <span className="inline-flex items-center gap-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase text-amber-600 dark:text-amber-400">
-                      <Pause className="h-3 w-3" /> Tạm dừng
+                      <Pause className="h-2.5 w-2.5" /> Tạm dừng
                     </span>
                   )}
                 </div>
                 <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground">
-                  <span>{s.attempt.status}</span>
+                  <span>{statusLabel}</span>
                   {(live?.lastSeenAt || s.live?.lastSeenAt) && (
-                    <span>· seen {new Date(live?.lastSeenAt || s.live.lastSeenAt).toLocaleTimeString()}</span>
+                    <span>· {new Date(live?.lastSeenAt || s.live.lastSeenAt).toLocaleTimeString()}</span>
                   )}
                 </div>
                 <div className="mt-1 flex items-center justify-between text-[11px]">
@@ -243,7 +244,7 @@ export default function ExamMonitor() {
                     <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                       Câu
                     </p>
-                    <div className="grid grid-cols-10 gap-1.5 sm:grid-cols-12">
+                    <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-12 sm:overflow-visible">
                       {paper.map((p, i) => {
                         const answered =
                           (p.q.loai === "trac_nghiem" && p.answer.selectedIndex != null) ||
@@ -256,7 +257,7 @@ export default function ExamMonitor() {
                             type="button"
                             title={`Câu ${i + 1}${isCurrent ? " — HS đang ở đây" : ""}`}
                             onClick={() => setQIdx(i)}
-                            className={`relative h-9 w-9 rounded-lg border text-xs font-semibold ${
+                            className={`relative h-8 w-8 shrink-0 rounded-[7px] border text-xs font-semibold tabular-nums transition-colors ${
                               i === qIdx
                                 ? "border-primary bg-primary text-primary-foreground"
                                 : answered

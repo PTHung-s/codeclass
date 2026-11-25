@@ -222,8 +222,39 @@ router.post("/adaptive/start", authenticate, async (req: Request, res: Response)
     );
     const maxAbility = round(maxSim.theta, 2);
 
+    // Estimate soft prior ability from existing SkillMastery for approved skills in this chapter
+    let initialAbility: number | undefined;
+    try {
+      const bankSkillIds = new Set(bank.map((q) => q.skillId).filter((id): id is string => Boolean(id)));
+      if (bankSkillIds.size > 0) {
+        const { getSkillStates } = await import("../services/skillMastery");
+        const states = await getSkillStates(req.user!.userId);
+        const evidenced = states.filter((s) => bankSkillIds.has(s.skillId) && s.hasEvidence);
+        if (evidenced.length > 0) {
+          const avgMastery = evidenced.reduce((sum, s) => sum + s.mastery, 0) / evidenced.length;
+          const avgEvidenceCount = evidenced.reduce((sum, s) => sum + s.evidenceCount, 0) / evidenced.length;
+          const upperCap = Math.min(8.0, Math.max(4.0, maxAbility - 0.5));
+          const targetSpan = Math.min(upperCap, chapterConfig.pass * 1.15);
+          const mapped = 1.5 + avgMastery * Math.max(1.5, targetSpan - 1.5);
+          const blendWeight = Math.min(1, avgEvidenceCount / 3);
+          initialAbility = round(3 * (1 - blendWeight) + mapped * blendWeight, 2);
+        }
+      }
+    } catch { /* fallback to default ABILITY_INIT */ }
+
     const sessionId = crypto.randomUUID();
-    const session = createSession(sessionId, req.user!.userId, moduleId, courseId, bank, chapterConfig, testSize, maxAbility);
+    const session = createSession(
+      sessionId,
+      req.user!.userId,
+      moduleId,
+      courseId,
+      bank,
+      chapterConfig,
+      testSize,
+      maxAbility,
+      undefined,
+      initialAbility,
+    );
     await persistSession(session);
 
     // Select first question (difficulty ~3)

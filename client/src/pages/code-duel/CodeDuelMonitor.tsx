@@ -163,7 +163,7 @@ export default function CodeDuelMonitor() {
  </h1>
  </div>
  <div className="flex items-center gap-3">
- <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ?"" :""}`}>
+ <span className={`rounded-full px-3 py-1 text-xs font-semibold ${connected ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"}`}>
  {connected ?"Kết nối trực tiếp" :"Mất kết nối"}
  </span>
  <button
@@ -226,7 +226,7 @@ export default function CodeDuelMonitor() {
  const isOnline = pres?.online ?? false;
  const isKicked = pres?.kicked;
  return (
- <div key={p.userId} className={`overflow-hidden rounded-lg border ${isKicked ?" opacity-60" : tab?.out ?"/50" :"border-border"} bg-card`}>
+ <div key={p.userId} className={`overflow-hidden rounded-lg border ${isKicked ?"border-rose-500/40 opacity-60" : tab?.out ?"border-amber-500/60" :"border-border"} bg-card`}>
  {/* Terminal header */}
  <div className="flex items-center justify-between border-b border-border bg-muted/60 px-3 py-2">
  <div className="flex min-w-0 items-center gap-2">
@@ -243,7 +243,7 @@ export default function CodeDuelMonitor() {
  <div className="flex items-center gap-2">
  {!isOnline && !isKicked && <span className="font-mono text-[10px]">offline</span>}
  {pct !== null ? (
- <span className={`font-mono text-xs font-bold ${pct === 100 ?"" :"text-primary"}`}>
+ <span className={`font-mono text-xs font-bold ${pct === 100 ?"text-emerald-600 dark:text-emerald-400" :"text-primary"}`}>
  {pct}% tests passed
  </span>
  ) : panel?.hasCode ? (
@@ -261,9 +261,9 @@ export default function CodeDuelMonitor() {
  {/* Code body */}
  <div className={isFull ?"max-h-[70vh] overflow-auto bg-black/60 p-3" :"max-h-40 overflow-auto bg-black/60 p-3"}>
  {panel?.code ? (
- <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed /90">{panel.code}</pre>
+ <pre className="whitespace-pre-wrap font-mono text-xs leading-relaxed text-zinc-100">{panel.code}</pre>
  ) : (
- <p className="py-6 text-center font-mono text-xs">
+ <p className="py-6 text-center font-mono text-xs text-zinc-400">
  {tab?.out ?"Đang rời tab…" : panel?.hasCode ?"Đang soạn…" :"Chưa bắt đầu gõ"}
  </p>
  )}

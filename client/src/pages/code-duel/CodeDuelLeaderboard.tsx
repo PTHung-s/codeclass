@@ -162,7 +162,7 @@ export default function CodeDuelLeaderboard() {
  {isMe ?"Bạn ·" :""}{row.fullName}
  </span>
  {delta !=="same" && (
- <span className={`shrink-0 text-xs font-bold ${delta ==="up" ?"" :""}`}>
+ <span className={`shrink-0 text-xs font-bold ${delta ==="up" ?"text-emerald-500" :"text-rose-500"}`}>
  {delta ==="up" ?"▲" :"▼"} {Math.abs((prevRank[row.userId] || rank) - rank)}
  </span>
  )}
@@ -172,7 +172,7 @@ export default function CodeDuelLeaderboard() {
  <span key={r.orderIndex} className="flex flex-col items-center text-center">
  {r.verdict ? (
  <>
- <span className={`text-xs font-bold ${r.verdict ==="AC" ?"" :""}`}>{r.verdict}</span>
+ <span className={`text-xs font-bold ${r.verdict ==="AC" ?"text-emerald-600 dark:text-emerald-400" :"text-rose-600 dark:text-rose-400"}`}>{r.verdict}</span>
  <span className="text-[10px] text-muted-foreground">{r.acceptedAt ? r.acceptedAt.slice(11, 19) : `${r.passedTests}/${r.totalTests}`}</span>
  </>
  ) : (

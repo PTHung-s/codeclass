@@ -1140,7 +1140,8 @@ export function initWebSocketServer(server: http.Server) {
     resolveUserProfile(user.userId).then((profile) => {
       presence.set(user.userId, {
         userId: user.userId,
-        fullName: profile.fullName,
+        fullName: profile.realName,
+        nickname: profile.nickname,
         role: profile.role,
         avatarUrl: profile.avatarUrl,
         status: "online",

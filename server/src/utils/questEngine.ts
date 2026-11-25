@@ -45,20 +45,60 @@ async function computeMetric(userId: string, metric: string, since: Date | null)
         where: { studentId: userId, passed: true, ...(dateFilter ? { createdAt: dateFilter } : {}) },
       });
 
-    case "lessons_completed":
-      return prisma.lessonProgress.count({
-        where: { userId, ...(dateFilter ? { completedAt: dateFilter } : {}) },
-      });
+    case "lessons_completed": {
+      const [classic, sessionVerified] = await Promise.all([
+        prisma.lessonProgress.count({
+          where: { userId, ...(dateFilter ? { completedAt: dateFilter } : {}) },
+        }),
+        prisma.userSessionProgress.count({
+          where: { userId, status: "verified", ...(dateFilter ? { completedAt: dateFilter } : {}) },
+        }),
+      ]);
+      return classic + sessionVerified;
+    }
 
-    case "assignments_submitted":
-      return prisma.submission.count({
-        where: { studentId: userId, ...(dateFilter ? { submittedAt: dateFilter } : {}) },
-      });
+    case "assignments_submitted": {
+      const [legacyCount, assignedProblems] = await Promise.all([
+        prisma.submission.count({
+          where: { studentId: userId, ...(dateFilter ? { submittedAt: dateFilter } : {}) },
+        }),
+        prisma.assignmentStudent.findMany({
+          where: {
+            studentId: userId,
+            assignment: { status: "published", submissionType: "problem", problemId: { not: null } },
+          },
+          select: { assignment: { select: { id: true, problemId: true } } },
+        }),
+      ]);
+      const problemIds = [...new Set(assignedProblems.map((a) => a.assignment.problemId).filter((id): id is string => !!id))];
+      let problemAssignCount = 0;
+      if (problemIds.length > 0) {
+        const passedSubs = await prisma.problemSubmission.findMany({
+          where: {
+            studentId: userId,
+            passed: true,
+            problemId: { in: problemIds },
+            ...(dateFilter ? { createdAt: dateFilter } : {}),
+          },
+          select: { problemId: true },
+        });
+        const passedSet = new Set(passedSubs.map((s) => s.problemId));
+        problemAssignCount = assignedProblems.filter((a) => a.assignment.problemId && passedSet.has(a.assignment.problemId)).length;
+      }
+      return legacyCount + problemAssignCount;
+    }
 
-    case "quizzes_passed":
-      return prisma.quizAttempt.count({
-        where: { userId, passed: true, ...(dateFilter ? { createdAt: dateFilter } : {}) },
-      });
+    case "quizzes_passed": {
+      const [classic, sessionPassed] = await Promise.all([
+        prisma.quizAttempt.count({
+          where: { userId, passed: true, ...(dateFilter ? { createdAt: dateFilter } : {}) },
+        }),
+        prisma.userSessionProgress.count({
+          where: { userId, quizCompleted: true, ...(dateFilter ? { completedAt: dateFilter } : {}) },
+        }),
+      ]);
+      return classic + sessionPassed;
+    }
 
     case "daily_claim":
       return prisma.tokenTransaction.count({

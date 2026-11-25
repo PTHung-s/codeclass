@@ -144,7 +144,11 @@ export default function App() {
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
           <Route path="courses" element={<CourseList />} />
-          <Route path="courses/new" element={<CourseForm />} />
+          <Route path="courses/new" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <CourseForm />
+            </ProtectedRoute>
+          } />
           <Route path="courses/:courseId" element={<CourseDetail />}>
             <Route index element={<Navigate to="curriculum" replace />} />
             <Route path="curriculum" element={<CourseCurriculum />} />
@@ -165,7 +169,11 @@ export default function App() {
               </ProtectedRoute>
             }
           />
-          <Route path="courses/:courseId/edit" element={<CourseForm />} />
+          <Route path="courses/:courseId/edit" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <CourseForm />
+            </ProtectedRoute>
+          } />
           <Route path="course/:courseId" element={<SessionCoursePage />} />
           <Route path="course/:courseId/lesson/:lessonId" element={<SessionLessonHomePage />} />
           <Route path="course/:courseId/lesson/:lessonId/video" element={<SessionVideoPage />} />
@@ -178,9 +186,17 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="problems" element={<ProblemList />} />
-          <Route path="problems/new" element={<ProblemForm />} />
+          <Route path="problems/new" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <ProblemForm />
+            </ProtectedRoute>
+          } />
           <Route path="problems/:problemId" element={<ProblemDetail />} />
-          <Route path="problems/:problemId/edit" element={<ProblemForm />} />
+          <Route path="problems/:problemId/edit" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <ProblemForm />
+            </ProtectedRoute>
+          } />
           <Route path="materials" element={<MaterialList />} />
           <Route path="materials/:id" element={<MaterialDetail />} />
           <Route path="arena" element={<ArenaList />} />
@@ -293,7 +309,11 @@ export default function App() {
           <Route path="leaderboard" element={<Leaderboard />} />
           <Route path="tokens" element={<Tokens />} />
           <Route path="quests" element={<Quests />} />
-          <Route path="gamification-settings" element={<GamificationSettings />} />
+          <Route path="gamification-settings" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <GamificationSettings />
+            </ProtectedRoute>
+          } />
           <Route path="checklist" element={<ChecklistPage />} />
           <Route path="bug-reports" element={<BugReportList />} />
           <Route path="teacher/skill-heatmap" element={
@@ -333,7 +353,11 @@ export default function App() {
           } />
           <Route path="bug-reports/new" element={<BugReportForm />} />
           <Route path="bug-reports/:id" element={<BugReportDetail />} />
-          <Route path="mascot-studio" element={<MascotChatterStudio />} />
+          <Route path="mascot-studio" element={
+            <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
+              <MascotChatterStudio />
+            </ProtectedRoute>
+          } />
           <Route path="meet" element={<MeetPage />} />
           <Route path="settings" element={<Settings />} />
         </Route>

@@ -68,23 +68,23 @@ export default function CourseDetail() {
           <ArrowLeft className="h-4 w-4" /> Quay lại danh sách
         </Button>
         <div className="flex flex-wrap items-start justify-between gap-4">
-          <div className="flex min-w-0 flex-1 items-start gap-5">
+          <div className="flex min-w-0 flex-1 items-start gap-4">
             {coverUrl && structured ? (
               <img
                 src={coverUrl}
                 alt=""
-                className="hidden aspect-video w-64 shrink-0 rounded-xl border border-border object-cover sm:block"
+                className="hidden aspect-video w-44 shrink-0 rounded-xl border border-border object-cover sm:block"
               />
             ) : null}
             <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-3">
-                <h1 className="min-w-0 text-2xl font-semibold leading-tight tracking-tight text-foreground">
+              <div className="flex flex-wrap items-center gap-2.5">
+                <h1 className="min-w-0 text-xl font-semibold leading-tight tracking-tight text-foreground">
                   {course.title}
                 </h1>
                 <CourseStatusBadge status={course.status} />
               </div>
               {course.description ? (
-                <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
+                <p className="mt-1.5 max-w-2xl text-xs leading-5 text-muted-foreground sm:text-sm">
                   {course.description}
                 </p>
               ) : null}
@@ -93,8 +93,8 @@ export default function CourseDetail() {
 
           {isTeacher ? (
             <div className="flex shrink-0 gap-2">
-              <Button variant="outline" onClick={() => navigate(`${basePath}/edit`)}>
-                <Settings className="h-4 w-4" /> Cài đặt
+              <Button size="sm" variant="outline" onClick={() => navigate(`${basePath}/edit`)}>
+                <Settings className="h-3.5 w-3.5" /> Cài đặt
               </Button>
             </div>
           ) : null}
@@ -126,7 +126,7 @@ function CourseTabs({
           to={tab.path}
           end={tab.path === basePath}
           className={({ isActive }) =>
-            `flex items-center gap-2 border-b-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+            `flex items-center gap-1.5 border-b-2 px-3.5 py-2 text-xs font-medium transition-colors sm:text-sm ${
               isActive
                 ? "border-foreground text-foreground"
                 : "border-transparent text-muted-foreground hover:text-foreground"

@@ -3,6 +3,7 @@ import { authenticate } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import prisma from "../utils/prisma";
 import { param, query } from "../utils/routeHelpers";
+import { notifyNotificationChanged } from "../services/notificationEvents";
 
 /**
  * Assignment (giao bài tập) API — phase 1: bài tập viết code từ Thư viện đề.
@@ -101,6 +102,9 @@ async function createNotifications(studentIds: string[], assignmentId: string, t
       relatedEntityId: assignmentId,
     })),
   });
+  for (const uid of studentIds) {
+    notifyNotificationChanged(uid);
+  }
 }
 
 // ────────────────────────── STAFF ──────────────────────────

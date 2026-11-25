@@ -13,6 +13,7 @@ export interface SkillSeed {
   name: string;
   description: string;
   orderIndex: number;
+  prerequisites?: string[];
 }
 
 export interface TopicInfo {
@@ -720,9 +721,128 @@ export const TOPICS: TopicInfo[] = [
   { topicId: "t25_algo_contest", topicName: "Thuật toán: Luyện đề và chiến thuật thi", sequenceNo: 28, skillIds: ["algo.contest_strategy"] },
 ];
 
-/** Map of skillId → SkillSeed for fast lookup */
+/** Acyclic prerequisite DAG mapping skillId → direct prerequisite skillIds (strictly lower orderIndex). */
+export const SKILL_PREREQUISITES: Record<string, string[]> = {
+  // Python
+  "py.intro": [],
+  "py.var_basic": ["py.intro"],
+  "py.var_types": ["py.var_basic"],
+  "py.var_cast": ["py.var_types"],
+  "py.io": ["py.var_basic", "py.var_cast"],
+  "py.operators": ["py.var_types"],
+  "py.branching": ["py.operators"],
+  "py.for_range": ["py.branching"],
+  "py.for_iter": ["py.for_range"],
+  "py.loop_while": ["py.branching", "py.for_range"],
+  "py.num_calc": ["py.for_range", "py.operators"],
+  "py.num_digit": ["py.loop_while", "py.operators"],
+  "py.string": ["py.for_iter"],
+  "py.list": ["py.for_iter"],
+  "py.function": ["py.branching", "py.for_range"],
+  "py.debug": ["py.branching", "py.for_range", "py.function"],
+
+  // C++
+  "cpp.intro": [],
+  "cpp.var_basic": ["cpp.intro"],
+  "cpp.type_num": ["cpp.var_basic"],
+  "cpp.type_char": ["cpp.var_basic"],
+  "cpp.type_bool": ["cpp.var_basic"],
+  "cpp.io_out": ["cpp.intro", "cpp.var_basic"],
+  "cpp.io_in": ["cpp.io_out", "cpp.type_num"],
+  "cpp.op_arith": ["cpp.type_num"],
+  "cpp.op_assign": ["cpp.var_basic", "cpp.op_arith"],
+  "cpp.op_compare": ["cpp.type_bool", "cpp.op_arith"],
+  "cpp.op_logic": ["cpp.op_compare", "cpp.type_bool"],
+  "cpp.op_precedence": ["cpp.op_arith", "cpp.op_logic"],
+  "cpp.if_basic": ["cpp.op_compare"],
+  "cpp.if_chain": ["cpp.if_basic", "cpp.op_logic"],
+  "cpp.switch": ["cpp.if_basic"],
+  "cpp.loop_while": ["cpp.if_basic", "cpp.op_assign"],
+  "cpp.loop_control": ["cpp.loop_while"],
+  "cpp.loop_for": ["cpp.loop_while"],
+  "cpp.loop_nested": ["cpp.loop_for"],
+  "cpp.array_basic": ["cpp.loop_for"],
+  "cpp.array_algo": ["cpp.array_basic", "cpp.if_basic"],
+  "cpp.array_2d": ["cpp.array_basic", "cpp.loop_nested"],
+  "cpp.func_basic": ["cpp.if_basic", "cpp.loop_for"],
+  "cpp.func_ref": ["cpp.func_basic"],
+  "cpp.scope": ["cpp.func_basic"],
+  "cpp.overload": ["cpp.func_basic"],
+  "cpp.string_basic": ["cpp.type_char", "cpp.array_basic"],
+  "cpp.string_ops": ["cpp.string_basic", "cpp.io_in"],
+
+  // Algorithms
+  "algo.problem_analysis": [],
+  "algo.pseudocode_planning": ["algo.problem_analysis"],
+  "algo.complexity_estimate": ["algo.pseudocode_planning"],
+  "algo.small_test_debug": ["algo.problem_analysis"],
+  "algo.divisors_multiples": ["algo.problem_analysis"],
+  "algo.prime_check": ["algo.divisors_multiples"],
+  "algo.prime_factorization": ["algo.prime_check"],
+  "algo.gcd_lcm": ["algo.divisors_multiples"],
+  "algo.special_numbers": ["algo.divisors_multiples"],
+  "algo.sieve_eratosthenes": ["algo.prime_check", "algo.complexity_estimate"],
+  "algo.marking_arrays": ["algo.complexity_estimate"],
+  "algo.array_scan": ["algo.problem_analysis"],
+  "algo.prefix_sum": ["algo.array_scan", "algo.complexity_estimate"],
+  "algo.char_frequency": ["algo.marking_arrays"],
+  "algo.string_processing": ["algo.char_frequency"],
+  "algo.dict_basics": ["algo.marking_arrays"],
+  "algo.frequency_grouping": ["algo.dict_basics", "algo.char_frequency"],
+  "algo.set_basics": ["algo.dict_basics"],
+  "algo.linear_search": ["algo.array_scan"],
+  "algo.binary_search": ["algo.linear_search", "algo.complexity_estimate"],
+  "algo.sorting_basics": ["algo.array_scan"],
+  "algo.top_k_selection": ["algo.sorting_basics"],
+  "algo.two_pointers": ["algo.sorting_basics", "algo.array_scan"],
+  "algo.sliding_window": ["algo.two_pointers", "algo.prefix_sum"],
+  "algo.recursion_basics": ["algo.pseudocode_planning"],
+  "algo.recursion_classic": ["algo.recursion_basics"],
+  "algo.contest_strategy": ["algo.complexity_estimate", "algo.small_test_debug"],
+};
+
+/** Map of skillId → SkillSeed for fast lookup + reverse dependent adjacency */
 const skillMap = new Map<string, SkillSeed>();
-SKILL_SEEDS.forEach((s) => skillMap.set(s.skillId, s));
+const dependentsMap = new Map<string, string[]>();
+
+for (const s of SKILL_SEEDS) {
+  const prereqs = SKILL_PREREQUISITES[s.skillId] ?? [];
+  s.prerequisites = prereqs;
+  skillMap.set(s.skillId, s);
+  if (!dependentsMap.has(s.skillId)) dependentsMap.set(s.skillId, []);
+  for (const p of prereqs) {
+    if (!dependentsMap.has(p)) dependentsMap.set(p, []);
+    dependentsMap.get(p)!.push(s.skillId);
+  }
+}
+
+export function getSkillPrerequisites(skillId: string): string[] {
+  return skillMap.get(skillId)?.prerequisites ?? SKILL_PREREQUISITES[skillId] ?? [];
+}
+
+export function getSkillDependents(skillId: string): string[] {
+  return dependentsMap.get(skillId) ?? [];
+}
+
+/** BFS returning upstream prerequisite skillIds nearest-first up to `maxDepth`. */
+export function getPrerequisiteAncestors(skillId: string, maxDepth = 3): string[] {
+  const visited = new Set<string>([skillId]);
+  const ordered: string[] = [];
+  let frontier = [...getSkillPrerequisites(skillId)];
+  for (let depth = 0; depth < maxDepth && frontier.length > 0; depth++) {
+    const nextFrontier: string[] = [];
+    for (const id of frontier) {
+      if (visited.has(id)) continue;
+      visited.add(id);
+      ordered.push(id);
+      for (const parent of getSkillPrerequisites(id)) {
+        if (!visited.has(parent)) nextFrontier.push(parent);
+      }
+    }
+    frontier = nextFrontier;
+  }
+  return ordered;
+}
 
 export function skillIdToName(skillId: string): string {
   return skillMap.get(skillId)?.name || skillId;

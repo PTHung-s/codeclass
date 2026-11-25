@@ -382,6 +382,43 @@ router.post("/lesson/:lessonId/quiz", authenticate, async (req: Request, res: Re
       console.error("[sessionCourse] skill evidence record failed:", err);
     }
 
+    let xpAwarded = 0;
+    let tokensAwarded = 0;
+    if (passed && req.user!.role === "student") {
+      try {
+        const { getRates } = await import("../utils/gamificationSettings");
+        const { awardXp, awardStreakDay } = await import("../utils/xpLedger");
+        const { awardTokens } = await import("../utils/tokens");
+        const { checkBadges } = await import("../utils/badgeEngine");
+        const { queueMasteryRecalculation } = await import("../services/skillMastery");
+
+        const rates = await getRates();
+        const xpAmt = rates.xp.lessonXp + Math.round(score * rates.xp.quizXpPerPoint);
+        const didXp = await awardXp(req.user!.userId, xpAmt, {
+          reason: "session_lesson_passed",
+          description: `Hoàn thành buổi học: ${access.lesson.title}`,
+          refType: "SessionLesson",
+          refId: lessonId,
+        });
+        if (didXp) xpAwarded = xpAmt;
+        await awardStreakDay(req.user!.userId);
+
+        if (rates.tokens.lessonTokens > 0) {
+          const tokRes = await awardTokens(req.user!.userId, rates.tokens.lessonTokens, {
+            reason: "session_lesson_passed",
+            description: `Hoàn thành buổi học: ${access.lesson.title}`,
+            refType: "SessionLesson",
+            refId: lessonId,
+          });
+          tokensAwarded = tokRes.awarded ? tokRes.amount : 0;
+        }
+        checkBadges(req.user!.userId).catch(() => {});
+        queueMasteryRecalculation(req.user!.userId);
+      } catch (err) {
+        console.error("[sessionCourse] reward award failed:", err);
+      }
+    }
+
     const next = passed
       ? await prisma.sessionLesson.findFirst({
           where: { courseId: access.lesson.courseId, status: "published", orderIndex: { gt: access.lesson.orderIndex } },
@@ -397,6 +434,8 @@ router.post("/lesson/:lessonId/quiz", authenticate, async (req: Request, res: Re
       passScore: quiz.passScore,
       completed: true,
       nextLessonId: next?.id ?? null,
+      xpAwarded,
+      tokensAwarded,
     });
   } catch (err) {
     console.error("session quiz submit error:", err);

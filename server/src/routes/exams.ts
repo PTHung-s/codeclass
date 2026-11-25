@@ -36,6 +36,8 @@ import {
 import { runPythonCode } from "../utils/pythonRunner";
 import { runCppCode } from "../utils/cppRunner";
 import { publishCentrifugo } from "../services/centrifugo";
+import { broadcastToStaff } from "../services/gameWebSocket";
+import { notifyNotificationChanged } from "../services/notificationEvents";
 import { ExamMsg } from "../services/examMessages";
 import {
   buildShuffledPaper,
@@ -51,6 +53,11 @@ const MAX_VIOLATIONS_BEFORE_FORCE_SUBMIT = 8;
 
 // Extend realtime channels
 const examStaffChannel = (examId: string) => `exam_staff:${examId}`;
+
+function emitExamStaff(examId: string, event: { type: string; payload: any }) {
+  void publishCentrifugo(examStaffChannel(examId), event);
+  broadcastToStaff(event);
+}
 
 function paramId(v: string | string[]): string {
   return Array.isArray(v) ? String(v[0] ?? "") : String(v ?? "");
@@ -323,6 +330,43 @@ router.post("/:id/publish", authenticate, requireRole(...STAFF), async (req: Req
         closeAt: req.body?.closeAt ? new Date(req.body.closeAt) : exam.closeAt,
       },
     });
+
+    try {
+      const existingNotif = await prisma.notification.findFirst({
+        where: { type: "exam_published", relatedEntityId: exam.id },
+        select: { id: true },
+      });
+      if (!existingNotif) {
+        let studentIds: string[] = [];
+        if (exam.courseId) {
+          const members = await prisma.courseMember.findMany({
+            where: { courseId: exam.courseId, roleInCourse: "student", status: "active" },
+            select: { userId: true },
+          });
+          studentIds = members.map((m) => m.userId);
+        } else {
+          const students = await prisma.user.findMany({
+            where: { role: "student", status: "active" },
+            select: { id: true },
+          });
+          studentIds = students.map((s) => s.id);
+        }
+        if (studentIds.length > 0) {
+          await prisma.notification.createMany({
+            data: studentIds.map((uid) => ({
+              userId: uid,
+              title: "Phòng thi mới mở",
+              message: `Phòng thi "${exam.title}" (${exam.durationMinutes} phút) đã mở.`,
+              type: "exam_published",
+              relatedEntityType: "exam",
+              relatedEntityId: exam.id,
+            })),
+          });
+          for (const uid of studentIds) notifyNotificationChanged(uid);
+        }
+      }
+    } catch { /* fail-soft */ }
+
     res.json({ id: updated.id, status: updated.status, openAt: updated.openAt, closeAt: updated.closeAt });
   } catch (err) {
     console.error("[exams/publish]", err);
@@ -741,7 +785,7 @@ router.put("/:id/attempt/answers", authenticate, async (req: Request, res: Respo
           lastSeenAt: new Date(),
         },
       });
-      void publishCentrifugo(examStaffChannel(examId), {
+      emitExamStaff(examId, {
         type: "exam_live",
         payload: {
           examId,
@@ -861,7 +905,7 @@ router.post("/:id/attempt/submit", authenticate, async (req: Request, res: Respo
       },
       include: { answers: true },
     });
-    void publishCentrifugo(examStaffChannel(examId), {
+    emitExamStaff(examId, {
       type: "exam_submitted",
       payload: { examId, studentId: req.user!.userId, attemptId: attempt.id },
     });
@@ -947,7 +991,7 @@ router.post("/:id/attempt/heartbeat", authenticate, async (req: Request, res: Re
         data: { status: "submitted", submittedAt: now },
       });
       forceSubmitted = true;
-      void publishCentrifugo(examStaffChannel(examId), {
+      emitExamStaff(examId, {
         type: "exam_force_submit",
         payload: {
           examId,
@@ -958,7 +1002,7 @@ router.post("/:id/attempt/heartbeat", authenticate, async (req: Request, res: Re
       });
     }
 
-    void publishCentrifugo(examStaffChannel(examId), {
+    emitExamStaff(examId, {
       type: "exam_heartbeat",
       payload: {
         examId,
@@ -1022,7 +1066,7 @@ router.post("/:id/monitor/:attemptId/pause", authenticate, requireRole(...STAFF)
       data = { pauseJson: null, expiresAt };
     }
     const updated = await prisma.examAttempt.update({ where: { id: attempt.id }, data });
-    void publishCentrifugo(examStaffChannel(examId), {
+    emitExamStaff(examId, {
       type: "exam_pause",
       payload: { examId, attemptId: attempt.id, studentId: attempt.studentId, paused },
     });
@@ -1060,7 +1104,7 @@ router.post("/:id/attempt/resume-pause", authenticate, async (req: Request, res:
       }
     }
     await prisma.examAttempt.update({ where: { id: attempt.id }, data: { pauseJson: null, expiresAt } });
-    void publishCentrifugo(examStaffChannel(examId), {
+    emitExamStaff(examId, {
       type: "exam_pause",
       payload: { examId, attemptId: attempt.id, studentId: attempt.studentId, paused: false },
     });

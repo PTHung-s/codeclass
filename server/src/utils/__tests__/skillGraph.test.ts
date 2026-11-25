@@ -1,4 +1,10 @@
-import { SKILL_SEEDS, TOPICS } from "../skillGraph";
+import {
+  SKILL_SEEDS,
+  TOPICS,
+  getSkillPrerequisites,
+  getSkillDependents,
+  getPrerequisiteAncestors,
+} from "../skillGraph";
 
 let pass = 0;
 let fail = 0;
@@ -34,6 +40,27 @@ check(
   "algorithm course namespace covers its 10 curriculum chapters",
   TOPICS.filter((t) => t.topicId.startsWith("t") && t.topicName.startsWith("Thuật toán:")).length === 10 &&
     SKILL_SEEDS.filter((s) => s.skillId.startsWith("algo.")).length === 27,
+);
+
+const orderById = new Map(SKILL_SEEDS.map((s) => [s.skillId, s.orderIndex]));
+check(
+  "every skill prerequisite exists and has strictly lower orderIndex (acyclic DAG)",
+  SKILL_SEEDS.every((s) => {
+    const prereqs = getSkillPrerequisites(s.skillId);
+    return Array.isArray(s.prerequisites) && prereqs.every((p) => canonicalIds.has(p) && (orderById.get(p) ?? 999) < s.orderIndex);
+  }),
+);
+check(
+  "getSkillPrerequisites and getSkillDependents are inverse mappings",
+  SKILL_SEEDS.every((s) =>
+    getSkillPrerequisites(s.skillId).every((p) => getSkillDependents(p).includes(s.skillId)) &&
+    getSkillDependents(s.skillId).every((d) => getSkillPrerequisites(d).includes(s.skillId)),
+  ),
+);
+check(
+  "getPrerequisiteAncestors traverses upstream DAG cleanly",
+  getPrerequisiteAncestors("py.loop_while", 3).includes("py.operators") &&
+    !getPrerequisiteAncestors("py.loop_while", 3).includes("py.loop_while"),
 );
 
 console.log(`  Passed: ${pass} / ${pass + fail}`);

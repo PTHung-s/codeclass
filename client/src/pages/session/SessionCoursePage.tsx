@@ -117,11 +117,12 @@ export default function SessionCoursePage() {
           isStaff ? (
             <div className="flex flex-wrap items-center gap-2">
               <select
+                data-slot="session-status-select"
                 aria-label="Trạng thái khóa học"
                 value={course.status || "draft"}
                 disabled={updateCourseStatus.isPending}
                 onChange={(event) => updateCourseStatus.mutate(event.target.value)}
-                className="h-9 rounded-lg border border-input bg-card px-3 text-sm font-medium text-foreground outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30 disabled:opacity-50 dark:bg-input/30"
+                className="h-8 rounded-[7px] border border-input bg-card px-2.5 text-xs font-medium text-foreground outline-none focus-visible:border-ring disabled:opacity-50"
               >
                 {COURSE_STATUS_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -129,8 +130,8 @@ export default function SessionCoursePage() {
                   </option>
                 ))}
               </select>
-              <Button onClick={() => createLesson.mutate()} disabled={createLesson.isPending}>
-                <Plus className="h-4 w-4" />
+              <Button size="sm" className="h-8 text-xs" onClick={() => createLesson.mutate()} disabled={createLesson.isPending}>
+                <Plus className="h-3.5 w-3.5" />
                 {createLesson.isPending ? "Đang tạo..." : "Thêm buổi học"}
               </Button>
             </div>
@@ -139,7 +140,7 @@ export default function SessionCoursePage() {
       />
 
       <Card>
-        <div className="flex flex-wrap gap-1.5 border-b border-border px-4 py-3">
+        <div className="flex flex-wrap gap-1.5 border-b border-border px-3.5 py-2.5">
           {filters.map((item) => (
             <Button
               key={item.value}
@@ -176,7 +177,7 @@ export default function SessionCoursePage() {
                   )
                 }
                 className={cn(
-                  "group flex w-full items-center gap-4 px-5 py-4 text-left transition-[background-color,transform,box-shadow] duration-150",
+                  "group flex w-full items-center gap-3.5 px-4 py-3 text-left transition-[background-color,transform,box-shadow] duration-150",
                   disabled
                     ? "cursor-not-allowed bg-muted/30 text-muted-foreground"
                     : "row-interactive text-foreground hover:bg-muted/50",
@@ -186,7 +187,7 @@ export default function SessionCoursePage() {
               >
                 <span
                   className={cn(
-                    "grid h-9 w-9 shrink-0 place-items-center rounded-lg border text-sm font-bold tabular-nums transition-colors",
+                    "grid h-8 w-8 shrink-0 place-items-center rounded-lg border text-xs font-bold tabular-nums transition-colors",
                     statusKey === "current"
                       ? "border-primary/30 bg-primary/10 text-primary"
                       : statusKey === "verified"
@@ -207,7 +208,7 @@ export default function SessionCoursePage() {
                   <span className="block truncate text-sm font-semibold text-foreground">
                     {lesson.title}
                   </span>
-                  <span className="mt-0.5 block text-sm text-muted-foreground">
+                  <span className="mt-0.5 block text-xs text-muted-foreground">
                     {isStaff
                       ? "Mở trang chuẩn bị nội dung"
                       : statusKey === "locked"

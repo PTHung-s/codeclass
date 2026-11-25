@@ -550,7 +550,7 @@ export default function LessonView() {
  {lesson.module?.title}
  </span>
  {isCompleted && (
- <Badge variant="secondary" className="gap-1 px-2 py-0.5 /10 dark:text-[11px]">
+ <Badge variant="secondary" className="gap-1 bg-emerald-500/15 px-2 py-0.5 text-[11px] text-emerald-700 dark:text-emerald-400">
  <CheckCircle2 className="w-3 h-3" /> Đã hoàn thành
  </Badge>
  )}
@@ -656,8 +656,8 @@ export default function LessonView() {
  <div className="mt-10">
  {effectiveCompleted ? (
  <div className="rounded-xl border border-border bg-card p-6 text-center shadow-card">
- <div className="w-14 h-14 rounded-full /10 flex items-center justify-center mx-auto mb-4">
- <CheckCircle2 className="w-7 h-7" />
+ <div className="mx-auto mb-3 flex size-12 items-center justify-center rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400">
+ <CheckCircle2 className="h-6 w-6" />
  </div>
  <h3 className="text-lg font-semibold tracking-tight text-foreground mb-1">Bài học đã hoàn thành!</h3>
  <p className="text-sm text-muted-foreground mb-4">Bạn đã nắm được kiến thức của bài này.</p>

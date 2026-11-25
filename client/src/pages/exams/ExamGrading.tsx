@@ -136,46 +136,46 @@ export default function ExamGrading() {
   const viewAns = view ? answersByQid.get(view.key) : null;
 
   return (
-    <div className="mx-auto max-w-7xl px-4 py-6 sm:px-6">
-      <Button variant="ghost" size="sm" className="-ml-2 mb-3" onClick={() => navigate(`/exams/${examId}/edit`)}>
-        <ArrowLeft className="h-4 w-4" /> Về soạn đề
+    <div className="mx-auto max-w-7xl px-3 py-4 sm:px-5">
+      <Button variant="ghost" size="sm" className="-ml-2 mb-2 h-7 text-xs text-muted-foreground" onClick={() => navigate(`/exams/${examId}/edit`)}>
+        <ArrowLeft className="h-3.5 w-3.5" /> Về soạn đề
       </Button>
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+      <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h1 className="text-2xl font-semibold">Chấm điểm sau thi</h1>
-          <p className="text-sm text-muted-foreground">
-            Xem bài đúng như học sinh làm · trả lời ngắn có AI gợi ý nhận xét, GV sửa rồi chốt.
+          <h1 className="text-lg font-semibold tracking-tight">Chấm điểm sau thi</h1>
+          <p className="text-xs text-muted-foreground">
+            Xem bài đúng như học sinh làm · trả lời ngắn có AI gợi ý nhận xét, giáo viên sửa rồi chốt.
           </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" size="sm" onClick={() => navigate(`/exams/${examId}/ranking`)}>
-            <Trophy className="h-4 w-4" /> Bảng xếp hạng
+        <div className="flex flex-wrap gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate(`/exams/${examId}/ranking`)}>
+            <Trophy className="h-3.5 w-3.5" /> Bảng xếp hạng
           </Button>
-          <Button variant="outline" size="sm" onClick={() => void downloadCsv()}>
-            <Download className="h-4 w-4" /> Xuất CSV
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => void downloadCsv()}>
+            <Download className="h-3.5 w-3.5" /> Xuất CSV
           </Button>
-          <Button onClick={() => startMut.mutate()} disabled={startMut.isPending}>
-            <Play className="h-4 w-4" /> {startMut.isPending ? "…" : "Chạy chấm batch"}
+          <Button size="sm" className="h-8 text-xs" onClick={() => startMut.mutate()} disabled={startMut.isPending}>
+            <Play className="h-3.5 w-3.5" /> {startMut.isPending ? "…" : "Chạy chấm batch"}
           </Button>
         </div>
       </div>
 
-      <label className="mb-3 flex items-center gap-2 text-sm text-muted-foreground">
+      <label className="mb-2.5 flex items-center gap-2 text-xs text-muted-foreground">
         <input type="checkbox" checked={filterNeedsReview} onChange={(e) => setFilterNeedsReview(e.target.checked)} />
-        Chỉ hiện bài cần duyệt short
+        Chỉ hiện bài cần duyệt câu ngắn
       </label>
-      {msg && <p className="mb-3 text-sm text-muted-foreground">{msg}</p>}
+      {msg && <p className="mb-2.5 text-xs text-primary">{msg}</p>}
 
       {jobs[0] && (
-        <div className="mb-4 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+        <div className="mb-3 rounded-lg border border-border bg-card px-3 py-2 text-xs">
           Job mới nhất: <strong>{jobs[0].status}</strong> — {jobs[0].doneAttempts}/{jobs[0].totalAttempts}
           {jobs[0].error && <span className="text-destructive"> · {jobs[0].error}</span>}
         </div>
       )}
 
       {/* Công bố cho học sinh */}
-      <div className="mb-4 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-3 py-2.5 text-sm shadow-card">
-        <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+      <div className="mb-3 flex flex-wrap items-center gap-x-5 gap-y-2 rounded-xl border border-border bg-card px-3 py-2 text-xs shadow-sm">
+        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
           Công bố cho HS:
         </span>
         {([
@@ -195,32 +195,36 @@ export default function ExamGrading() {
         ))}
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[290px_1fr]">
+      <div className="grid gap-4 lg:grid-cols-[272px_1fr]">
         {/* Student list */}
-        <div className="space-y-2">
-          {attempts.map((a: any) => (
+        <div className="space-y-1.5 lg:max-h-[calc(100vh-16rem)] lg:overflow-y-auto lg:pr-1">
+          {attempts.map((a: any) => {
+            const gradeLabel =
+              a.gradeStatus === "graded" ? "Đã chấm" : a.gradeStatus === "needs_review" ? "Chờ duyệt" : a.gradeStatus === "grading" ? "Đang chấm" : "Chưa chấm";
+            return (
             <button
               key={a.id}
               type="button"
               onClick={() => setSelectedAttempt(a.id)}
-              className={`w-full rounded-xl border p-3 text-left text-sm ${
-                current?.id === a.id ? "border-primary bg-primary/5" : "border-border bg-card"
+              className={`w-full rounded-lg border p-2.5 text-left text-xs transition-colors ${
+                current?.id === a.id ? "border-primary bg-primary/5 shadow-sm" : "border-border bg-card hover:bg-muted/40"
               }`}
             >
               <div className="flex items-center justify-between gap-2">
-                <span className="font-medium">{a.student?.fullName || a.studentId.slice(0, 8)}</span>
+                <span className="truncate font-semibold text-foreground">{a.student?.fullName || a.studentId.slice(0, 8)}</span>
                 {a.pendingShortReview && (
                   <span className="rounded bg-amber-500/10 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-amber-600 dark:text-amber-400">
                     Chờ duyệt
                   </span>
                 )}
               </div>
-              <div className="text-[11px] text-muted-foreground">
-                {a.gradeStatus}
+              <div className="mt-0.5 text-[11px] text-muted-foreground tabular-nums">
+                {gradeLabel}
                 {a.scaledTotalScore != null && ` · ${a.scaledTotalScore}/${a.scaledMaxScore ?? 100}`}
               </div>
             </button>
-          ))}
+          );
+          })}
           {attempts.length === 0 && (
             <p className="text-sm text-muted-foreground">Chưa có bài nộp.</p>
           )}
@@ -256,7 +260,7 @@ export default function ExamGrading() {
                 <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
                   Câu
                 </p>
-                <div className="grid grid-cols-10 gap-1.5 sm:grid-cols-12">
+                <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-1 sm:grid sm:grid-cols-12 sm:overflow-visible">
                   {paper.map((p, i) => {
                     const ans = answersByQid.get(p.key);
                     const done =
@@ -271,7 +275,7 @@ export default function ExamGrading() {
                         type="button"
                         title={`Câu ${i + 1}${needs ? " — cần duyệt" : ""}`}
                         onClick={() => setQIdx(i)}
-                        className={`relative h-9 w-9 rounded-lg border text-xs font-semibold ${
+                        className={`relative h-8 w-8 shrink-0 rounded-[7px] border text-xs font-semibold tabular-nums transition-colors ${
                           i === qIdx
                             ? "border-primary bg-primary text-primary-foreground"
                             : needs
@@ -320,9 +324,10 @@ export default function ExamGrading() {
                         <label className="text-xs">
                           Điểm chốt
                           <input
+                            data-slot="exam-grade-score"
                             type="number"
                             step="0.5"
-                            className="mt-0.5 block w-24 rounded border border-border bg-background px-2 py-1 text-sm"
+                            className="mt-0.5 block h-8 w-24 rounded-md border border-border bg-background px-2 text-xs text-foreground"
                             value={scoreDraft[view.key] ?? String(viewAns?.finalScore ?? viewAns?.autoScore ?? 0)}
                             onChange={(e) => setScoreDraft((p) => ({ ...p, [view.key]: e.target.value }))}
                           />
@@ -330,8 +335,9 @@ export default function ExamGrading() {
                         <label className="min-w-[12rem] flex-1 text-xs">
                           Nhận xét của GV (hiện cho học sinh)
                           <textarea
+                            data-slot="exam-grade-note"
                             rows={3}
-                            className="mt-0.5 w-full rounded border border-border bg-background px-2 py-1 text-sm"
+                            className="mt-0.5 w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground"
                             value={noteDraft[view.key] ?? viewAns?.teacherNote ?? ""}
                             onChange={(e) => setNoteDraft((p) => ({ ...p, [view.key]: e.target.value }))}
                             placeholder="Nhận xét sẽ hiển thị trong trang kết quả của học sinh…"
@@ -383,8 +389,9 @@ export default function ExamGrading() {
                         {showStyle && (
                           <div className="px-3 pb-3">
                             <textarea
+                              data-slot="exam-grade-style"
                               rows={3}
-                              className="w-full rounded border border-border bg-background px-2 py-1 text-xs"
+                              className="w-full rounded-md border border-border bg-background px-2 py-1.5 text-xs text-foreground"
                               placeholder={"Ví dụ: ngắn gọn 2-3 câu, thân thiện với học sinh lớp 10; luôn kèm một lời động viên; tránh từ 'sai' — dùng 'chưa chính xác'…"}
                               value={style}
                               onChange={(e) => setStyle(e.target.value)}

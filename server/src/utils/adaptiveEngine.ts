@@ -124,6 +124,7 @@ export interface AdaptiveSession {
   answers: AdaptiveAnswer[];
   /** The question currently shown to the student. Persisted for request validation. */
   currentQuestionId: string | null;
+  initialAbility?: number;
   currentAbility: number;
   currentIndex: number;
   totalQuestions: number;
@@ -150,14 +151,15 @@ function irf(theta: number, difficulty: number): number {
 /* ── MAP Ability Estimation (Bayesian with prior) ── */
 export function estimateAbilityMLE(
   answers: Array<{ difficulty: number; isCorrect: boolean }>,
+  priorMean: number = ABILITY_INIT,
 ): { theta: number; info: number; se: number } {
-  if (answers.length === 0) return { theta: ABILITY_INIT, info: 0, se: 1.5 };
+  const safePrior = Number.isFinite(priorMean) ? clamp(priorMean, 0.5, 9.5) : ABILITY_INIT;
+  if (answers.length === 0) return { theta: safePrior, info: 0, se: 1.5 };
 
-  // Prior: theta ~ N(ABILITY_INIT, 2²). This prevents wild swings with few answers.
-  const priorMean = ABILITY_INIT;
+  // Prior: theta ~ N(safePrior, 2²). This prevents wild swings with few answers.
   const priorVar = 4; // prior variance (σ²=4 → σ=2, weak prior)
 
-  let bestTheta = ABILITY_INIT;
+  let bestTheta = safePrior;
   let bestLP = -Infinity; // log posterior
 
   // Grid search (theta 0.5 → 10, step 0.05)
@@ -169,7 +171,7 @@ export function estimateAbilityMLE(
       ll += a.isCorrect ? Math.log(p) : Math.log(1 - p);
     }
     // Log-prior (Gaussian)
-    const lp = ll - ((t - priorMean) ** 2) / (2 * priorVar);
+    const lp = ll - ((t - safePrior) ** 2) / (2 * priorVar);
     if (lp > bestLP) { bestLP = lp; bestTheta = t; }
   }
 
@@ -241,6 +243,7 @@ export function createSession(
   totalQuestions?: number,
   maxAbility?: number,
   ttlMs?: number,
+  initialAbility?: number,
 ): AdaptiveSession;
 /** @deprecated Kept for pure engine callers; HTTP sessions must pass an owner. */
 export function createSession(
@@ -262,6 +265,7 @@ export function createSession(
   f?: number,
   g?: number,
   h?: number,
+  i?: number,
 ): AdaptiveSession {
   const legacy = Array.isArray(c);
   const userId = legacy ? "legacy-engine" : a;
@@ -278,6 +282,9 @@ export function createSession(
   const ttlMs = legacy
     ? ADAPTIVE_SESSION_TTL_MS
     : (h ?? ADAPTIVE_SESSION_TTL_MS);
+  const startAbility = !legacy && Number.isFinite(i)
+    ? round(clamp(i as number, 0.5, Math.min(9.5, maxAbility)), 2)
+    : ABILITY_INIT;
   const session: AdaptiveSession = {
     sessionId,
     userId,
@@ -289,7 +296,8 @@ export function createSession(
     questions: bank,
     answers: [],
     currentQuestionId: null,
-    currentAbility: ABILITY_INIT,
+    initialAbility: startAbility,
+    currentAbility: startAbility,
     currentIndex: 0,
     totalQuestions,
     maxAbility,
@@ -370,7 +378,7 @@ export function processAnswer(
     ...session.answers.map((a) => ({ difficulty: a.difficulty, isCorrect: a.isCorrect })),
     { difficulty: q.difficulty, isCorrect },
   ];
-  const mle = estimateAbilityMLE(allAnswers);
+  const mle = estimateAbilityMLE(allAnswers, session.initialAbility ?? ABILITY_INIT);
 
   const answer: AdaptiveAnswer = {
     questionId: q.id,
@@ -425,7 +433,10 @@ export function computeResult(session: AdaptiveSession): AdaptiveResult {
   let abilityEnd: number;
   let confidenceInterval: { lower: number; upper: number };
   if (session.answers.length > 0) {
-    const mle = estimateAbilityMLE(session.answers.map((a) => ({ difficulty: a.difficulty, isCorrect: a.isCorrect })));
+    const mle = estimateAbilityMLE(
+      session.answers.map((a) => ({ difficulty: a.difficulty, isCorrect: a.isCorrect })),
+      session.initialAbility ?? ABILITY_INIT,
+    );
     abilityEnd = mle.theta;
     confidenceInterval = {
       lower: round(Math.max(0.5, abilityEnd - 1.96 * mle.se), 2),
@@ -473,7 +484,7 @@ export function computeResult(session: AdaptiveSession): AdaptiveResult {
 
   return {
     sessionId: session.sessionId,
-    abilityStart: ABILITY_INIT,
+    abilityStart: session.initialAbility ?? ABILITY_INIT,
     abilityEnd,
     confidenceInterval,
     totalQuestions: session.totalQuestions,

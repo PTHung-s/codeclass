@@ -198,7 +198,7 @@ export default function StudentTimeline({
  <Badge
  variant="secondary"
  className={cn("ml-2 text-[10px]",
- current.passed === true ?"" : current.passed === false ?"" :"",
+ current.passed === true ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : current.passed === false ?"bg-rose-500/15 text-rose-700 dark:text-rose-400" :"bg-muted text-muted-foreground",
  )}
  >
  {current.passed === true ?"Đúng" : current.passed === false ?"Sai" :"Không chấm"}
@@ -212,7 +212,7 @@ export default function StudentTimeline({
  <p className="mb-1 text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
  Code lúc {codeAtCursor ? formatClockSeconds(codeAtCursor.at) :"—"}
  </p>
- <pre className="max-h-96 overflow-auto rounded-lg bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed">
+ <pre className="max-h-96 overflow-auto rounded-lg bg-slate-950 px-4 py-3 font-mono text-xs leading-relaxed text-slate-100">
  {codeAtCursor?.code ||"(chưa có code tại thời điểm này)"}
  </pre>
  </div>

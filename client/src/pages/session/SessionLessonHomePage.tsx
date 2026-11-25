@@ -35,18 +35,18 @@ function LessonItem({
       onClick={onClick}
       disabled={disabled}
       className={cn(
-        "group flex w-full items-center gap-4 rounded-xl border border-border px-4 py-4 text-left transition",
+        "group flex w-full items-center gap-3 rounded-xl border border-border px-3.5 py-3 text-left transition",
         disabled
           ? "cursor-not-allowed bg-muted/40 text-muted-foreground"
           : "bg-card text-foreground hover:bg-muted/50",
       )}
     >
-      <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-border bg-muted text-foreground">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-muted text-foreground">
         {icon}
       </span>
       <span className="min-w-0 flex-1">
         <span className="block text-sm font-semibold text-foreground">{title}</span>
-        <span className="mt-0.5 block text-sm text-muted-foreground">{description}</span>
+        <span className="mt-0.5 block text-xs text-muted-foreground">{description}</span>
       </span>
       {disabled ? (
         <Lock className="h-4 w-4 text-muted-foreground" />
@@ -130,14 +130,14 @@ export default function SessionLessonHomePage() {
       </Button>
 
       <Card>
-        <CardContent className="p-6 md:p-7">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardContent className="p-4 md:p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Buổi {String(lesson.orderIndex).padStart(2, "0")}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {lesson.title}
           </h1>
-          <div className="mt-4 flex flex-wrap items-center gap-2">
+          <div className="mt-3 flex flex-wrap items-center gap-2">
             <Badge className="border border-primary/20 bg-primary/10 text-primary">
               <BookOpen className="mr-1 h-3.5 w-3.5" />
               Nội dung buổi học

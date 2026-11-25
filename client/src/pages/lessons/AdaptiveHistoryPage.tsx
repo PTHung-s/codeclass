@@ -167,7 +167,7 @@ export default function AdaptiveHistoryPage() {
  >
  <div className="flex items-center gap-4">
  <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl ${
- item.passed ?"" : item.partialPass ?"" :""
+ item.passed ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : item.partialPass ?"bg-amber-500/15 text-amber-700 dark:text-amber-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"
  }`}>
  {item.passed ? <Trophy className="h-5 w-5" /> : item.partialPass ? <Sparkles className="h-5 w-5" /> : <Target className="h-5 w-5" />}
  </div>
@@ -188,7 +188,7 @@ export default function AdaptiveHistoryPage() {
  </div>
  <div className="flex items-center gap-2">
  <Badge variant="secondary" className={`text-xs font-bold ${
- item.passed ?"" : item.partialPass ?"" :""
+ item.passed ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" : item.partialPass ?"bg-amber-500/15 text-amber-700 dark:text-amber-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"
  }`}>
  {item.passed ?"Đạt" : item.partialPass ?"1 phần" :"Chưa đạt"}
  </Badge>
@@ -241,12 +241,12 @@ export default function AdaptiveHistoryPage() {
  <p className="mb-2 text-xs font-semibold uppercase">Xem lại từng câu</p>
  <div className="space-y-2">
  {detail.answers.map((a, i) => (
- <div key={i} className={`rounded-xl border transition-all duration-200 ${a.isCorrect ?" " :" "}`}>
+ <div key={i} className={`rounded-xl border transition-all duration-200 ${a.isCorrect ?"border-emerald-500/25 bg-emerald-500/5" :"border-rose-500/25 bg-rose-500/5"}`}>
  <button
  onClick={() => setExpandedDetailIdx((prev) => (prev === i ? null : i))}
  className="flex w-full items-center gap-3 px-4 py-3 text-left"
  >
- <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${a.isCorrect ?" " :" "}`}>
+ <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${a.isCorrect ?"bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :"bg-rose-500/15 text-rose-600 dark:text-rose-400"}`}>
  {a.isCorrect ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
  </span>
  <span className="flex-1 min-w-0 text-sm font-medium dark:text-foreground">
@@ -385,7 +385,7 @@ function QuizHistoryTab({ courseId }: { courseId: string }) {
  {lessonsWithAttempts.map((lesson) => (
  <div key={lesson.lessonId} className="rounded-2xl border border-border bg-card p-4">
  <div className="flex items-center gap-3 mb-3">
- <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${lesson.passed ?"" :""}`}>
+ <div className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg ${lesson.passed ?"bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :"bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
  {lesson.passed ? <CheckCircle2 className="h-4 w-4" /> : <RotateCcw className="h-4 w-4" />}
  </div>
  <div className="flex-1 min-w-0">
@@ -394,7 +394,7 @@ function QuizHistoryTab({ courseId }: { courseId: string }) {
  </div>
  <div className="text-right">
  {lesson.bestPercent !== null && (
- <span className={`text-sm font-bold ${lesson.passed ?"" :""}`}>
+ <span className={`text-sm font-bold ${lesson.passed ?"text-emerald-600 dark:text-emerald-400" :"text-amber-600 dark:text-amber-400"}`}>
  {lesson.bestPercent}%
  </span>
  )}
@@ -431,7 +431,7 @@ function QuizHistoryTab({ courseId }: { courseId: string }) {
  <div className="mt-1 animate-slide-up space-y-2 rounded-xl border border-border bg-card p-4">
  {/* Score summary */}
  <div className="mb-3 flex items-center gap-3 rounded-lg bg-muted/40 p-3">
- <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${attemptDetail.passed ?"" :""}`}>
+ <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold ${attemptDetail.passed ?"bg-emerald-500/15 text-emerald-600 dark:text-emerald-400" :"bg-amber-500/15 text-amber-600 dark:text-amber-400"}`}>
  {attemptDetail.percent}%
  </div>
  <div>

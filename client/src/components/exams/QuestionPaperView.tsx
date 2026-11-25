@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import Editor from "@monaco-editor/react";
 import { CheckCircle2, XCircle, CircleDot } from "lucide-react";
 import { ARENA_EDITOR_OPTIONS, configureArenaEditor } from "../arena/arenaMonaco";
+import { useDarkMode } from "../../hooks/useDarkMode";
 import ExamMarkdown from "../ui/ExamMarkdown";
 
 export const LOAI_LABEL: Record<string, string> = {
@@ -34,13 +35,14 @@ export default function QuestionPaperView({
   current?: boolean;
   children?: ReactNode;
 }) {
+  const { dark } = useDarkMode();
   const d = answer || {};
   const sel = typeof d.selectedIndex === "number" ? d.selectedIndex : null;
   const cor = typeof correctIndex === "number" ? correctIndex : null;
 
   return (
     <div
-      className={`rounded-xl border bg-card p-4 shadow-card sm:p-6 ${
+      className={`rounded-xl border bg-card p-4 shadow-sm sm:p-5 ${
         current ? "border-primary ring-2 ring-primary/30" : "border-border"
       }`}
     >
@@ -126,7 +128,7 @@ export default function QuestionPaperView({
             <Editor
               height="240px"
               language={q.ngon_ngu === "cpp" ? "cpp" : "python"}
-              theme="codeclass-arena"
+              theme={dark ? "codeclass-arena" : "vs"}
               value={d.codeAnswer || ""}
               beforeMount={configureArenaEditor}
               options={{

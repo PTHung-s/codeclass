@@ -235,6 +235,7 @@ function LearningVideoPlayer({
               className="hidden w-16 accent-primary sm:block"
             />
             <select
+              data-slot="video-speed-select"
               aria-label="Tốc độ phát"
               value={speed}
               onChange={(event) => {
@@ -242,7 +243,7 @@ function LearningVideoPlayer({
                 setSpeed(next);
                 if (videoRef.current) videoRef.current.playbackRate = next;
               }}
-              className="rounded-md bg-white/10 px-2 py-1.5 text-xs font-semibold text-white outline-none hover:bg-white/15"
+              className="rounded-md bg-white/10 px-2 py-1 text-xs font-semibold text-white outline-none hover:bg-white/15"
             >
               {[0.75, 1, 1.25, 1.5, 2].map((item) => (
                 <option key={item} value={item} className="bg-card text-foreground">
@@ -330,11 +331,11 @@ export default function SessionVideoPage() {
       </Button>
 
       <Card>
-        <CardContent className="p-6">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardContent className="p-4 md:p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Video bài giảng · Buổi {String(lesson.orderIndex).padStart(2, "0")}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {lesson.title}
           </h1>
         </CardContent>

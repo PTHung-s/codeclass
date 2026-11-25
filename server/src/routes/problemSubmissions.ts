@@ -63,12 +63,13 @@ router.get("/problems/progress/summary", authenticate, async (req: Request, res:
 
     const submissions = await prisma.problemSubmission.findMany({
       where: { studentId: userId },
-      select: { problemId: true, createdAt: true },
+      select: { problemId: true, createdAt: true, passed: true },
     });
 
-    const solvedCount = new Set(submissions.map((submission) => submission.problemId)).size;
+    const solvedSubs = submissions.filter((s) => s.passed);
+    const solvedCount = new Set(solvedSubs.map((submission) => submission.problemId)).size;
     const totalSubmissions = submissions.length;
-    const dateKeys = Array.from(new Set(submissions.map((submission) => toDateKey(submission.createdAt)))).sort();
+    const dateKeys = Array.from(new Set(solvedSubs.map((submission) => toDateKey(submission.createdAt)))).sort();
     const streak = computeStreak(dateKeys);
 
     // A streak is only "current" when the latest submission is today or
@@ -81,7 +82,10 @@ router.get("/problems/progress/summary", authenticate, async (req: Request, res:
       : true;
 
     const dailyCounts: Record<string, number> = {};
-    for (const dateKey of dateKeys) dailyCounts[dateKey] = (dailyCounts[dateKey] || 0) + 1;
+    for (const s of solvedSubs) {
+      const k = toDateKey(s.createdAt);
+      dailyCounts[k] = (dailyCounts[k] || 0) + 1;
+    }
 
     const heatmapDays: { date: string; count: number }[] = [];
     for (let i = 12 * 7 - 1; i >= 0; i -= 1) {
@@ -114,7 +118,7 @@ router.get("/problems/progress/solved", authenticate, async (req: Request, res: 
     }
 
     const submissions = await prisma.problemSubmission.findMany({
-      where: { studentId: userId },
+      where: { studentId: userId, passed: true },
       select: { problemId: true },
     });
 
@@ -191,6 +195,57 @@ router.get("/problem-submissions/:submissionId", authenticate, async (req: Reque
     res.json(submission);
   } catch {
     res.status(500).json({ error: "Failed to fetch practice submission" });
+  }
+});
+
+router.get("/submissions/:submissionId", authenticate, async (req: Request, res: Response) => {
+  try {
+    const submissionId = param(req, "submissionId");
+    const { userId, role } = req.user!;
+
+    const sub = await prisma.submission.findUnique({
+      where: { id: submissionId },
+      include: {
+        student: { select: { id: true, fullName: true, nickname: true, email: true } },
+        assignment: {
+          select: {
+            id: true,
+            title: true,
+            problem: { select: { id: true, title: true, difficulty: true } },
+          },
+        },
+        review: { select: { score: true, feedback: true, status: true } },
+      },
+    });
+
+    if (!sub) {
+      res.status(404).json({ error: "Submission not found" });
+      return;
+    }
+
+    if (role === "student" && sub.studentId !== userId) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    if (role !== "student" && role !== "admin" && role !== "teacher" && role !== "teaching_assistant") {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    res.json({
+      id: sub.id,
+      code: sub.contentText || "",
+      answer: null,
+      note: sub.review?.feedback || sub.note || null,
+      score: sub.review?.score ?? null,
+      language: detectLanguage(sub.contentText || ""),
+      student: sub.student,
+      problem: sub.assignment?.problem || { id: "", title: sub.assignment?.title || "Bài nộp" },
+      createdAt: sub.submittedAt,
+    });
+  } catch {
+    res.status(500).json({ error: "Failed to fetch submission" });
   }
 });
 
@@ -518,6 +573,8 @@ async function runJudgeInBackground(params: {
   problemId: string;
   problemTitle: string;
   difficulty: string;
+  skillId: string | null;
+  skillTagStatus: string;
   studentId: string;
   isStudent: boolean;
   code: string;
@@ -525,7 +582,7 @@ async function runJudgeInBackground(params: {
   testCases: ReturnType<typeof parseTestCases>;
   studentNote: string;
 }) {
-  const { submissionId, problemId, problemTitle, difficulty, studentId, isStudent, code, language, testCases, studentNote } = params;
+  const { submissionId, problemId, problemTitle, difficulty, skillId, skillTagStatus, studentId, isStudent, code, language, testCases, studentNote } = params;
   await acquireJudgeSlot();
   try {
     await prisma.problemSubmission.update({
@@ -564,7 +621,7 @@ async function runJudgeInBackground(params: {
         where: { problemId, studentId, createdAt: { lt: createdAt } },
       });
       await recordSkillEvidenceBatch(
-        fromProblemSubmission(studentId, problemId, priorCount + 1, { title: problemTitle, difficulty } as any, allPassed, createdAt),
+        fromProblemSubmission(studentId, problemId, priorCount + 1, { skillId, skillTagStatus, difficulty }, allPassed, createdAt),
       );
     } catch (err) {
       console.error("[problemSubmissions] skill evidence record failed:", err);
@@ -645,6 +702,8 @@ router.post("/problems/:problemId/submissions", authenticate, async (req: Reques
 
     const testCases = parseTestCases(problem.testCases);
     const needsJudge = !!code && testCases.length > 0;
+    const requestedLang = req.body.language === "cpp" || req.body.language === "python" ? req.body.language : null;
+    const language: "python" | "cpp" = requestedLang ?? (code ? detectLanguage(code) : "python");
 
     // Tạo bản ghi ngay và trả response lập tức — việc chấm chạy nền.
     const submission = await prisma.problemSubmission.create({
@@ -652,6 +711,7 @@ router.post("/problems/:problemId/submissions", authenticate, async (req: Reques
         problemId,
         studentId: userId,
         code,
+        language,
         answer,
         note,
         typingSpeed,
@@ -666,12 +726,13 @@ router.post("/problems/:problemId/submissions", authenticate, async (req: Reques
     res.status(201).json({ submission, judging: needsJudge });
 
     if (needsJudge) {
-      const language = detectLanguage(code);
       void runJudgeInBackground({
         submissionId: submission.id,
         problemId,
         problemTitle: problem.title,
         difficulty: problem.difficulty,
+        skillId: problem.skillId,
+        skillTagStatus: problem.skillTagStatus,
         studentId: userId,
         isStudent: role === "student",
         code,

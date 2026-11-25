@@ -154,21 +154,21 @@ export default function ProblemList() {
   const hasAnyFilter = selectedTags.length > 0 || selectedDifficulties.length > 0;
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         title="Thư viện đề bài"
         actions={
           isTeacher ? (
-            <Button onClick={() => navigate("/problems/new")}><Plus className="h-4 w-4" />
-              Tạo đề mới
+            <Button size="sm" onClick={() => navigate("/problems/new")}>
+              <Plus className="size-3.5" /> Tạo đề mới
             </Button>
           ) : undefined
         }
       />
 
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="relative flex-1 min-w-[220px] max-w-sm" role="search">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+      <div className="flex flex-wrap items-center gap-2">
+        <div className="relative min-w-[200px] max-w-xs flex-1" role="search">
+          <Search className="absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
           <label htmlFor="problem-search" className="sr-only">
             Tìm kiếm đề bài
           </label>
@@ -177,12 +177,11 @@ export default function ProblemList() {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Tìm kiếm đề bài..."
-            className="pl-9"
+            className="h-8 pl-8 text-xs"
           />
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-medium text-muted-foreground uppercase">Độ khó</span>
+        <div className="flex flex-wrap items-center gap-1">
           {[
             { value: "easy", label: "Dễ" },
             { value: "medium", label: "Trung bình" },
@@ -202,7 +201,7 @@ export default function ProblemList() {
                       : [...prev, level.value]
                   );
                 }}
-                className="rounded-full"
+                className="h-7 rounded-full px-2.5 text-[11px]"
               >
                 {level.label}
               </Button>
@@ -211,8 +210,7 @@ export default function ProblemList() {
         </div>
 
         {!isTeacher && (
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase">Trạng thái</span>
+          <div className="flex items-center gap-1">
             {[
               { value: "all", label: "Tất cả" },
               { value: "unsolved", label: "Chưa làm" },
@@ -223,7 +221,7 @@ export default function ProblemList() {
                 variant={solvedFilter === opt.value ? "secondary" : "outline"}
                 size="xs"
                 onClick={() => setSolvedFilter(opt.value as typeof solvedFilter)}
-                className="rounded-full"
+                className="h-7 rounded-full px-2.5 text-[11px]"
               >
                 {opt.label}
               </Button>
@@ -238,7 +236,7 @@ export default function ProblemList() {
           id="problem-sort"
           value={sortBy}
           onChange={(e) => setSortBy(e.target.value)}
-          className="rounded-lg border border-input bg-card px-3 py-2 text-sm outline-none focus:border-ring"
+          className="h-8 rounded-lg border border-input bg-card px-2.5 py-0 text-xs leading-none outline-none focus:border-ring"
         >
           <option value="default">Sắp xếp mặc định</option>
           <option value="title_asc">Tên A → Z</option>
@@ -251,60 +249,64 @@ export default function ProblemList() {
         {hasAnyFilter && (
           <Button
             variant="ghost"
+            size="sm"
             onClick={() => {
               setSelectedTags([]);
               setSelectedDifficulties([]);
             }}
+            className="h-8 px-2 text-xs"
           >
-            <X className="w-4 h-4" /> Xóa bộ lọc
+            <X className="size-3.5" /> Xóa lọc
           </Button>
         )}
 
         <Button
           variant={sidebarOpen ? "secondary" : "outline"}
+          size="sm"
           onClick={() => setSidebarOpen(!sidebarOpen)}
+          className="h-8 px-2.5 text-xs"
         >
-          {sidebarOpen ? <ChevronLeft className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-          Lọc chủ đề {selectedTags.length > 0 && `(${selectedTags.length})`}
+          {sidebarOpen ? <ChevronLeft className="size-3.5" /> : <ChevronRight className="size-3.5" />}
+          Chủ đề {selectedTags.length > 0 && `(${selectedTags.length})`}
         </Button>
       </div>
 
-      <div className="flex gap-5">
+      <div className="flex gap-4">
         {sidebarOpen && (
-          <div className="w-48 lg:w-56 shrink-0">
-            <div className="rounded-xl border border-border bg-card p-4 shadow-card sticky top-6">
-              <div className="flex items-center justify-between mb-3">
-                <h3 className="text-xs font-medium text-muted-foreground uppercase">Bộ lọc chủ đề</h3>
+          <div className="hidden w-44 shrink-0 md:block lg:w-48">
+            <div className="sticky top-4 rounded-xl border border-border bg-card p-3 shadow-card">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Chủ đề</h3>
                 {selectedTags.length > 0 && (
-                  <span className="text-[11px] text-foreground font-medium">{selectedTags.length} đã chọn</span>
+                  <span className="text-[10px] font-medium text-primary">{selectedTags.length} chọn</span>
                 )}
               </div>
-              <div className="space-y-1 max-h-[52vh] overflow-y-auto pr-1">
-                <Button
+              <div className="max-h-[56vh] space-y-0.5 overflow-y-auto pr-0.5">
+                <button
+                  type="button"
                   onClick={() => setSelectedTags([])}
-                  variant="ghost"
-                  className={`w-full justify-between text-sm px-3 ${selectedTags.length === 0 ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                  className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-xs transition-colors ${selectedTags.length === 0 ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"}`}
                 >
                   <span>Tất cả</span>
-                  <span className="text-xs text-muted-foreground">{normalizedProblems.length}</span>
-                </Button>
+                  <span className="text-[11px] tabular-nums text-muted-foreground">{normalizedProblems.length}</span>
+                </button>
                 {tagCounts
                   .filter((t) => TOP_TAGS.includes(t.tag))
                   .map(({ tag, count }) => (
-                  <Button
+                  <button
                     key={tag}
-                    variant="ghost"
+                    type="button"
                     onClick={() => {
                       setPage(1);
                       setSelectedTags((prev) =>
                         prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
                       );
                     }}
-                    className={`w-full justify-between text-sm px-3 ${selectedTags.includes(tag) ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                    className={`flex w-full items-center justify-between rounded-md px-2 py-1 text-xs transition-colors ${selectedTags.includes(tag) ? "bg-muted font-semibold text-foreground" : "text-muted-foreground hover:bg-muted/60 hover:text-foreground"}`}
                   >
                     <span className="truncate">{tag}</span>
-                    <span className="ml-2 text-xs text-muted-foreground flex-shrink-0">{count}</span>
-                  </Button>
+                    <span className="ml-2 shrink-0 text-[11px] tabular-nums text-muted-foreground">{count}</span>
+                  </button>
                 ))}
               </div>
             </div>
@@ -433,16 +435,16 @@ export default function ProblemList() {
                 <Table className="table-fixed">
                   <TableHeader>
                     <TableRow className="hover:bg-transparent">
-                      <TableHead className="w-[44%] px-5">Tiêu đề</TableHead>
-                      <TableHead className="w-24 px-5">Độ khó</TableHead>
-                      <TableHead className="w-[32%] px-5">Chủ đề</TableHead>
-                      <TableHead className="w-20 px-5">
+                      <TableHead className="w-[46%] px-4 py-2 text-[11px]">Tiêu đề</TableHead>
+                      <TableHead className="w-24 px-3 py-2 text-[11px]">Độ khó</TableHead>
+                      <TableHead className="w-[30%] px-3 py-2 text-[11px]">Chủ đề</TableHead>
+                      <TableHead className="w-20 px-3 py-2 text-[11px]">
                         <span className="inline-flex items-center gap-1">
-                          <Clock className="w-3.5 h-3.5" />
+                          <Clock className="size-3" />
                           <span className="hidden sm:inline">T/gian</span>
                         </span>
                       </TableHead>
-                      {isTeacher && <TableHead className="w-16 px-5" />}
+                      {isTeacher && <TableHead className="w-16 px-3 py-2" />}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -454,57 +456,57 @@ export default function ProblemList() {
                         className="cursor-pointer group"
                         onClick={() => navigate(`/problems/${p.id}`)}
                       >
-                        <TableCell className="px-5 py-2.5">
+                        <TableCell className="px-4 py-2">
                           <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-foreground">{p.title}</p>
+                            <p className="truncate text-[13px] font-medium text-foreground">{p.title}</p>
                             {isSolved && (
-                              <span className="inline-flex items-center gap-1 text-[11px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-400">
-                                <CheckCircle2 className="w-3 h-3" /> Đã làm
+                              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-emerald-500/10 px-1.5 py-0.5 text-[10px] font-medium text-emerald-700 dark:text-emerald-400">
+                                <CheckCircle2 className="size-2.5" /> Đã làm
                               </span>
                             )}
                           </div>
-                          <p className="text-xs text-muted-foreground line-clamp-1 mt-0.5">{formatProblemPreview(p.shortDescription)}</p>
+                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{formatProblemPreview(p.shortDescription)}</p>
                         </TableCell>
-                        <TableCell className="px-5 py-2.5">
+                        <TableCell className="px-3 py-2">
                           <DifficultyBadge difficulty={p.difficulty} />
                         </TableCell>
-                        <TableCell className="px-5 py-2.5">
-                          <div className="flex gap-1.5 flex-wrap">
+                        <TableCell className="px-3 py-2">
+                          <div className="flex flex-wrap gap-1">
                             {p.tags?.slice(0, MAX_TAGS_VISIBLE).map((t: any) => (
                               <span
                                 key={t.tag}
-                                className={`text-xs px-2 py-0.5 rounded-md font-medium ${TAG_CLASS}`}
+                                className={`rounded px-1.5 py-0.5 text-[11px] font-medium ${TAG_CLASS}`}
                               >
                                 {t.tag}
                               </span>
                             ))}
                             {p.tags?.length > MAX_TAGS_VISIBLE && (
-                              <span className="text-xs text-muted-foreground py-0.5">+{p.tags.length - MAX_TAGS_VISIBLE}</span>
+                              <span className="py-0.5 text-[11px] text-muted-foreground">+{p.tags.length - MAX_TAGS_VISIBLE}</span>
                             )}
                           </div>
                         </TableCell>
-                        <TableCell className="px-5 py-2.5 text-xs text-muted-foreground">
+                        <TableCell className="px-3 py-2 text-[11px] text-muted-foreground tabular-nums">
                           <span className="inline-flex items-center gap-1">
-                            <Clock className="w-3.5 h-3.5" />
+                            <Clock className="size-3" />
                             {p.estimatedTime ? `${p.estimatedTime}p` : "-"}
                           </span>
                         </TableCell>
                         {isTeacher && (
-                          <TableCell className="px-5 py-2.5">
-                            <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
+                          <TableCell className="px-3 py-2">
+                            <div className="flex justify-end gap-0.5 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
                               <button
                                 onClick={(e) => { e.stopPropagation(); navigate(`/problems/${p.id}/edit`); }}
-                                className="p-1.5 text-muted-foreground hover:text-foreground rounded-lg hover:bg-muted"
+                                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
                                 title="Chỉnh sửa"
                               >
-                                <Edit className="w-4 h-4" />
+                                <Edit className="size-3.5" />
                               </button>
                               <button
                                 onClick={async (e) => { e.stopPropagation(); const ok = await confirm({ title: "Xóa đề", message: "Xóa đề này?", variant: "danger" }); if (ok) deleteMutation.mutate(p.id); }}
-                                className="p-1.5 text-muted-foreground hover:text-destructive rounded-lg hover:bg-muted"
+                                className="rounded-md p-1 text-muted-foreground hover:bg-muted hover:text-destructive"
                                 title="Xóa"
                               >
-                                <Trash2 className="w-4 h-4" />
+                                <Trash2 className="size-3.5" />
                               </button>
                             </div>
                           </TableCell>

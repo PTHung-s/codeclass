@@ -1,7 +1,10 @@
 import { useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { useNotifications, Notification } from "../../hooks/useNotifications";
+import { useAuthContext } from "../../contexts/AuthContext";
+import { isStaff } from "../../lib/roles";
 import {
+  Award,
   Bell,
   FileText,
   AlertTriangle,
@@ -11,7 +14,10 @@ import {
   BellOff,
   CheckCheck,
   ClipboardList,
+  Coins,
   Heart,
+  BookOpenCheck,
+  Bug,
 } from "lucide-react";
 
 interface NotificationDropdownProps {
@@ -20,21 +26,33 @@ interface NotificationDropdownProps {
 }
 
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
+  assignment: ClipboardList,
   assignment_published: ClipboardList,
   new_submission: FileText,
   late_submission: AlertTriangle,
   submission_reviewed: CheckCircle2,
   revision_requested: RefreshCw,
   honour_praise: Heart,
+  exam_published: BookOpenCheck,
+  exam_graded: CheckCircle2,
+  reward_redemption: Coins,
+  badge: Award,
+  bug_report: Bug,
 };
 
 const typeLabels: Record<string, string> = {
+  assignment: "Bài tập",
   assignment_published: "Bài tập",
   new_submission: "Bài nộp",
   late_submission: "Nộp muộn",
   submission_reviewed: "Đã chấm",
   revision_requested: "Cần sửa",
   honour_praise: "Lời khen",
+  exam_published: "Phòng thi",
+  exam_graded: "Điểm thi",
+  reward_redemption: "Đổi thưởng",
+  badge: "Huy hiệu",
+  bug_report: "Báo lỗi",
 };
 
 function timeAgo(dateStr: string): string {
@@ -54,6 +72,8 @@ function timeAgo(dateStr: string): string {
 
 export default function NotificationDropdown({ open, onClose }: NotificationDropdownProps) {
   const { notifications, unreadCount, markRead, markAllRead } = useNotifications();
+  const { user } = useAuthContext();
+  const staff = isStaff(user?.role);
   const navigate = useNavigate();
   const ref = useRef<HTMLDivElement>(null);
 
@@ -72,13 +92,27 @@ export default function NotificationDropdown({ open, onClose }: NotificationDrop
 
   const handleClick = (n: Notification) => {
     markRead(n.id);
-    if (!n.relatedEntityId) {
-      onClose();
-      return;
-    }
+    const id = n.relatedEntityId;
+    const entityType = n.relatedEntityType;
 
-    if (n.relatedEntityType === "course") {
-      navigate(`/courses/${n.relatedEntityId}`);
+    if (entityType === "course" && id) {
+      navigate(`/courses/${id}`);
+    } else if (entityType === "session_course" && id) {
+      navigate(`/course/${id}`);
+    } else if (entityType === "assignment" || entityType === "submission") {
+      navigate(staff ? "/assignments" : "/my-assignments");
+    } else if (entityType === "exam" && id) {
+      navigate(n.type === "exam_graded" && !staff ? `/exams/${id}/result` : `/exams/${id}`);
+    } else if (entityType === "problem" && id) {
+      navigate(`/problems/${id}`);
+    } else if (entityType === "reward_redemption") {
+      navigate("/tokens");
+    } else if (entityType === "badge") {
+      navigate("/dashboard");
+    } else if (entityType === "HonourPraise") {
+      navigate("/leaderboard");
+    } else if (entityType === "bug_report" && id) {
+      navigate(`/bug-reports/${id}`);
     }
     onClose();
   };

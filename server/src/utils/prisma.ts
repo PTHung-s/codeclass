@@ -29,13 +29,14 @@ const prisma = tunedUrl
 
 // Every second, sync the live queue depth (students waiting to run code) into
 // the metrics module so the admin monitor sees it without a circular import.
-setInterval(() => {
+const queueDepthTimer = setInterval(() => {
   try {
     setQueueDepth(pythonQueuePosition() + cppQueuePosition());
   } catch {
     /* non-fatal */
   }
 }, 1000);
+queueDepthTimer.unref();
 
 /**
  * The database shipped in journal_mode=DELETE, where a writer locks the whole

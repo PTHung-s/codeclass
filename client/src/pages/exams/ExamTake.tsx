@@ -6,6 +6,7 @@ import api from "../../lib/api";
 import { Button } from "../../components/ui/button";
 import { useAntiCheat } from "../../hooks/useAntiCheat";
 import { useConfirmContext } from "../../hooks/useConfirm";
+import { useDarkMode } from "../../hooks/useDarkMode";
 import { Hearts, FullscreenModal, ViolationToast } from "../../components/ui/AntiCheat";
 import { ARENA_EDITOR_OPTIONS, configureArenaEditor } from "../../components/arena/arenaMonaco";
 import ExamMarkdown from "../../components/ui/ExamMarkdown";
@@ -39,6 +40,7 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirmContext();
+  const { dark } = useDarkMode();
   const [idx, setIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, AnswerDraft>>({});
   const [remainingMs, setRemainingMs] = useState<number | null>(null);
@@ -346,95 +348,109 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
       )}
       {anti.lastViolation && <ViolationToast reason={anti.lastViolation} />}
 
-      <header className="sticky top-0 z-20 flex flex-wrap items-center gap-3 border-b border-border bg-card/95 px-3 py-2 backdrop-blur sm:px-4">
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-semibold">
-            {exam.title}
-            {preview && (
-              <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
-                Xem trước
-              </span>
-            )}
-          </p>
-          <p className="text-[11px] text-muted-foreground">
-            Đã làm {progress}/{questions.length}
-            {preview ? " · xem trước, không lưu bài" : ""}
-            {!preview && saveMut.isPending ? " · Đang lưu…" : ""}
-            {!preview && violCount > 0 ? ` · vi phạm ${violCount}` : ""}
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          {antiEnabled && <Hearts hearts={anti.hearts} maxHearts={anti.maxHearts} />}
-          <div className={`inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1 font-mono text-sm font-semibold ${
-            remainingMs != null && remainingMs < 60_000 ? "bg-destructive/15 text-destructive" : "bg-muted"
-          }`}>
-            <Clock className="h-3.5 w-3.5" />
-            {remainingMs == null ? "--:--" : formatMs(remainingMs)}
+      <header className="sticky top-0 z-20 border-b border-border bg-card/95 backdrop-blur">
+        <div className="flex flex-wrap items-center gap-2.5 px-3 py-2 sm:px-4">
+          <div className="min-w-0 flex-1">
+            <p className="truncate text-sm font-semibold">
+              {exam.title}
+              {preview && (
+                <span className="ml-2 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+                  Xem trước
+                </span>
+              )}
+            </p>
+            <p className="text-[11px] text-muted-foreground tabular-nums">
+              Đã làm {progress}/{questions.length}
+              {preview ? " · xem trước, không lưu bài" : ""}
+              {!preview && saveMut.isPending ? " · Đang lưu…" : ""}
+              {!preview && violCount > 0 ? ` · vi phạm ${violCount}` : ""}
+            </p>
           </div>
-          {preview ? (
-            <Button size="sm" variant="outline" onClick={() => navigate(`/exams/${examId}`)}>
-              Kết thúc xem trước
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="destructive"
-              disabled={submitMut.isPending}
-              onClick={async () => {
-                const ok = await confirm({
-                  title: "Nộp bài",
-                  message: "Nộp bài? Bạn không thể sửa sau khi nộp.",
-                  confirmLabel: "Nộp bài",
-                });
-                if (ok) submitMut.mutate();
-              }}
-            >
-              <Send className="h-4 w-4" /> Nộp bài
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {antiEnabled && <Hearts hearts={anti.hearts} maxHearts={anti.maxHearts} />}
+            <div className={`inline-flex h-8 items-center gap-1.5 rounded-[7px] px-2.5 font-mono text-xs font-semibold tabular-nums ${
+              remainingMs != null && remainingMs < 60_000
+                ? "animate-pulse bg-destructive/15 text-destructive"
+                : "border border-border bg-muted/60 text-foreground"
+            }`}>
+              <Clock className="h-3.5 w-3.5" />
+              {remainingMs == null ? "--:--" : formatMs(remainingMs)}
+            </div>
+            {preview ? (
+              <Button size="sm" variant="outline" className="h-8 text-xs" onClick={() => navigate(`/exams/${examId}`)}>
+                Kết thúc xem trước
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="destructive"
+                className="h-8 text-xs"
+                disabled={submitMut.isPending}
+                onClick={async () => {
+                  const ok = await confirm({
+                    title: "Nộp bài",
+                    message: "Nộp bài? Bạn không thể sửa sau khi nộp.",
+                    confirmLabel: "Nộp bài",
+                  });
+                  if (ok) submitMut.mutate();
+                }}
+              >
+                <Send className="h-3.5 w-3.5" /> Nộp bài
+              </Button>
+            )}
+          </div>
+        </div>
+        <div className="h-0.5 w-full bg-muted">
+          <div
+            className="h-full bg-primary transition-[width] duration-300 ease-out"
+            style={{ width: `${questions.length > 0 ? Math.round((progress / questions.length) * 100) : 0}%` }}
+          />
         </div>
       </header>
 
-      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-4 p-3 sm:flex-row sm:p-4">
-        {/* Question nav */}
-        <aside className="shrink-0 self-start">
-          <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-            Câu
-          </p>
-          <div className="grid grid-cols-8 gap-1.5 sm:grid-cols-5">
-            {questions.map((qq, i) => {
-              const dd = drafts[qq.id];
-              const answered =
-                (qq.loai === "trac_nghiem" && dd?.selectedIndex != null) ||
-                (qq.loai === "tra_loi_ngan" && (dd?.textAnswer || "").trim()) ||
-                (qq.loai === "thuc_hanh" && (dd?.codeAnswer || "").trim());
-              return (
-                <button
-                  key={qq.id}
-                  type="button"
-                  title={`Câu ${i + 1} (${qq.ma_cau})`}
-                  onClick={() => {
-                    saveMut.mutate();
-                    setIdx(i);
-                    setRunResult(null);
-                  }}
-                  className={`relative h-9 w-9 rounded-lg border text-xs font-semibold ${
-                    i === idx
-                      ? "border-primary bg-primary text-primary-foreground"
-                      : answered
-                        ? "border-emerald-500/40 bg-emerald-500/10"
-                        : "border-border bg-card"
-                  }`}
-                >
-                  {i + 1}
-                  {dd?.isFlagged && <Flag className="absolute -right-1 -top-1 h-3 w-3 text-amber-500" />}
-                </button>
-              );
-            })}
+      <div className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-3 p-3 sm:flex-row sm:gap-4 sm:p-4">
+        {/* Question nav — horizontal strip on mobile, sticky compact grid on sm+ */}
+        <aside className="shrink-0 sm:sticky sm:top-16 sm:w-44 sm:self-start">
+          <div className="rounded-xl border border-border bg-card p-2.5 shadow-sm">
+            <div className="mb-2 flex items-center justify-between text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+              <span>Câu hỏi</span>
+              <span className="tabular-nums">{progress}/{questions.length}</span>
+            </div>
+            <div className="no-scrollbar flex gap-1.5 overflow-x-auto pb-0.5 sm:grid sm:grid-cols-5 sm:overflow-visible">
+              {questions.map((qq, i) => {
+                const dd = drafts[qq.id];
+                const answered =
+                  (qq.loai === "trac_nghiem" && dd?.selectedIndex != null) ||
+                  (qq.loai === "tra_loi_ngan" && (dd?.textAnswer || "").trim()) ||
+                  (qq.loai === "thuc_hanh" && (dd?.codeAnswer || "").trim());
+                return (
+                  <button
+                    key={qq.id}
+                    type="button"
+                    title={`Câu ${i + 1} (${qq.ma_cau})`}
+                    onClick={() => {
+                      saveMut.mutate();
+                      setIdx(i);
+                      setRunResult(null);
+                    }}
+                    className={`relative h-8 w-8 shrink-0 rounded-[7px] border text-xs font-semibold tabular-nums transition-colors ${
+                      i === idx
+                        ? "border-primary bg-primary text-primary-foreground shadow-sm"
+                        : answered
+                          ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300"
+                          : "border-border bg-background hover:bg-muted"
+                    }`}
+                  >
+                    {i + 1}
+                    {dd?.isFlagged && <Flag className="absolute -right-1 -top-1 h-3 w-3 fill-amber-500 text-amber-500" />}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </aside>
 
-        <main className="min-w-0 flex-1 rounded-xl border border-border bg-card p-4 shadow-card sm:p-6">
+        <main className="min-w-0 flex-1 rounded-xl border border-border bg-card p-4 shadow-sm sm:p-5">
           <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
             <span className="text-sm font-bold text-foreground">Câu {idx + 1}</span>
             <span className="font-mono text-[10px]">{q.ma_cau}</span>
@@ -469,28 +485,43 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
 
           {q.loai === "trac_nghiem" && (
             <div className="mt-4 space-y-2">
-              {(q.lua_chon || []).map((opt: string, oi: number) => (
-                <label
-                  key={oi}
-                  className={`flex cursor-pointer items-start gap-3 rounded-xl border p-3 text-sm transition ${
-                    d.selectedIndex === oi ? "border-primary bg-primary/5" : "border-border hover:bg-muted/40"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    className="mt-1"
-                    checked={d.selectedIndex === oi}
-                    onChange={() => setDraft(q.id, { selectedIndex: oi })}
-                  />
-                  <span>{opt}</span>
-                </label>
-              ))}
+              {(q.lua_chon || []).map((opt: string, oi: number) => {
+                const selected = d.selectedIndex === oi;
+                return (
+                  <label
+                    key={oi}
+                    className={`flex cursor-pointer items-start gap-2.5 rounded-lg border p-2.5 text-sm transition-colors ${
+                      selected
+                        ? "border-primary bg-primary/8 text-foreground shadow-sm"
+                        : "border-border bg-background/50 hover:bg-muted/50"
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      className="sr-only"
+                      checked={selected}
+                      onChange={() => setDraft(q.id, { selectedIndex: oi })}
+                    />
+                    <span
+                      className={`mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-[11px] font-semibold ${
+                        selected
+                          ? "border-primary bg-primary text-primary-foreground"
+                          : "border-border bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {String.fromCharCode(65 + oi)}
+                    </span>
+                    <span className="min-w-0 flex-1 leading-snug">{opt}</span>
+                  </label>
+                );
+              })}
             </div>
           )}
 
           {q.loai === "tra_loi_ngan" && (
             <textarea
-              className="mt-4 min-h-[100px] w-full rounded-xl border border-border bg-background p-3 text-sm"
+              data-slot="exam-short-answer"
+              className="mt-4 min-h-[96px] w-full rounded-lg border border-border bg-background p-3 text-sm text-foreground outline-none focus:border-primary/60"
               placeholder="Nhập câu trả lời ngắn…"
               value={d.textAnswer || ""}
               onChange={(e) => setDraft(q.id, { textAnswer: e.target.value })}
@@ -500,18 +531,18 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
           {q.loai === "thuc_hanh" && (
             <div className="mt-4 space-y-3">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-lg border border-border bg-muted px-2 py-1.5 text-xs font-medium uppercase">
+                <span className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium uppercase">
                   {q.ngon_ngu || "python"}
                 </span>
-                <Button size="sm" variant="secondary" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
-                  <Play className="h-4 w-4" /> {runMut.isPending ? "Đang chạy…" : "Chạy sample"}
+                <Button size="sm" variant="secondary" className="h-8 text-xs" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
+                  <Play className="h-3.5 w-3.5" /> {runMut.isPending ? "Đang chạy…" : "Chạy sample"}
                 </Button>
               </div>
               <div className="overflow-hidden rounded-xl border border-border">
                 <Editor
-                  height="280px"
+                  height="300px"
                   language={q.ngon_ngu === "cpp" ? "cpp" : "python"}
-                  theme="codeclass-arena"
+                  theme={dark ? "codeclass-arena" : "vs"}
                   value={d.codeAnswer || ""}
                   onChange={(val) => setDraft(q.id, { codeAnswer: val || "" })}
                   beforeMount={configureArenaEditor}

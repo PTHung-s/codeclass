@@ -77,7 +77,7 @@ export default function ProgressGrid({
  <span className="h-1.5 w-14 overflow-hidden rounded-full bg-muted">
  <span
  className={cn("block h-full rounded-full",
- s.percent >= 75 ?"" : s.percent >= 50 ?"" :"",
+ s.percent >= 75 ?"bg-emerald-500" : s.percent >= 50 ?"bg-amber-500" :"bg-rose-500",
  )}
  style={{ width: `${s.percent}%` }}
  />
@@ -111,7 +111,7 @@ export default function ProgressGrid({
  {s.currentLesson.title}
  </span>
  ) : (
- <span className="text-[11px] font-medium">Hoàn thành</span>
+ <span className="text-[11px] font-medium text-emerald-600 dark:text-emerald-400">Hoàn thành</span>
  )}
  </td>
 
@@ -143,7 +143,7 @@ export default function ProgressGrid({
  <div className="h-1.5 overflow-hidden rounded-full bg-muted">
  <div
  className={cn("h-full rounded-full",
- s.percent >= 75 ?"" : s.percent >= 50 ?"" :"",
+ s.percent >= 75 ?"bg-emerald-500" : s.percent >= 50 ?"bg-amber-500" :"bg-rose-500",
  )}
  style={{ width: `${s.percent}%` }}
  />

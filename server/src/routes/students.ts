@@ -470,4 +470,48 @@ router.get("/students/:studentId/attendance", authenticate, async (req: Request,
   }
 });
 
+/* ── GET /students/:studentId/exams ── */
+router.get("/students/:studentId/exams", authenticate, async (req: Request, res: Response) => {
+  try {
+    const studentId = param(req, "studentId");
+    const { userId, role } = req.user!;
+    if (!(await canViewStudentProfile(userId, role, studentId))) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    const attempts = await prisma.examAttempt.findMany({
+      where: { studentId },
+      include: {
+        exam: {
+          select: { id: true, title: true, subject: true, scale: true, status: true, showResults: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    res.json(
+      attempts.map((a) => ({
+        id: a.id,
+        examId: a.examId,
+        examTitle: a.exam.title,
+        subject: a.exam.subject,
+        scale: a.exam.scale,
+        showResults: a.exam.showResults,
+        status: a.status,
+        gradeStatus: a.gradeStatus,
+        totalScore: a.totalScore,
+        maxScore: a.maxScore,
+        startedAt: a.startedAt,
+        submittedAt: a.submittedAt,
+        createdAt: a.createdAt,
+      })),
+    );
+  } catch (err) {
+    console.error("student exams error:", err);
+    res.status(500).json({ error: "Failed to fetch student exams" });
+  }
+});
+
 export default router;

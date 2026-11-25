@@ -3,8 +3,7 @@ import api from"../../lib/api";
 import { Button } from"../../components/ui/button";
 import { Badge } from"../../components/ui/badge";
 import { Sparkles, Send, Play, Eye, Code, Trash2, ChevronDown, ChevronUp, Copy, Check } from"lucide-react";
-import { Prism as SyntaxHighlighter } from"react-syntax-highlighter";
-import { oneDark } from"react-syntax-highlighter/dist/esm/styles/prism";
+import { SyntaxHighlighter, oneDark } from"../../components/ui/CodeHighlighter";
 
 interface AIResponse {
  explanation: string;
@@ -133,7 +132,7 @@ export default function AIAdmin() {
  className="w-full text-left px-3 py-2 flex items-center justify-between"
  >
  <span className="text-sm truncate flex-1 mr-2">{log.prompt}</span>
- <Badge variant="secondary" className={`shrink-0 ${log.status ==="success" ?"" :""}`}>
+ <Badge variant="secondary" className={`shrink-0 ${log.status ==="success" ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"}`}>
  {log.mode}
  </Badge>
  </Button>
@@ -246,11 +245,11 @@ export default function AIAdmin() {
  <div>
  <div className="flex items-center gap-2 mb-2">
  <span className="text-xs font-medium uppercase">Kết quả thực thi</span>
- <Badge variant="secondary" className={`${response.status ==="success" ?"" :""}`}>
+ <Badge variant="secondary" className={`${response.status ==="success" ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"}`}>
  {response.status ==="success" ?"Thành công" :"Lỗi"}
  </Badge>
  </div>
- <pre className={`rounded-lg p-4 text-sm overflow-auto max-h-64 ${response.status ==="success" ?"bg-muted text-foreground border border-border" :"bg-red-500/10 border"}`}>
+ <pre className={`rounded-lg p-4 text-sm overflow-auto max-h-64 ${response.status ==="success" ?"bg-muted text-foreground border border-border" :"bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25"}`}>
  <code>{response.output ||"(không có output)"}</code>
  </pre>
  {response.status ==="success" && (

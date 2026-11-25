@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../lib/api";
 import { useAuthContext } from "../../contexts/AuthContext";
+import { isStaff } from "../../lib/roles";
 import { useToast } from "../../hooks/useToast";
 import { Button } from "../ui/button";
 import { Card } from "../ui/card";
@@ -207,7 +208,7 @@ function StreakHistoryInner({
   const { user: me } = useAuthContext();
   const toast = useToast();
   const qc = useQueryClient();
-  const canManage = manage && (me?.role === "admin" || me?.role === "teacher");
+  const canManage = manage && isStaff(me?.role);
 
   const q = useQuery<StreakHistoryData>({
     queryKey: ["streak-history", userId ?? "me", days],

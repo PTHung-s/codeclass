@@ -26,6 +26,7 @@ export default function SkillHeatmap() {
   const navigate = useNavigate();
   const [data, setData] = useState<HeatmapResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [domainFilter, setDomainFilter] = useState<"all" | "py" | "cpp" | "algo">("all");
 
   useEffect(() => {
     api.get("/skills/heatmap/all")
@@ -51,11 +52,43 @@ export default function SkillHeatmap() {
     );
   }
 
+  const visibleSkills = domainFilter === "all"
+    ? data.skills
+    : data.skills.filter((s) => s.skillId.startsWith(`${domainFilter}.`));
+
   return (
     <div className="max-w-7xl mx-auto px-4 py-6 space-y-6">
-      <div>
-        <h1 className="text-2xl font-extrabold">Heatmap Kỹ năng</h1>
-        <p className="text-sm text-muted-foreground">Mastery từng kỹ năng của tất cả học sinh</p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-extrabold">Heatmap Kỹ năng</h1>
+          <p className="text-sm text-muted-foreground">
+            Mastery thực tế hôm nay (đã tính suy giảm trí nhớ) của tất cả học sinh
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Lọc nhóm kỹ năng">
+          {(
+            [
+              { id: "all", label: `Tất cả (${data.skills.length})` },
+              { id: "py", label: "Python" },
+              { id: "cpp", label: "C++" },
+              { id: "algo", label: "Thuật toán" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={domainFilter === tab.id}
+              onClick={() => setDomainFilter(tab.id)}
+              className={cn(
+                "rounded-md px-3 py-1 text-xs font-semibold transition-colors",
+                domainFilter === tab.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Desktop table */}
@@ -65,7 +98,7 @@ export default function SkillHeatmap() {
             <thead>
               <tr className="border-b bg-muted/50">
                 <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-bold">Học sinh</th>
-                {data.skills.map((s) => (
+                {visibleSkills.map((s) => (
                   <th key={s.skillId} className="px-2 py-2 text-center font-medium whitespace-nowrap" title={s.name}>
                     <div>{s.topicName}</div>
                     <div className="text-[10px] text-muted-foreground">{s.name.slice(0, 20)}</div>
@@ -84,23 +117,29 @@ export default function SkillHeatmap() {
                       <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-xs font-medium" />
                     </button>
                   </td>
-                  {data.skills.map((s) => {
+                  {visibleSkills.map((s) => {
                     const state = student.skills[s.skillId];
                     const val = state?.mastery;
+                    const retentionNote = state?.retentionRate != null && state.retentionRate < 0.99
+                      ? ` · trí nhớ ${Math.round(state.retentionRate * 100)}% (${Math.round(state.daysSinceLastPractice ?? 0)} ngày)`
+                      : "";
                     return (
                       <td key={s.skillId} className="px-1 py-2 text-center">
                         <button
                           onClick={() => navigate(`/students/${student.userId}`)}
                           className={cn(
-                            "inline-flex min-w-[3rem] items-center justify-center rounded px-2 py-1 font-medium tabular-nums",
+                            "relative inline-flex min-w-[3rem] items-center justify-center rounded px-2 py-1 font-medium tabular-nums",
                             state ? MASTERY_COLOR(val!) : "bg-muted text-muted-foreground",
                             state && state.confidenceLevel !== "high" && "border border-dashed border-current/40",
                           )}
                           title={state
-                            ? `Ước lượng ${Math.round(val! * 100)}%, khoảng ${Math.round(state.lowerBound * 100)}–${Math.round(state.upperBound * 100)}%. ${CONFIDENCE_LABEL[state.confidenceLevel]} · ${state.evidenceCount} bằng chứng.`
+                            ? `Ước lượng ${Math.round(val! * 100)}%, khoảng ${Math.round(state.lowerBound * 100)}–${Math.round(state.upperBound * 100)}%. ${CONFIDENCE_LABEL[state.confidenceLevel]} · ${state.evidenceCount} phiên${retentionNote}.`
                             : "Chưa đánh giá"}
                         >
                           {state ? `${Math.round(val! * 100)}%` : "—"}
+                          {state?.dueForReview && (
+                            <span className="absolute -right-0.5 -top-0.5 size-2 rounded-full bg-amber-500 ring-1 ring-background" title="Cần ôn lại" />
+                          )}
                         </button>
                       </td>
                     );
@@ -123,12 +162,12 @@ export default function SkillHeatmap() {
               >
                 <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-sm font-semibold" />
               </button>
-              {data.skills.map((s) => {
+              {visibleSkills.map((s) => {
                 const state = student.skills[s.skillId];
                 const val = state?.mastery;
                 return (
                   <div key={s.skillId} className="flex items-center gap-2 text-xs">
-                    <span className="w-24 truncate text-muted-foreground">{s.name}</span>
+                    <span className="w-24 truncate text-muted-foreground" title={s.name}>{s.name}</span>
                     <div className="relative h-2 flex-1 rounded-full bg-muted">
                       {state && (
                         <>

@@ -144,8 +144,8 @@ export default function CourseCurriculum() {
         </div>
         {showModuleForm && (
           <div className="p-4 border-t border-border bg-muted/40 space-y-3 dark:border-border dark:bg-muted/40">
-            <input value={moduleTitle} onChange={(e) => setModuleTitle(e.target.value)} placeholder="Tên chương" className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none focus:ring-2 focus:ring-ring/30 dark:border-border" />
-            <textarea value={moduleDesc} onChange={(e) => setModuleDesc(e.target.value)} placeholder="Mô tả (không bắt buộc)" rows={2} className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none resize-none dark:border-border" />
+            <input data-slot="curriculum-input" value={moduleTitle} onChange={(e) => setModuleTitle(e.target.value)} placeholder="Tên chương" className="w-full rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/60" />
+            <textarea data-slot="curriculum-input" value={moduleDesc} onChange={(e) => setModuleDesc(e.target.value)} placeholder="Mô tả (không bắt buộc)" rows={2} className="w-full resize-none rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/60" />
             <div className="flex gap-2">
               <Button onClick={handleSaveModule} size="xs">{editingModule ? "Cập nhật" : "Lưu"}</Button>
               <Button onClick={() => { setShowModuleForm(false); setEditingModule(null); }} variant="outline" size="xs">Hủy</Button>
@@ -172,7 +172,7 @@ export default function CourseCurriculum() {
       {showModuleForm && (
         <div className="p-4 border-b border-border bg-muted/40 space-y-3 dark:border-border dark:bg-muted/40">
           <Input value={moduleTitle} onChange={(e) => setModuleTitle(e.target.value)} placeholder="Tên chương" />
-          <textarea value={moduleDesc} onChange={(e) => setModuleDesc(e.target.value)} placeholder="Mô tả (không bắt buộc)" rows={2} className="w-full px-3 py-2 border border-border rounded-lg text-sm outline-none resize-none dark:border-border" />
+          <textarea data-slot="curriculum-input" value={moduleDesc} onChange={(e) => setModuleDesc(e.target.value)} placeholder="Mô tả (không bắt buộc)" rows={2} className="w-full resize-none rounded-lg border border-border bg-background px-3 py-1.5 text-sm text-foreground outline-none focus:border-primary/60" />
           <div className="flex gap-2">
             <Button onClick={handleSaveModule} size="xs">{editingModule ? "Cập nhật" : "Lưu"}</Button>
             <Button onClick={() => { setShowModuleForm(false); setEditingModule(null); }} variant="outline" size="xs">Hủy</Button>
@@ -277,12 +277,12 @@ export default function CourseCurriculum() {
                                   <button type="button" onClick={() => setQuizQuestions(quizQuestions.filter((_, j) => j !== qi))} className="text-xs text-red-500 hover:text-red-700 dark:text-red-400">Xóa</button>
                                 )}
                               </div>
-                              <input value={q.question} onChange={(e) => { const n = [...quizQuestions]; n[qi].question = e.target.value; setQuizQuestions(n); }} placeholder="Câu hỏi..." className="w-full px-3 py-1.5 border border-border rounded text-xs outline-none dark:border-border" />
+                              <input data-slot="curriculum-input" value={q.question} onChange={(e) => { const n = [...quizQuestions]; n[qi].question = e.target.value; setQuizQuestions(n); }} placeholder="Câu hỏi..." className="w-full rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground outline-none focus:border-primary/60" />
                               <div className="space-y-1">
                                 {q.options.map((opt, oi) => (
                                   <div key={oi} className="flex items-center gap-2">
                                     <input type="radio" name={`correct-${qi}`} checked={q.correctIndex === oi} onChange={() => { const n = [...quizQuestions]; n[qi].correctIndex = oi; setQuizQuestions(n); }} className="w-3 h-3" />
-                                    <input value={opt} onChange={(e) => { const n = [...quizQuestions]; n[qi].options[oi] = e.target.value; setQuizQuestions(n); }} placeholder={`Đáp án ${String.fromCharCode(65 + oi)}${q.correctIndex === oi ? ' (đúng)' : ''}`} className="flex-1 px-2 py-1 border border-border rounded text-xs outline-none dark:border-border" />
+                                    <input data-slot="curriculum-input" value={opt} onChange={(e) => { const n = [...quizQuestions]; n[qi].options[oi] = e.target.value; setQuizQuestions(n); }} placeholder={`Đáp án ${String.fromCharCode(65 + oi)}${q.correctIndex === oi ? ' (đúng)' : ''}`} className="flex-1 rounded-md border border-border bg-background px-2 py-1 text-xs text-foreground outline-none focus:border-primary/60" />
                                   </div>
                                 ))}
                               </div>

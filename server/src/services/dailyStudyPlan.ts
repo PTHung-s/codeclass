@@ -1,17 +1,19 @@
 import prisma from "../utils/prisma";
+import { getSkillStates } from "./skillMastery";
+import { getSkillDependents } from "../utils/skillGraph";
 
 const MAX_DAILY_ITEMS = 3;
 const WEAK_MASTERY_THRESHOLD = 0.7;
 const RECENT_WINDOW_DAYS = 30;
 
 type EligibleContent = {
-  lessonId: string;
+  lessonId: string | null;
   lessonTitle: string;
   quizId: string | null;
   problemIds: string[];
 };
 
-type SkillEvidence = {
+type SkillEvidenceStat = {
   total: number;
   wrong: number;
   lastSeenAt: Date | null;
@@ -49,9 +51,8 @@ function addEligibleContent(
   content: EligibleContent,
 ) {
   const current = map.get(skillId) || [];
-  const existing = current.find((entry) => entry.lessonId === content.lessonId);
+  const existing = current.find((entry) => entry.lessonId === content.lessonId && entry.quizId === content.quizId);
   if (existing) {
-    if (!existing.quizId && content.quizId) existing.quizId = content.quizId;
     existing.problemIds = [...new Set([...existing.problemIds, ...content.problemIds])];
   } else {
     current.push(content);
@@ -59,8 +60,8 @@ function addEligibleContent(
   map.set(skillId, current);
 }
 
-function recordEvidence(
-  evidence: Map<string, SkillEvidence>,
+function recordEvidenceStat(
+  evidence: Map<string, SkillEvidenceStat>,
   skillId: string,
   isCorrect: boolean,
   seenAt: Date,
@@ -72,61 +73,47 @@ function recordEvidence(
   evidence.set(skillId, current);
 }
 
-function safeAnswers(value: string): Array<{ questionId?: string; isCorrect?: boolean }> {
-  try {
-    const parsed = JSON.parse(value || "[]");
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function daysSince(date: Date | null, now: Date): number {
-  if (!date) return RECENT_WINDOW_DAYS;
-  return Math.max(0, (now.getTime() - date.getTime()) / 86_400_000);
-}
-
 export async function createTodayDailyStudyPlan(userId: string) {
   const dateKey = vietnamDateKey();
   const existing = await getTodayDailyStudyPlan(userId);
   if (existing) return existing;
 
-  // The curriculum boundary comes exclusively from completed lessons.
-  const completed = await prisma.lessonProgress.findMany({
-    where: { userId },
-    include: {
-      lesson: {
-        include: {
-          quizzes: {
-            include: {
-              questions: {
-                where: { skillTagStatus: "approved", skillId: { not: null } },
-                select: { id: true, skillId: true },
+  const [completed, skillStates] = await Promise.all([
+    prisma.lessonProgress.findMany({
+      where: { userId },
+      include: {
+        lesson: {
+          include: {
+            quizzes: {
+              include: {
+                questions: {
+                  where: { skillTagStatus: "approved", skillId: { not: null } },
+                  select: { id: true, skillId: true },
+                },
               },
             },
-          },
-          assignments: {
-            include: {
-              problem: {
-                select: {
-                  id: true,
-                  title: true,
-                  status: true,
-                  skillId: true,
-                  skillTagStatus: true,
-                  estimatedTime: true,
+            assignments: {
+              include: {
+                problem: {
+                  select: {
+                    id: true,
+                    title: true,
+                    status: true,
+                    skillId: true,
+                    skillTagStatus: true,
+                    estimatedTime: true,
+                  },
                 },
               },
             },
           },
         },
       },
-    },
-  });
+    }),
+    getSkillStates(userId),
+  ]);
 
   const eligibleBySkill = new Map<string, EligibleContent[]>();
-  const questionSkill = new Map<string, string>();
-  const problemSkill = new Map<string, string>();
   const problemDetails = new Map<
     string,
     { id: string; title: string; estimatedTime: number | null }
@@ -137,7 +124,6 @@ export async function createTodayDailyStudyPlan(userId: string) {
     for (const quiz of lesson.quizzes) {
       for (const question of quiz.questions) {
         if (!question.skillId) continue;
-        questionSkill.set(question.id, question.skillId);
         addEligibleContent(eligibleBySkill, question.skillId, {
           lessonId: lesson.id,
           lessonTitle: lesson.title,
@@ -158,7 +144,6 @@ export async function createTodayDailyStudyPlan(userId: string) {
       ) {
         continue;
       }
-      problemSkill.set(problem.id, problem.skillId);
       problemDetails.set(problem.id, {
         id: problem.id,
         title: problem.title,
@@ -173,93 +158,112 @@ export async function createTodayDailyStudyPlan(userId: string) {
     }
   }
 
-  const eligibleSkillIds = [...eligibleBySkill.keys()];
-  if (eligibleSkillIds.length === 0) {
+  // Also load unified evidence across ALL 8 sources over the last 30 days
+  const recentSince = new Date(Date.now() - RECENT_WINDOW_DAYS * 86_400_000);
+  const [recentEvidence, passedProblems] = await Promise.all([
+    prisma.skillEvidence.findMany({
+      where: { userId, occurredAt: { gte: recentSince } },
+      orderBy: { occurredAt: "asc" },
+      select: { skillId: true, isCorrect: true, occurredAt: true },
+    }),
+    prisma.problemSubmission.findMany({
+      where: { studentId: userId, passed: true },
+      distinct: ["problemId"],
+      select: { problemId: true },
+    }),
+  ]);
+
+  const evidenceStats = new Map<string, SkillEvidenceStat>();
+  for (const row of recentEvidence) {
+    recordEvidenceStat(evidenceStats, row.skillId, row.isCorrect, row.occurredAt);
+  }
+  const solvedProblemIds = new Set(passedProblems.map((p) => p.problemId));
+
+  // Include evidenced skills that came from Exams / SessionCourses / Challenges
+  // even if their LessonProgress isn't in completed lessons yet: find published problems/quizzes for them.
+  const evidencedSkillIds = skillStates.filter((s) => s.hasEvidence).map((s) => s.skillId);
+  const missingContentSkills = evidencedSkillIds.filter((sid) => !eligibleBySkill.has(sid));
+
+  if (missingContentSkills.length > 0) {
+    const [fallbackProblems, fallbackQuestions] = await Promise.all([
+      prisma.problem.findMany({
+        where: { status: "published", skillTagStatus: "approved", skillId: { in: missingContentSkills } },
+        select: { id: true, title: true, estimatedTime: true, skillId: true },
+        orderBy: { createdAt: "asc" },
+      }),
+      prisma.quizQuestion.findMany({
+        where: { skillTagStatus: "approved", skillId: { in: missingContentSkills } },
+        select: {
+          skillId: true,
+          quiz: { select: { id: true, lessonId: true, lesson: { select: { title: true } } } },
+        },
+      }),
+    ]);
+
+    for (const p of fallbackProblems) {
+      if (!p.skillId) continue;
+      problemDetails.set(p.id, { id: p.id, title: p.title, estimatedTime: p.estimatedTime });
+      addEligibleContent(eligibleBySkill, p.skillId, {
+        lessonId: null,
+        lessonTitle: p.title,
+        quizId: null,
+        problemIds: [p.id],
+      });
+    }
+    for (const q of fallbackQuestions) {
+      if (!q.skillId || !q.quiz?.lessonId) continue;
+      addEligibleContent(eligibleBySkill, q.skillId, {
+        lessonId: q.quiz.lessonId,
+        lessonTitle: q.quiz.lesson?.title || "Bài học liên quan",
+        quizId: q.quiz.id,
+        problemIds: [],
+      });
+    }
+  }
+
+  const weakOrEvidencedSet = new Set(
+    skillStates
+      .filter((s) => s.hasEvidence && (s.mastery < WEAK_MASTERY_THRESHOLD || s.trend === "down" || s.dueForReview))
+      .map((s) => s.skillId),
+  );
+
+  const candidates = skillStates
+    .filter((s) => weakOrEvidencedSet.has(s.skillId) && eligibleBySkill.has(s.skillId))
+    .map((state) => {
+      const stats = evidenceStats.get(state.skillId) || { total: 0, wrong: 0, lastSeenAt: null };
+      const masteryGap = 1 - state.mastery;
+      const wrongRate = stats.total > 0 ? stats.wrong / stats.total : masteryGap;
+      const forgettingUrgency = 1 - (state.retentionRate ?? 1);
+      const trendScore = state.trend === "down" ? 1 : 0;
+      const isBlockingPrereq = getSkillDependents(state.skillId).some((dep) => weakOrEvidencedSet.has(dep));
+      const prereqBonus = isBlockingPrereq ? 1 : 0;
+
+      const priority =
+        0.40 * masteryGap +
+        0.20 * wrongRate +
+        0.20 * forgettingUrgency +
+        0.10 * trendScore +
+        0.10 * prereqBonus;
+
+      return { state, stats, isBlockingPrereq, priority };
+    })
+    .sort((a, b) => b.priority - a.priority)
+    .slice(0, MAX_DAILY_ITEMS);
+
+  if (candidates.length === 0) {
     return prisma.dailyStudyPlan.create({
       data: { userId, day: dateKey, status: "empty", estimatedMinutes: 0 },
       include: planInclude,
     });
   }
 
-  const recentSince = new Date(Date.now() - RECENT_WINDOW_DAYS * 86_400_000);
-  const relevantQuizIds = new Set(
-    [...eligibleBySkill.values()].flat().flatMap((content) =>
-      content.quizId ? [content.quizId] : [],
-    ),
-  );
-  const relevantProblemIds = [...problemSkill.keys()];
-
-  const [masteries, quizAttempts, problemSubmissions] = await Promise.all([
-    prisma.studentSkillMastery.findMany({
-      where: { userId, skillId: { in: eligibleSkillIds } },
-      include: { skill: { select: { name: true } } },
-    }),
-    relevantQuizIds.size > 0
-      ? prisma.quizAttempt.findMany({
-          where: {
-            userId,
-            quizId: { in: [...relevantQuizIds] },
-            createdAt: { gte: recentSince },
-          },
-          orderBy: { createdAt: "asc" },
-        })
-      : Promise.resolve([]),
-    relevantProblemIds.length > 0
-      ? prisma.problemSubmission.findMany({
-          where: {
-            studentId: userId,
-            problemId: { in: relevantProblemIds },
-            createdAt: { gte: recentSince },
-          },
-          orderBy: { createdAt: "asc" },
-        })
-      : Promise.resolve([]),
-  ]);
-
-  const evidence = new Map<string, SkillEvidence>();
-  for (const attempt of quizAttempts) {
-    for (const answer of safeAnswers(attempt.answers)) {
-      if (!answer.questionId) continue;
-      const skillId = questionSkill.get(answer.questionId);
-      if (skillId) recordEvidence(evidence, skillId, Boolean(answer.isCorrect), attempt.createdAt);
-    }
-  }
-
-  const lastProblemPassed = new Map<string, boolean>();
-  for (const submission of problemSubmissions) {
-    const skillId = problemSkill.get(submission.problemId);
-    if (skillId) recordEvidence(evidence, skillId, submission.passed, submission.createdAt);
-    lastProblemPassed.set(submission.problemId, submission.passed);
-  }
-
-  const now = new Date();
-  const candidates = masteries
-    .filter((mastery) => mastery.value < WEAK_MASTERY_THRESHOLD || mastery.trend === "down")
-    .map((mastery) => {
-      const stats = evidence.get(mastery.skillId) || { total: 0, wrong: 0, lastSeenAt: null };
-      const masteryGap = 1 - mastery.value;
-      const wrongRate = stats.total > 0 ? stats.wrong / stats.total : masteryGap;
-      const dueScore = Math.min(1, daysSince(stats.lastSeenAt, now) / 14);
-      const trendScore = mastery.trend === "down" ? 1 : 0;
-      const confidence = Math.min(1, stats.total / 5);
-      const priority =
-        0.45 * masteryGap +
-        0.25 * wrongRate +
-        0.15 * dueScore +
-        0.1 * trendScore +
-        0.05 * confidence;
-      return { mastery, stats, priority };
-    })
-    .sort((a, b) => b.priority - a.priority)
-    .slice(0, MAX_DAILY_ITEMS);
-
   const items = candidates.map((candidate, index) => {
-    const { mastery, stats } = candidate;
-    const contents = eligibleBySkill.get(mastery.skillId) || [];
+    const { state, stats, isBlockingPrereq } = candidate;
+    const contents = eligibleBySkill.get(state.skillId) || [];
     const content = contents[0];
     const preferredProblemId = contents
       .flatMap((entry) => entry.problemIds)
-      .find((problemId) => lastProblemPassed.get(problemId) !== true);
+      .find((problemId) => !solvedProblemIds.has(problemId));
     const fallbackProblemId = contents.flatMap((entry) => entry.problemIds)[0];
     const problemId = preferredProblemId || fallbackProblemId || null;
     const problem = problemId ? problemDetails.get(problemId) : null;
@@ -267,7 +271,7 @@ export async function createTodayDailyStudyPlan(userId: string) {
 
     let itemType = "lesson";
     let title = `Ôn lại: ${content.lessonTitle}`;
-    let actionUrl = `/lessons/${content.lessonId}`;
+    let actionUrl = content.lessonId ? `/lessons/${content.lessonId}` : "/problems";
     let estimatedMinutes = 6;
     let quizId: string | null = null;
 
@@ -276,7 +280,7 @@ export async function createTodayDailyStudyPlan(userId: string) {
       title = `Luyện lại: ${problem.title}`;
       actionUrl = `/problems/${problem.id}`;
       estimatedMinutes = Math.max(5, Math.min(20, problem.estimatedTime || 10));
-    } else if (quizContent?.quizId) {
+    } else if (quizContent?.quizId && quizContent.lessonId) {
       itemType = "quiz";
       quizId = quizContent.quizId;
       title = `Kiểm tra lại: ${quizContent.lessonTitle}`;
@@ -284,11 +288,22 @@ export async function createTodayDailyStudyPlan(userId: string) {
       estimatedMinutes = 5;
     }
 
-    const masteryPercent = Math.round(mastery.value * 100);
+    const masteryPercent = Math.round(state.mastery * 100);
+    const daysIdle = Math.round(state.daysSinceLastPractice ?? 0);
+    const reasonParts = [`Kỹ năng “${state.name}” hiện ở mức ${masteryPercent}%`];
+    if (state.dueForReview && daysIdle > 0) {
+      reasonParts.push(`đã ${daysIdle} ngày chưa ôn`);
+    }
+    if (isBlockingPrereq) {
+      reasonParts.push("là nền tảng cho kỹ năng tiếp theo");
+    }
+
     const evidenceText =
       stats.total > 0
-        ? `${stats.wrong}/${stats.total} lượt chưa đúng trong ${RECENT_WINDOW_DAYS} ngày; mastery ${masteryPercent}%`
-        : `Mastery ${masteryPercent}%; cần củng cố lại kiến thức đã học`;
+        ? `${stats.wrong}/${stats.total} lượt chưa đúng trong ${RECENT_WINDOW_DAYS} ngày · mastery ${masteryPercent}%`
+        : state.dueForReview
+          ? `Lưu giữ còn ${Math.round((state.retentionRate ?? 1) * 100)}% sau ${daysIdle} ngày · mastery ${masteryPercent}%`
+          : `Mastery ${masteryPercent}%; cần củng cố lại kiến thức đã học`;
 
     return {
       userId,
@@ -296,17 +311,17 @@ export async function createTodayDailyStudyPlan(userId: string) {
       type: itemType,
       itemType,
       status: "pending",
-      skillId: mastery.skillId,
+      skillId: state.skillId,
       lessonId: content.lessonId,
       quizId,
       problemId,
       evidence: evidenceText,
       actionUrl,
       title,
-      reason: `Kỹ năng “${mastery.skill.name}” đang ở mức ${masteryPercent}%.`,
+      reason: `${reasonParts.join(" — ")}.`,
       position: index,
       priority: Math.round(candidate.priority * 10_000) / 10_000,
-      masterySnapshot: mastery.value,
+      masterySnapshot: state.mastery,
       estimatedMinutes,
     };
   });
@@ -325,7 +340,6 @@ export async function createTodayDailyStudyPlan(userId: string) {
       include: planInclude,
     });
   } catch (error: any) {
-    // Another request may have created the same unique daily plan concurrently.
     if (error?.code === "P2002") return getTodayDailyStudyPlan(userId);
     throw error;
   }

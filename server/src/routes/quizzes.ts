@@ -7,6 +7,7 @@ import { calibrateCourseQuestions, getEffectiveDifficulty, QUESTION_CALIBRATION_
 import { redactAnswerKey } from "../utils/quizReview";
 import { permuteIndices, safeOptionOrder, toDisplayFrame } from "../utils/quizOptionOrder";
 import { recordSkillEvidenceBatch, fromLessonQuizAttempt } from "../services/skillEvidence";
+import { computeItemEvidenceWeight } from "../services/skillMastery";
 
 const router = Router();
 
@@ -232,10 +233,31 @@ router.post("/quizzes/:id/attempt", authenticate, async (req: Request, res: Resp
       }
 
       // Skill evidence → unified sink (fail-soft: never blocks the answer).
-      // fromLessonQuizAttempt gates on skillTagStatus === "approved".
+      // Apply empirical guessing weights when question calibration exists.
       try {
+        const questionIds = [...new Set(details.map((d) => d.questionId))];
+        const calibRows = questionIds.length > 0
+          ? await prisma.quizQuestionCalibration.findMany({
+              where: { questionId: { in: questionIds } },
+              select: { questionId: true, optionDistribution: true },
+            })
+          : [];
+        const distByQuestion = new Map<string, number[]>();
+        for (const cr of calibRows) {
+          try {
+            const dist = JSON.parse(cr.optionDistribution || "[]");
+            if (Array.isArray(dist)) distByQuestion.set(cr.questionId, dist);
+          } catch { /* ignore */ }
+        }
+        const weightedDetails = details.map((d) => {
+          const dist = distByQuestion.get(d.questionId);
+          const weight = dist
+            ? computeItemEvidenceWeight(dist, d.selectedIndex, d.correctIndex, d.isCorrect)
+            : 1;
+          return { ...d, weight };
+        });
         await recordSkillEvidenceBatch(
-          fromLessonQuizAttempt(userId, quizId, attempt.id, details, new Date(), previousAttempts + 1),
+          fromLessonQuizAttempt(userId, quizId, attempt.id, weightedDetails, new Date(), previousAttempts + 1),
         );
       } catch (err) {
         console.error("[persistence] skill evidence record failed:", err);

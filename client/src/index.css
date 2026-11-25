@@ -249,6 +249,25 @@
   animation: result-in var(--motion-slow) var(--ease-out) both;
 }
 
+/* Crisp dropdown / popover reveal */
+@keyframes dropdown-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.975); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.dropdown-in {
+  transform-origin: top right;
+  animation: dropdown-in 160ms var(--ease-out) both;
+}
+
+/* Side panel slide-in */
+@keyframes panel-in {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+.panel-in {
+  animation: panel-in 180ms var(--ease-out) both;
+}
+
 /* Unlock cue on lesson rows that just became available */
 @keyframes unlock-glow {
   0% { box-shadow: inset 3px 0 0 0 hsl(var(--primary) / 0); }
@@ -273,6 +292,8 @@
   .option-selected,
   .heart-loss,
   .result-in,
+  .dropdown-in,
+  .panel-in,
   .unlock-glow { animation: none !important; }
 }
 

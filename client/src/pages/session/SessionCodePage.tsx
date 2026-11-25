@@ -1,11 +1,18 @@
 import { useQuery } from "@tanstack/react-query";
 import { useParams, useNavigate } from "react-router-dom";
-import { ArrowLeft, Code2, Copy, Download, Eye, FileCode2, FileText, Check } from "lucide-react";
+import { ArrowLeft, Code2, Copy, Download, Eye, FileCode2, FileText, Check, Terminal } from "lucide-react";
 import { useState } from "react";
 import api from "../../lib/api";
+import { openInCodeLab } from "../../lib/codeLabBridge";
 import { Button } from "../../components/ui/button";
 import { Card, CardContent } from "../../components/ui/card";
 import { cn } from "../../lib/utils";
+
+function detectFileLang(filename: string, content: string): "python" | "cpp" {
+  if (/\.(cpp|cc|cxx|c|h|hpp)$/i.test(filename)) return "cpp";
+  if (/#include\s*</.test(content) || /\bint\s+main\s*\(/.test(content)) return "cpp";
+  return "python";
+}
 
 function Action({
   icon,
@@ -17,7 +24,7 @@ function Action({
   onClick?: () => void;
 }) {
   return (
-    <Button variant="outline" size="sm" onClick={onClick} className="gap-1.5">
+    <Button variant="outline" size="sm" onClick={onClick} className="h-7 gap-1 px-2 text-xs">
       {icon} {text}
     </Button>
   );
@@ -75,22 +82,22 @@ export default function SessionCodePage() {
       </Button>
 
       <Card>
-        <CardContent className="p-6 md:p-8">
-          <p className="text-xs font-bold uppercase tracking-[0.14em] text-muted-foreground">
+        <CardContent className="p-4 md:p-5">
+          <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted-foreground">
             Buổi {String(lesson.orderIndex).padStart(2, "0")}
           </p>
-          <h1 className="mt-2 text-3xl font-bold tracking-tight text-foreground md:text-4xl">
+          <h1 className="mt-1.5 text-xl font-semibold tracking-tight text-foreground md:text-2xl">
             {lesson.title}
           </h1>
-          <p className="mt-3 flex items-center gap-2 text-sm text-muted-foreground">
+          <p className="mt-2 flex items-center gap-2 text-xs text-muted-foreground sm:text-sm">
             <Code2 className="h-4 w-4" />
-            Xem, sao chép và tải mã nguồn của buổi học
+            Xem, sao chép và chạy thử mã nguồn trong Code Lab
           </p>
 
           <div
             className={cn(
-              "mt-7 grid gap-6 border-t border-border pt-7",
-              codeFiles.length ? "lg:grid-cols-[320px_minmax(0,1fr)]" : "",
+              "mt-5 grid gap-5 border-t border-border pt-5",
+              codeFiles.length ? "lg:grid-cols-[290px_minmax(0,1fr)]" : "",
             )}
           >
             {codeFiles.length > 0 ? (
@@ -144,6 +151,18 @@ export default function SessionCodePage() {
                           text="Download"
                           onClick={() => downloadText(f.filename, f.content)}
                         />
+                        <Action
+                          icon={<Terminal className="h-4 w-4" />}
+                          text="Code Lab"
+                          onClick={() =>
+                            openInCodeLab(navigate, {
+                              code: f.content,
+                              language: detectFileLang(f.filename, f.content),
+                              fileName: f.filename,
+                              sourceLabel: `Buổi ${lesson.orderIndex}: ${lesson.title}`,
+                            })
+                          }
+                        />
                       </div>
                     </div>
                   ))}
@@ -174,11 +193,23 @@ export default function SessionCodePage() {
                       text="Download file"
                       onClick={() => downloadText(file.filename, file.content)}
                     />
+                    <Action
+                      icon={<Terminal className="h-4 w-4" />}
+                      text="Mở Code Lab"
+                      onClick={() =>
+                        openInCodeLab(navigate, {
+                          code: file.content,
+                          language: detectFileLang(file.filename, file.content),
+                          fileName: file.filename,
+                          sourceLabel: `Buổi ${lesson.orderIndex}: ${lesson.title}`,
+                        })
+                      }
+                    />
                   </div>
                 ) : null}
               </div>
               {file ? (
-                <pre className="mt-3 max-h-[70vh] overflow-auto rounded-xl border border-border bg-foreground p-5 font-mono text-sm leading-6 text-background">
+                <pre className="mt-3 max-h-[70vh] overflow-auto rounded-xl border border-zinc-800 bg-zinc-950 p-4 font-mono text-xs leading-6 text-zinc-100">
                   {file.content}
                 </pre>
               ) : (

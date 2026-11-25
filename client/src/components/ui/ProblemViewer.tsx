@@ -3,6 +3,7 @@ import Editor from "@monaco-editor/react";
 import type { LucideIcon } from "lucide-react";
 import { Check, Clock, Copy, Database, FlaskConical, Lightbulb, Link2, ListChecks, Code2, Star, KeyRound } from "lucide-react";
 import LatexRenderer from "./LatexRenderer";
+import { useDarkMode } from "../../hooks/useDarkMode";
 
 interface TestCaseLike {
   input?: string | null;
@@ -164,6 +165,7 @@ function extractMetaChips(text: string): MetaChips {
 }
 
 export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
+  const { dark } = useDarkMode();
   const visibleTests = parseVisibleTests(problem.testCases);
   const fallbackInput = clean(problem.sampleInput);
   const fallbackOutput = clean(problem.sampleOutput);
@@ -245,7 +247,7 @@ export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
               height={`${editorHeight(problem.starterCode)}px`}
               language={starterLang}
               value={problem.starterCode}
-              theme="vs-dark"
+              theme={dark ? "vs-dark" : "vs"}
               options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, padding: { top: 12 } }}
             />
           </div>
@@ -290,7 +292,7 @@ export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
               height={`${editorHeight(problem.teacherSolution, 120, 480)}px`}
               language={detectCodeLang(problem.teacherSolution)}
               value={problem.teacherSolution}
-              theme="vs-dark"
+              theme={dark ? "vs-dark" : "vs"}
               options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, padding: { top: 12 } }}
             />
           </div>

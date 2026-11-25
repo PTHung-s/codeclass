@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "react-router-dom";
+import { motion } from "framer-motion";
 import api from "../../lib/api";
 import { useToast } from "../../hooks/useToast";
 import { PageHeader } from "../../components/ui/page-header";
@@ -113,10 +114,13 @@ function Progress({ value, total }: { value: number; total: number }) {
   const pct = total > 0 ? Math.round((value / total) * 100) : 0;
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 w-24 overflow-hidden rounded-full bg-muted">
-        <div className="h-full rounded-full bg-emerald-500 transition-all" style={{ width: `${pct}%` }} />
+      <div className="h-1.5 w-20 overflow-hidden rounded-full bg-muted">
+        <div
+          className="h-full rounded-full bg-emerald-500 transition-[width] duration-500 ease-out"
+          style={{ width: `${pct}%` }}
+        />
       </div>
-      <span className="text-xs tabular-nums text-muted-foreground">
+      <span className="text-[11px] font-medium tabular-nums text-muted-foreground">
         {value}/{total}
       </span>
     </div>
@@ -127,6 +131,7 @@ export default function Assignments() {
   const toast = useToast();
   const queryClient = useQueryClient();
   const [showArchived, setShowArchived] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<StaffAssignment | null>(null);
@@ -167,99 +172,139 @@ export default function Assignments() {
     };
   }, [assignments]);
 
+  const filteredAssignments = useMemo(() => {
+    const all = assignments ?? [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return all;
+    return all.filter(
+      (a) =>
+        a.title.toLowerCase().includes(q) ||
+        (a.problem?.title && a.problem.title.toLowerCase().includes(q)) ||
+        (a.course?.title && a.course.title.toLowerCase().includes(q)),
+    );
+  }, [assignments, searchQuery]);
+
   return (
     <ErrorBoundary>
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-4">
       <PageHeader
         eyebrow="Lớp học"
         title="Bài tập"
-        description="Giao bài từ thư viện đề cho học sinh và theo dõi ai đã làm, ai chưa làm."
+        description="Giao bài từ thư viện đề cho học sinh và theo dõi tiến độ làm bài."
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="mr-1.5 h-4 w-4" /> Giao bài tập
+          <Button size="sm" onClick={() => setCreateOpen(true)}>
+            <Plus className="size-3.5" /> Giao bài tập
           </Button>
         }
       />
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
         {[
-          { label: "Bài đang mở", value: totals.count, icon: ClipboardList },
-          { label: "Lượt giao", value: totals.assigned, icon: Users },
-          { label: "Đã làm", value: totals.done, icon: CheckCircle2 },
-          { label: "Chưa làm", value: totals.notStarted, icon: SquarePen },
+          { label: "Bài đang mở", value: totals.count, icon: ClipboardList, tone: "bg-primary/10 text-primary" },
+          { label: "Lượt giao", value: totals.assigned, icon: Users, tone: "bg-sky-500/10 text-sky-600 dark:text-sky-400" },
+          { label: "Đã làm", value: totals.done, icon: CheckCircle2, tone: "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400" },
+          { label: "Chưa làm", value: totals.notStarted, icon: SquarePen, tone: "bg-amber-500/10 text-amber-600 dark:text-amber-400" },
         ].map((s) => (
-          <Card key={s.label}>
-            <CardContent className="flex items-center gap-3 p-4">
-              <div className="rounded-lg bg-primary/10 p-2 text-primary">
-                <s.icon className="h-4 w-4" />
-              </div>
+          <Card key={s.label} className="surface-interactive">
+            <CardContent className="flex items-center justify-between p-3">
               <div>
-                <p className="text-lg font-semibold tabular-nums leading-none">{s.value}</p>
-                <p className="mt-1 text-xs text-muted-foreground">{s.label}</p>
+                <p className="text-[11px] font-medium text-muted-foreground">{s.label}</p>
+                <p className="mt-0.5 text-lg font-bold tabular-nums leading-none">{s.value}</p>
+              </div>
+              <div className={cn("grid size-8 place-items-center rounded-lg", s.tone)}>
+                <s.icon className="size-4" />
               </div>
             </CardContent>
           </Card>
         ))}
       </div>
 
-      <div className="flex items-center gap-2">
-        {(
-          [
-            [false, "Đang mở"],
-            [true, "Đã lưu trữ"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={label}
-            onClick={() => setShowArchived(key)}
-            className={cn(
-              "rounded-full px-3 py-1.5 text-xs font-medium transition-colors",
-              showArchived === key ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:text-foreground"
-            )}
-          >
-            {label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="inline-flex h-8 items-center rounded-[7px] border border-border bg-muted/50 p-0.5">
+          {(
+            [
+              [false, "Đang mở"],
+              [true, "Đã lưu trữ"],
+            ] as const
+          ).map(([key, label]) => {
+            const active = showArchived === key;
+            return (
+              <button
+                key={label}
+                type="button"
+                onClick={() => setShowArchived(key)}
+                className={cn(
+                  "relative h-7 rounded-[5px] px-3 text-xs font-medium transition-colors",
+                  active ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+                )}
+              >
+                {active && (
+                  <motion.span
+                    layoutId="assignments-tab-pill"
+                    transition={{ type: "spring", stiffness: 450, damping: 35 }}
+                    className="absolute inset-0 rounded-[5px] bg-card shadow-sm"
+                  />
+                )}
+                <span className="relative z-10">{label}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <div className="relative w-full sm:w-56">
+          <Search className="pointer-events-none absolute left-2.5 top-1/2 size-3.5 -translate-y-1/2 text-muted-foreground" />
+          <input
+            data-slot="assignments-search"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Tìm bài tập, đề bài..."
+            className="h-8 w-full rounded-[7px] border border-border bg-card pl-8 pr-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary/60 focus:outline-none"
+          />
+        </div>
       </div>
 
       {isLoading ? (
-        <div className="space-y-3">
+        <div className="space-y-2.5">
           {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-20 w-full rounded-xl" />
+            <Skeleton key={i} className="h-[72px] w-full rounded-xl" />
           ))}
         </div>
-      ) : !assignments?.length ? (
+      ) : !filteredAssignments.length ? (
         <Card>
-          <CardContent className="flex flex-col items-center gap-3 p-10 text-center">
-            <ClipboardList className="h-10 w-10 text-muted-foreground/50" />
-            <p className="text-sm text-muted-foreground">
-              {showArchived ? "Chưa có bài tập nào được lưu trữ." : "Chưa giao bài tập nào. Bấm “Giao bài tập” để tạo bài đầu tiên."}
+          <CardContent className="flex flex-col items-center gap-2.5 p-8 text-center">
+            <ClipboardList className="size-8 text-muted-foreground/50" />
+            <p className="text-xs text-muted-foreground">
+              {searchQuery.trim()
+                ? "Không tìm thấy bài tập khớp từ khóa."
+                : showArchived
+                  ? "Chưa có bài tập nào được lưu trữ."
+                  : "Chưa giao bài tập nào. Bấm “Giao bài tập” để tạo bài đầu tiên."}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-3">
-          {assignments.map((a) => {
+        <div className="stagger-in space-y-2.5">
+          {filteredAssignments.map((a) => {
             const overdue = a.deadline && new Date(a.deadline) < new Date();
             return (
-              <Card key={a.id} className="transition-colors hover:border-primary/40">
-                <CardContent className="flex flex-wrap items-center justify-between gap-4 p-4">
-                  <button className="min-w-0 flex-1 text-left" onClick={() => setDetailId(a.id)}>
-                    <div className="flex flex-wrap items-center gap-2">
-                      <p className="truncate text-sm font-semibold hover:underline">{a.title}</p>
+              <Card key={a.id} className="surface-interactive hover:border-primary/40">
+                <CardContent className="flex flex-wrap items-center justify-between gap-3 p-3.5">
+                  <button type="button" className="min-w-0 flex-1 text-left" onClick={() => setDetailId(a.id)}>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <p className="truncate text-[13px] font-semibold text-foreground hover:underline">{a.title}</p>
                       {a.course && (
-                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground">
-                          <BookOpen className="h-3 w-3" /> {a.course.title}
+                        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[11px] text-muted-foreground">
+                          <BookOpen className="size-3" /> {a.course.title}
                         </span>
                       )}
                       {overdue && a.stats.notStarted > 0 && (
-                        <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-xs font-medium text-destructive">Quá hạn</span>
+                        <span className="rounded-full bg-destructive/10 px-2 py-0.5 text-[11px] font-medium text-destructive">Quá hạn</span>
                       )}
                     </div>
-                    <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                    <div className="mt-1 flex flex-wrap items-center gap-x-3.5 gap-y-1 text-[11px] text-muted-foreground">
                       {a.problem && (
                         <span className="inline-flex items-center gap-1">
-                          <Code className="h-3.5 w-3.5" /> {a.problem.title}
+                          <Code className="size-3" /> {a.problem.title}
                           {a.problem.difficulty && (
                             <span className={cn("rounded-full px-1.5 py-0.5 text-[10px] font-medium", difficultyClass(a.problem.difficulty))}>
                               {difficultyLabel(a.problem.difficulty)}
@@ -273,28 +318,35 @@ export default function Assignments() {
                     </div>
                   </button>
 
-                  <div className="flex flex-wrap items-center gap-4">
+                  <div className="flex flex-wrap items-center gap-3">
                     <div className="text-right">
                       <Progress value={a.stats.done} total={a.stats.assigned} />
-                      <p className="mt-1 text-[11px] text-muted-foreground">
+                      <p className="mt-0.5 text-[10px] text-muted-foreground">
                         Đã đạt <span className="font-medium text-emerald-600 dark:text-emerald-400">{a.stats.passed}</span>
                         {a.stats.late > 0 && <> · Nộp muộn {a.stats.late}</>}
                       </p>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <Button variant="outline" size="sm" onClick={() => setDetailId(a.id)}>
+                    <div className="flex items-center gap-1">
+                      <Button variant="outline" size="xs" className="h-7 px-2.5" onClick={() => setDetailId(a.id)}>
                         Chi tiết
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="icon-xs"
+                        className="size-7 text-muted-foreground hover:text-foreground"
                         title={showArchived ? "Mở lại" : "Lưu trữ"}
                         onClick={() => archiveMutation.mutate({ id: a.id, status: showArchived ? "published" : "archived" })}
                       >
-                        {showArchived ? <ArchiveRestore className="h-4 w-4" /> : <Archive className="h-4 w-4" />}
+                        {showArchived ? <ArchiveRestore className="size-3.5" /> : <Archive className="size-3.5" />}
                       </Button>
-                      <Button variant="ghost" size="icon" title="Xóa" onClick={() => setDeleteTarget(a)}>
-                        <Trash2 className="h-4 w-4 text-destructive" />
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
+                        className="size-7 text-muted-foreground hover:text-destructive"
+                        title="Xóa"
+                        onClick={() => setDeleteTarget(a)}
+                      >
+                        <Trash2 className="size-3.5" />
                       </Button>
                     </div>
                   </div>
@@ -491,10 +543,11 @@ function CreateAssignmentDialog({ open, onClose }: { open: boolean; onClose: () 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1.5">
               <label className="text-sm font-medium">Khóa học (không bắt buộc)</label>
-              <select
+            <select
+                data-slot="assignment-course-select"
                 value={courseId}
                 onChange={(e) => selectCourse(e.target.value)}
-                className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm"
+                className="h-8 w-full rounded-md border border-input bg-background px-2.5 text-xs"
               >
                 <option value="">— Chọn nhanh theo khóa —</option>
                 {(courses ?? []).map((c) => (
@@ -546,11 +599,12 @@ function CreateAssignmentDialog({ open, onClose }: { open: boolean; onClose: () 
           <div className="space-y-1.5">
             <label className="text-sm font-medium">Yêu cầu / ghi chú (không bắt buộc)</label>
             <textarea
+              data-slot="assignment-desc"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               rows={2}
               placeholder="Ghi chú thêm cho học sinh..."
-              className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground"
+              className="w-full rounded-md border border-input bg-background px-2.5 py-1.5 text-xs placeholder:text-muted-foreground"
             />
           </div>
 
@@ -636,28 +690,28 @@ function AssignmentDetailDialog({ detailId, onClose, onArchive }: { detailId: st
             {detail.description && <p className="rounded-lg bg-muted/50 px-3 py-2 text-sm text-muted-foreground">{detail.description}</p>}
 
             <div className="overflow-hidden rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50 text-left text-xs text-muted-foreground">
+              <table className="w-full text-xs">
+                <thead className="bg-muted/50 text-left text-[11px] text-muted-foreground">
                   <tr>
-                    <th className="px-3 py-2 font-medium">Học sinh</th>
-                    <th className="px-3 py-2 font-medium">Trạng thái</th>
-                    <th className="px-3 py-2 text-center font-medium">Lượt nộp</th>
-                    <th className="px-3 py-2 font-medium">Lần đầu nộp</th>
+                    <th className="px-3 py-1.5 font-medium">Học sinh</th>
+                    <th className="px-3 py-1.5 font-medium">Trạng thái</th>
+                    <th className="px-3 py-1.5 text-center font-medium">Lượt nộp</th>
+                    <th className="px-3 py-1.5 font-medium">Lần đầu nộp</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y">
                   {detail.rows.map((r) => (
                     <tr key={r.student.id}>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5">
                         <div className="flex items-center gap-2">
                           <StudentAvatar fullName={r.student.fullName} nickname={r.student.nickname} avatarUrl={r.student.avatarUrl} size="sm" />
                           <div className="min-w-0">
                             <p className="truncate font-medium">{r.student.fullName}</p>
-                            <p className="truncate text-xs text-muted-foreground">{r.student.email}</p>
+                            <p className="truncate text-[11px] text-muted-foreground">{r.student.email}</p>
                           </div>
                         </div>
                       </td>
-                      <td className="px-3 py-2">
+                      <td className="px-3 py-1.5">
                         {r.status === "passed" ? (
                           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2 py-0.5 text-xs font-medium text-emerald-600 dark:text-emerald-400">
                             <CheckCircle2 className="h-3 w-3" /> Đã đạt{r.late ? " (muộn)" : ""}

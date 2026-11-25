@@ -16,6 +16,7 @@ import {
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
 import { Sheet, SheetContent, SheetTrigger } from "../../components/ui/sheet";
+import { useDarkMode } from "../../hooks/useDarkMode";
 import { cn } from "../../lib/utils";
 
 /* ─── types ─── */
@@ -983,6 +984,7 @@ function decodeHtml(v:string){return v.replace(/&lt;/g,"<").replace(/&gt;/g,">")
 
 /* ── MistakeDiffView: Monaco diff editor cho common_mistakes ── */
 function MistakeDiffView({ mistakes, selectedIdx, language }: { mistakes: Array<{ wrongCode?: string; correctCode?: string; title?: string }>; selectedIdx: number; language?: string }) {
+  const { dark } = useDarkMode();
   const m = mistakes[selectedIdx] || mistakes[0] || {};
   const original = m.wrongCode || "";
   const modified = m.correctCode || "";
@@ -1002,7 +1004,7 @@ function MistakeDiffView({ mistakes, selectedIdx, language }: { mistakes: Array<
           original={original}
           modified={modified}
           language={diffLanguage}
-          theme="vs-dark"
+          theme={dark ? "vs-dark" : "vs"}
           options={{
             readOnly: true,
             renderSideBySide: true,

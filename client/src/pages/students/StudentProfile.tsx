@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { useParams } from "react-router-dom";
+import { Link, useParams } from "react-router-dom";
 import api from "../../lib/api";
-import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound } from "lucide-react";
+import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck } from "lucide-react";
 import { SkeletonCard } from "../../components/ui/skeletons";
 import { DifficultyBadge } from "../../components/ui/Badges";
 import { useAuthContext } from "../../contexts/AuthContext";
@@ -101,6 +101,13 @@ export default function StudentProfile() {
     queryFn: () => api.get("/skills").then((r) => r.data as TopicGroup[]),
     enabled: isStaff,
     staleTime: 5 * 60 * 1000,
+  });
+
+  const examsQ = useQuery<any[]>({
+    queryKey: ["student-exams", studentId],
+    queryFn: () => api.get(`/students/${studentId}/exams`).then((r) => r.data),
+    enabled: !!studentId && !!data,
+    staleTime: 60 * 1000,
   });
   const attStats = attQ.data?.stats;
 
@@ -461,6 +468,57 @@ export default function StudentProfile() {
         </div>
       </div>
 
+      {/* Lịch sử phòng thi */}
+      {(examsQ.data?.length ?? 0) > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <ClipboardCheck className="h-4 w-4 text-amber-500" />
+            Lịch sử phòng thi ({examsQ.data!.length})
+          </h2>
+          <div className="divide-y divide-border">
+            {examsQ.data!.map((ex: any) => {
+              const targetUrl = isStaff ? `/exams/${ex.examId}/grading` : `/exams/${ex.examId}/result`;
+              const graded = ex.gradeStatus === "graded";
+              const review = ex.gradeStatus === "needs_review";
+              const canShowScore = isStaff || ex.showResults;
+              return (
+                <Link
+                  key={ex.id}
+                  to={targetUrl}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm transition-colors hover:bg-muted/40 rounded-lg px-2 -mx-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">{ex.examTitle}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {ex.subject} · {new Date(ex.submittedAt || ex.startedAt).toLocaleDateString("vi-VN")}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        graded
+                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                          : review
+                            ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                            : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {graded ? "Đã chấm" : review ? "Chờ duyệt" : ex.status === "in_progress" ? "Đang làm" : "Chưa chấm"}
+                    </span>
+                    {canShowScore && ex.totalScore != null && (
+                      <span className="font-mono text-xs font-semibold tabular-nums text-foreground">
+                        {Math.round(ex.totalScore * 10) / 10}
+                        {ex.maxScore != null ? `/${Math.round(ex.maxScore * 10) / 10}` : ""}
+                      </span>
+                    )}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── Teacher-only: Quiz & Adaptive Test History ── */}
       {isStaff && (
         <>
@@ -558,14 +616,18 @@ function StudentSkillAssessment({
 }) {
   const [lang, setLang] = useState<SkillLanguage>("py");
   const [langTouched, setLangTouched] = useState(false);
+  const [expandedSkillId, setExpandedSkillId] = useState<string | null>(null);
 
-  // Default tab = language the student has more evidence for (once), unless teacher already switched.
+  // Default tab = language/domain the student has more evidence for (once), unless teacher switched.
   useEffect(() => {
     if (langTouched || loading || skills.length === 0) return;
-    const cppEvidence = skills.filter((s) => s.skillId.startsWith("cpp.") && s.hasEvidence).length;
-    const pyEvidence = skills.filter((s) => s.skillId.startsWith("py.") && s.hasEvidence).length;
-    if (cppEvidence > pyEvidence) setLang("cpp");
-    else setLang("py");
+    const counts: Record<SkillLanguage, number> = {
+      py: skills.filter((s) => s.skillId.startsWith("py.") && s.hasEvidence).length,
+      cpp: skills.filter((s) => s.skillId.startsWith("cpp.") && s.hasEvidence).length,
+      algo: skills.filter((s) => s.skillId.startsWith("algo.") && s.hasEvidence).length,
+    };
+    const best = (Object.keys(counts) as SkillLanguage[]).reduce((a, b) => (counts[b] > counts[a] ? b : a), "py");
+    setLang(best);
   }, [skills, loading, langTouched]);
 
   if (loading) {
@@ -575,8 +637,6 @@ function StudentSkillAssessment({
   const scopedTopics = topicsForLanguage(topics, lang);
   const scopedSkills = skillsForLanguage(skills, lang);
   const knownSkills = scopedSkills.filter((skill) => skill.hasEvidence);
-  // Pass ALL language skills so every catalog topic becomes a radar axis.
-  // Topics/skills without evidence render as "—" / 0, not hidden.
   const radarData = groupSkillsByTopic(
     scopedSkills.map((skill) => ({
       skillId: skill.skillId,
@@ -596,42 +656,47 @@ function StudentSkillAssessment({
     ? Math.round((knownSkills.reduce((sum, skill) => sum + skill.mastery, 0) / knownSkills.length) * 100)
     : null;
   const lowest = [...knownSkills].sort((a, b) => a.mastery - b.mastery).slice(0, 3);
+  const dueCount = knownSkills.filter((s) => s.dueForReview).length;
   const TrendIcon = { up: TrendingUp, down: TrendingDown, flat: Minus };
+  const CONFIDENCE_TEXT: Record<string, string> = {
+    low: "Ít bằng chứng",
+    forming: "Đang hình thành",
+    medium: "Khá chắc",
+    high: "Chắc chắn",
+  };
 
   return (
     <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-base font-bold text-card-foreground">
-            <Radar className="size-5 text-primary" /> Hồ sơ kỹ năng
+            <Radar className="size-5 text-primary" /> Hồ sơ kỹ năng (BKT-IRT &amp; Trí nhớ)
           </h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            Chỉ dùng kết quả từ quiz, bài code và adaptive test có skill tag đã duyệt.
+            Tổng hợp từ bài tập code, bài thi, quiz và adaptive test có skill tag đã duyệt. Nhấp vào kỹ năng để xem lý do điểm.
           </p>
         </div>
         <div className="flex items-center gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Chọn ngôn ngữ">
-          <button
-            type="button"
-            role="tab"
-            aria-selected={lang === "py"}
-            onClick={() => { setLangTouched(true); setLang("py"); }}
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-              lang === "py" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"
-            }`}
-          >
-            Python
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={lang === "cpp"}
-            onClick={() => { setLangTouched(true); setLang("cpp"); }}
-            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
-              lang === "cpp" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"
-            }`}
-          >
-            C++
-          </button>
+          {(
+            [
+              { id: "py", label: "Python" },
+              { id: "cpp", label: "C++" },
+              { id: "algo", label: "Thuật toán" },
+            ] as const
+          ).map((tab) => (
+            <button
+              key={tab.id}
+              type="button"
+              role="tab"
+              aria-selected={lang === tab.id}
+              onClick={() => { setLangTouched(true); setLang(tab.id); setExpandedSkillId(null); }}
+              className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+                lang === tab.id ? "bg-card text-primary shadow-sm" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
         </div>
         <div className="rounded-lg bg-muted px-3 py-2 text-right">
           <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Điểm trung bình</p>
@@ -654,6 +719,7 @@ function StudentSkillAssessment({
             <p className="mt-1 text-center text-xs text-muted-foreground">
               {knownSkills.length}/{scopedSkills.length} kỹ năng đã có evidence
               {radarData.length > 0 ? ` · ${radarData.filter((d) => d.hasEvidence).length}/${radarData.length} nhóm trên radar` : ""}
+              {dueCount > 0 ? ` · ${dueCount} kỹ năng cần ôn lại` : ""}
             </p>
           </div>
 
@@ -663,28 +729,114 @@ function StudentSkillAssessment({
                 <span className="font-bold">Cần chú ý:</span> {lowest.map((skill) => skill.name).join(", ")}
               </div>
             )}
-            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+            <div className="max-h-[400px] space-y-2 overflow-y-auto pr-1">
               {scopedSkills.map((skill) => {
                 const Trend = TrendIcon[skill.trend];
                 const value = Math.round(skill.mastery * 100);
                 const bar = value >= 75 ? "bg-emerald-500" : value >= 50 ? "bg-amber-500" : "bg-red-500";
+                const isOpen = expandedSkillId === skill.skillId;
+                const confLabel = skill.confidenceLevel ? CONFIDENCE_TEXT[skill.confidenceLevel] : null;
                 return (
-                  <div key={skill.skillId} className="rounded-lg border border-border p-3">
-                    <div className="flex items-center gap-2">
-                      <p className="min-w-0 flex-1 truncate text-sm font-medium" title={skill.name}>{skill.name}</p>
-                      {skill.hasEvidence ? (
-                        <span className="shrink-0 text-sm font-bold tabular-nums">{value}%</span>
-                      ) : (
-                        <span className="shrink-0 text-xs font-medium text-muted-foreground">Chưa đánh giá</span>
-                      )}
-                    </div>
-                    <div className="mt-2 flex items-center gap-2">
-                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
-                        {skill.hasEvidence && <div className={`h-full rounded-full ${bar}`} style={{ width: `${value}%` }} />}
+                  <div
+                    key={skill.skillId}
+                    className={`rounded-lg border transition-colors ${
+                      isOpen ? "border-primary/40 bg-muted/20" : "border-border hover:border-border/80"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setExpandedSkillId(isOpen ? null : skill.skillId)}
+                      className="w-full p-3 text-left"
+                    >
+                      <div className="flex items-center gap-2">
+                        <p className="min-w-0 flex-1 truncate text-sm font-medium" title={skill.name}>{skill.name}</p>
+                        {skill.hasEvidence ? (
+                          <div className="flex shrink-0 items-center gap-1.5">
+                            {skill.dueForReview && (
+                              <span className="rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700 dark:text-amber-300">
+                                Cần ôn · {Math.round(skill.daysSinceLastPractice ?? 0)} ngày
+                              </span>
+                            )}
+                            {confLabel && (
+                              <span className="hidden sm:inline-block rounded bg-muted px-1.5 py-0.5 text-[10px] font-medium text-muted-foreground">
+                                {confLabel}
+                              </span>
+                            )}
+                            <span className="text-sm font-bold tabular-nums">{value}%</span>
+                          </div>
+                        ) : (
+                          <span className="shrink-0 text-xs font-medium text-muted-foreground">
+                            {skill.estimatedPrior != null ? `Sơ bộ ~${Math.round(skill.estimatedPrior * 100)}%` : "Chưa đánh giá"}
+                          </span>
+                        )}
                       </div>
-                      {skill.hasEvidence ? <Trend className={`size-3.5 ${skill.trend === "up" ? "text-emerald-500" : skill.trend === "down" ? "text-red-500" : "text-muted-foreground"}`} /> : null}
-                    </div>
-                    {skill.hasEvidence && <p className="mt-1 text-[11px] text-muted-foreground">{skill.evidenceCount || 0} evidence đã ghi nhận</p>}
+                      <div className="mt-2 flex items-center gap-2">
+                        <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                          {skill.hasEvidence && <div className={`h-full rounded-full ${bar}`} style={{ width: `${value}%` }} />}
+                        </div>
+                        {skill.hasEvidence ? <Trend className={`size-3.5 ${skill.trend === "up" ? "text-emerald-500" : skill.trend === "down" ? "text-red-500" : "text-muted-foreground"}`} /> : null}
+                      </div>
+                      {skill.hasEvidence && (
+                        <p className="mt-1 text-[11px] text-muted-foreground">
+                          {skill.evidenceCount || 0} phiên đánh giá
+                          {skill.lowerBound != null && skill.upperBound != null
+                            ? ` · khoảng ${Math.round(skill.lowerBound * 100)}–${Math.round(skill.upperBound * 100)}%`
+                            : ""}
+                          {skill.retentionRate != null && skill.retentionRate < 0.99
+                            ? ` · trí nhớ ${Math.round(skill.retentionRate * 100)}%`
+                            : ""}
+                        </p>
+                      )}
+                    </button>
+
+                    {isOpen && (
+                      <div className="border-t border-border/70 px-3 py-2.5 text-xs space-y-2 bg-muted/10">
+                        {skill.weakPrerequisites && skill.weakPrerequisites.length > 0 && (
+                          <div className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2.5 py-1.5 text-[11px] text-amber-800 dark:text-amber-200">
+                            <span className="font-semibold">Gốc cần củng cố trước:</span>{" "}
+                            {skill.weakPrerequisites.map((wp) => `${wp.name} (${Math.round(wp.mastery * 100)}%)`).join(", ")}
+                          </div>
+                        )}
+                        {skill.hasEvidence && skill.breakdown && skill.breakdown.length > 0 ? (
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              Biến động gần đây
+                            </p>
+                            {skill.breakdown.map((item, idx) => {
+                              const pctDelta = Math.round(item.delta * 100);
+                              const deltaSign = pctDelta > 0 ? `+${pctDelta}%` : `${pctDelta}%`;
+                              const deltaCls =
+                                item.delta > 0.005
+                                  ? "text-emerald-600 dark:text-emerald-400"
+                                  : item.delta < -0.005
+                                    ? "text-red-600 dark:text-red-400"
+                                    : "text-muted-foreground";
+                              return (
+                                <div key={`${item.ts}-${idx}`} className="flex items-center justify-between gap-2 text-[11px]">
+                                  <span className="min-w-0 flex-1 truncate text-foreground/90">
+                                    {item.label}
+                                    {item.total ? ` (${item.correct ?? 0}/${item.total})` : ""}
+                                    {item.hintCount ? ` · ${item.hintCount} gợi ý` : ""}
+                                  </span>
+                                  <span className={`shrink-0 font-semibold tabular-nums ${deltaCls}`}>
+                                    {deltaSign}
+                                  </span>
+                                  <span className="shrink-0 text-muted-foreground tabular-nums">
+                                    → {Math.round(item.valueAfter * 100)}%
+                                  </span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-muted-foreground">
+                            {skill.estimatedPrior != null
+                              ? `Chưa có bài làm trực tiếp; ước lượng mềm ~${Math.round(skill.estimatedPrior * 100)}% dựa trên các kỹ năng liên quan.`
+                              : "Chưa có hoạt động nào được gắn skill tag đã duyệt cho kỹ năng này."}
+                          </p>
+                        )}
+                      </div>
+                    )}
                   </div>
                 );
               })}

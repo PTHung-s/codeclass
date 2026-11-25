@@ -134,6 +134,7 @@ model User {
   examViolations                                ExamViolation[]
   examLiveSnapshots                             ExamLiveSnapshot[]
   examGradeJobsStarted                          ExamGradeJob[]         @relation("ExamGradeStarter")
+  codeLabSnippets                               CodeLabSnippet[]
 
   @@map("users")
 }
@@ -849,6 +850,7 @@ model ProblemSubmission {
   problemId         String   @map("problem_id")
   studentId         String   @map("student_id")
   code              String?
+  language          String   @default("python")
   answer            String?
   note              String?
   passed            Boolean  @default(false)
@@ -2598,6 +2600,23 @@ model ExamGradeJob {
   @@index([examId, status])
   @@map("exam_grade_jobs")
 }
+
+model CodeLabSnippet {
+  id        String   @id @default(uuid())
+  userId    String   @map("user_id")
+  title     String
+  language  String   @default("python") // python | cpp
+  code      String
+  inputText String   @default("") @map("input_text")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, updatedAt])
+  @@map("code_lab_snippets")
+}
+
 
 
 

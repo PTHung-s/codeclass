@@ -140,7 +140,7 @@ function AttemptDetailDialog({ attemptId, onClose }: { attemptId: string | null;
  ) : (
  <div className="space-y-3">
  <div className="flex flex-wrap items-center gap-2 text-sm">
- <Badge variant="secondary" className={data.passed ?"" :""}>
+ <Badge variant="secondary" className={data.passed ?"bg-emerald-500/15 text-emerald-700 dark:text-emerald-400" :"bg-rose-500/15 text-rose-700 dark:text-rose-400"}>
  {data.passed ?"Đạt" :"Chưa đạt"}
  </Badge>
  <span className="font-semibold tabular-nums">{data.percent}%</span>
