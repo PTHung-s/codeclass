@@ -1,0 +1,26 @@
+node_modules
+dist/
+.env
+.env.*
+!.env.example
+*.tsbuildinfo
+*.db*
+*.sqlite*
+/server/uploads/
+/backups/
+*.log
+.DS_Store
+
+# Local tooling and generated caches
+__pycache__/
+*.py[cod]
+.claude/worktrees/
+.codex-*.sh
+
+# Standalone local repositories
+/CatGPT-Gateway/
+
+# Temporary local verification artifacts
+/_*.json
+/_*.py
+/server/prisma/migration-shadow.db

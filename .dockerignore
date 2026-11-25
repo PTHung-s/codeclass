@@ -1,0 +1,12 @@
+**/node_modules
+**/dist
+**/.env
+**/*.log
+.git
+.claude
+.kilo
+client/tsconfig*.tsbuildinfo
+client/vite.config.d.ts
+client/vite.config.js
+server/prisma/dev.db
+server/uploads

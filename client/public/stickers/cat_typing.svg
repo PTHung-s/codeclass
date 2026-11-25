@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <!-- Viền trắng die-cut -->
+    <path d="M25,50 C18,30 35,18 45,28 C55,20 73,20 83,28 C93,18 110,30 103,50 C114,75 105,108 64,114 C23,108 14,75 25,50 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Thân mèo trắng -->
+    <path d="M28,52 C22,34 36,24 45,32 C54,26 74,26 83,32 C92,24 106,34 100,52 C110,74 102,104 64,110 C26,104 18,74 28,52 Z" fill="#ffffff" stroke="#cbd5e1" stroke-width="1.5"/>
+    <!-- Tai mèo hồng bên trong -->
+    <polygon points="34,35 44,42 34,48" fill="#fbcfe8"/>
+    <polygon points="94,35 84,42 94,48" fill="#fbcfe8"/>
+    <!-- Mắt mèo tít cười (Bongo Cat) -->
+    <path d="M42,54 Q48,46 54,54" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>
+    <path d="M74,54 Q80,46 86,54" fill="none" stroke="#1e293b" stroke-width="3" stroke-linecap="round"/>
+    <!-- Má hồng -->
+    <circle cx="38" cy="62" r="5" fill="#f472b6" opacity="0.6"/>
+    <circle cx="90" cy="62" r="5" fill="#f472b6" opacity="0.6"/>
+    <!-- Mũi miệng mèo w -->
+    <path d="M60,60 Q64,64 68,60 Q72,64 76,60" fill="none" stroke="#1e293b" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Bàn phím cơ mini phía dưới -->
+    <rect x="25" y="86" width="78" height="24" rx="5" fill="#1e293b" stroke="#334155" stroke-width="2"/>
+    <rect x="30" y="90" width="10" height="7" rx="2" fill="#38bdf8"/>
+    <rect x="44" y="90" width="10" height="7" rx="2" fill="#818cf8"/>
+    <rect x="58" y="90" width="10" height="7" rx="2" fill="#c084fc"/>
+    <rect x="72" y="90" width="10" height="7" rx="2" fill="#f472b6"/>
+    <rect x="86" y="90" width="12" height="7" rx="2" fill="#34d399"/>
+    <!-- 2 chân mèo đập phím -->
+    <ellipse cx="46" cy="84" rx="7" ry="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+    <ellipse cx="82" cy="84" rx="7" ry="9" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  </g>
+</svg>

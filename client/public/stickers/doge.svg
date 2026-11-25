@@ -1,0 +1,28 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <!-- Viền trắng phong cách Sticker die-cut -->
+  <g filter="url(#shadow)">
+    <path d="M24,40 C14,15 36,8 44,24 C52,18 76,18 84,24 C92,8 114,15 104,40 C118,65 110,105 64,115 C18,105 10,65 24,40 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Thân mặt Shiba vàng cam -->
+    <path d="M27,42 C18,20 36,14 43,27 C53,22 75,22 85,27 C92,14 110,20 101,42 C114,64 106,100 64,110 C22,100 14,64 27,42 Z" fill="#f59e0b"/>
+    <!-- Vùng má và cằm trắng -->
+    <path d="M35,60 C35,85 45,104 64,104 C83,104 93,85 93,60 C80,72 48,72 35,60 Z" fill="#fef3c7"/>
+    <!-- Mắt Doge phán xét -->
+    <ellipse cx="45" cy="54" rx="5" ry="6" fill="#1e293b"/>
+    <ellipse cx="83" cy="54" rx="5" ry="6" fill="#1e293b"/>
+    <circle cx="43" cy="52" r="1.5" fill="#ffffff"/>
+    <circle cx="81" cy="52" r="1.5" fill="#ffffff"/>
+    <!-- Mũi và mồm -->
+    <polygon points="64,68 59,62 69,62" fill="#0f172a"/>
+    <path d="M57,70 Q64,76 71,70" fill="none" stroke="#0f172a" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Lông mày nghi ngờ -->
+    <path d="M38,44 Q46,42 50,46" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round"/>
+    <path d="M90,44 Q82,42 78,46" fill="none" stroke="#b45309" stroke-width="2.5" stroke-linecap="round"/>
+    <!-- Text meme -->
+    <text x="64" y="124" font-family="sans-serif" font-weight="900" font-size="10" fill="#f59e0b" text-anchor="middle">MUCH WOW</text>
+  </g>
+</svg>

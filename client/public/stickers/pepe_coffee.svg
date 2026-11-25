@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128">
+  <defs>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="4" stdDeviation="3" flood-color="#000" flood-opacity="0.25"/>
+    </filter>
+  </defs>
+  <g filter="url(#shadow)">
+    <!-- Viền Sticker trắng -->
+    <path d="M22,50 C15,30 35,15 50,22 C64,15 85,18 96,30 C112,35 118,60 108,82 C100,105 70,112 50,110 C25,108 14,80 22,50 Z" fill="#ffffff" stroke="#e2e8f0" stroke-width="4" stroke-linejoin="round"/>
+    <!-- Thân Pepe Xanh Lá -->
+    <path d="M25,52 C19,34 36,20 49,26 C62,20 82,22 93,33 C107,38 113,62 104,80 C97,100 68,106 50,104 C27,102 18,78 25,52 Z" fill="#22c55e"/>
+    <!-- Mắt Pepe to tròn thẫn thờ -->
+    <circle cx="44" cy="38" r="14" fill="#ffffff" stroke="#15803d" stroke-width="3"/>
+    <circle cx="80" cy="40" r="14" fill="#ffffff" stroke="#15803d" stroke-width="3"/>
+    <ellipse cx="44" cy="38" rx="5" ry="7" fill="#0f172a"/>
+    <ellipse cx="80" cy="40" rx="5" ry="7" fill="#0f172a"/>
+    <circle cx="42" cy="36" r="1.5" fill="#ffffff"/>
+    <circle cx="78" cy="38" r="1.5" fill="#ffffff"/>
+    <!-- Môi trề Pepe kinh điển -->
+    <path d="M30,68 C45,62 85,62 98,70 C88,86 42,86 30,68 Z" fill="#eab308" stroke="#ca8a04" stroke-width="2"/>
+    <path d="M30,68 C55,74 75,74 98,70" fill="none" stroke="#ca8a04" stroke-width="2.5"/>
+    <!-- Ly cà phê -->
+    <g transform="translate(68, 65)">
+      <rect x="0" y="8" width="30" height="26" rx="4" fill="#f8fafc" stroke="#94a3b8" stroke-width="2"/>
+      <path d="M30,14 C36,14 36,24 30,24" fill="none" stroke="#94a3b8" stroke-width="2.5"/>
+      <rect x="3" y="11" width="24" height="6" rx="2" fill="#78350f"/>
+      <!-- Khói bốc lên -->
+      <path d="M8,4 Q10,0 8,-4" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+      <path d="M16,5 Q18,1 16,-3" fill="none" stroke="#cbd5e1" stroke-width="1.5" stroke-linecap="round"/>
+    </g>
+  </g>
+</svg>

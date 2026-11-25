@@ -1,0 +1,320 @@
+/* Holographic honour cards — technique from simeydotme's Pokémon card pen.
+ *
+ * The three layers that make the effect, in the pen's own terms:
+ *   .card          the artwork itself, full-bleed background-image
+ *   .card::before  a two-colour linear gradient, color-dodge  -> the "shine"
+ *   .card::after   sparkles + holo texture + rainbow, color-dodge -> the "foil"
+ *
+ * The pen drives the pseudo-elements by writing into a live <style> tag, because
+ * you cannot set inline styles on a pseudo-element. We use custom properties
+ * instead: they inherit into ::before/::after, so JS writes to the card node and
+ * both layers follow. Same result, no injected stylesheet.
+ *
+ * The pen's assets (sparkles.gif, holo.png) are hotlinked from CodePen's CDN.
+ * Those are replaced here by an inlined SVG and CSS gradients, so the cards do
+ * not depend on someone else's asset host staying up.
+ */
+
+.honour-scene {
+  perspective: 750px;
+  isolation: isolate;
+  transform: translate3d(0.1px, 0.1px, 0.1px);
+}
+
+.honour-card {
+  /* Written by JS on pointer move; these are the resting values. */
+  --grad-x: 50%;
+  --grad-y: 50%;
+  --sprk-x: 50%;
+  --sprk-y: 50%;
+  --foil-opacity: 0.75;
+  --rx: 0deg;
+  --ry: 0deg;
+  --rz: 0deg;
+
+  position: relative;
+  width: 13rem;
+  aspect-ratio: 5 / 7;
+  border-radius: 5% / 3.5%;
+  overflow: hidden;
+  isolation: isolate;
+  touch-action: none;
+  z-index: 10;
+
+  background-color: #040712;
+  background-image: var(--front);
+  background-repeat: no-repeat, no-repeat;
+
+  transform-origin: center;
+  transform: rotateX(var(--rx)) rotateY(var(--ry)) rotateZ(var(--rz));
+
+  /* Resting glow in the card's own two colours, per the pen. */
+  box-shadow:
+    -5px -5px 5px -5px var(--color1),
+    5px 5px 5px -5px var(--color2),
+    -7px -7px 10px -5px transparent,
+    7px 7px 10px -5px transparent,
+    0 0 5px 0 rgba(255, 255, 255, 0),
+    0 30px 22px -18px rgba(0, 0, 0, 0.55);
+
+  transition: transform 0.5s ease, box-shadow 0.2s ease;
+  will-change: transform, filter;
+}
+
+/* Hover lifts the glow out: the colours bloom and a white rim appears. */
+.honour-card:hover,
+.honour-card.is-active {
+  box-shadow:
+    -20px -20px 30px -25px var(--color1),
+    20px 20px 30px -25px var(--color2),
+    -7px -7px 10px -5px var(--color1),
+    7px 7px 10px -5px var(--color2),
+    0 0 13px 4px rgba(255, 255, 255, 0.3),
+    0 30px 22px -18px rgba(0, 0, 0, 0.55);
+  transition: box-shadow 0.1s ease-out;
+}
+
+.honour-card::before,
+.honour-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-repeat: no-repeat;
+  mix-blend-mode: color-dodge;
+  transition: all 0.33s ease;
+}
+
+/* Shine: a diagonal band sweeping between the card's two colours. */
+.honour-card::before {
+  background-position: var(--grad-x) var(--grad-y);
+  background-size: 300% 300%;
+  background-image: linear-gradient(
+    115deg,
+    transparent 0%,
+    var(--color1) 25%,
+    transparent 47%,
+    transparent 53%,
+    var(--color2) 75%,
+    transparent 100%
+  );
+  opacity: 0.5;
+  filter: brightness(0.5) contrast(1);
+  z-index: 1;
+}
+
+/* Foil: sparkles over a holo weave over a rainbow wash. */
+.honour-card::after {
+  background-image:
+    var(--sparkles),
+    var(--holo-weave),
+    linear-gradient(
+      125deg,
+      #ff008450 15%,
+      #fca40040 30%,
+      #ffff0030 40%,
+      #00ff8a20 60%,
+      #00cfff40 70%,
+      #cc4cfa50 85%
+    );
+  background-position: var(--sprk-x) var(--sprk-y);
+  background-size: 160%;
+  background-blend-mode: overlay;
+  opacity: var(--foil-opacity);
+  filter: brightness(1) contrast(1);
+  z-index: 2;
+}
+
+.honour-card:hover::after,
+.honour-card.is-active::after {
+  filter: brightness(1) contrast(1);
+  opacity: 1;
+}
+
+/* While tracking the pointer, the shine narrows to a hard specular band. */
+.honour-card:hover::before,
+.honour-card.is-active::before {
+  background-image: linear-gradient(
+    110deg,
+    transparent 25%,
+    var(--color1) 48%,
+    var(--color2) 52%,
+    transparent 75%
+  );
+  background-size: 250% 250%;
+  opacity: 0.88;
+  filter: brightness(0.66) contrast(1.33);
+  transition: none;
+}
+
+.honour-card:hover,
+.honour-card.is-active,
+.honour-card:hover::before,
+.honour-card.is-active::before,
+.honour-card:hover::after,
+.honour-card.is-active::after {
+  animation: none;
+}
+
+/* ── Idle showcase loop ──
+ * The pen's key trick for looking alive when nobody is touching it: the card
+ * tilts and the two layers drift on a 12s cycle. Re-armed 2.5s after the
+ * pointer leaves. */
+.honour-card.is-idle {
+  transition: none;
+  animation: honour-holo-card 12s ease 0s infinite;
+}
+.honour-card.is-idle::before {
+  transition: none;
+  animation: honour-holo-gradient 12s ease 0s infinite;
+}
+.honour-card.is-idle::after {
+  transition: none;
+  animation: honour-holo-sparkle 12s ease 0s infinite;
+}
+
+@keyframes honour-holo-sparkle {
+  0%, 100% { opacity: 0.75; background-position: 50% 50%; filter: brightness(1.2) contrast(1.25); }
+  5%, 8%   { opacity: 1;    background-position: 40% 40%; filter: brightness(0.8) contrast(1.2); }
+  13%, 16% { opacity: 0.5;  background-position: 50% 50%; filter: brightness(1.2) contrast(0.8); }
+  35%, 38% { opacity: 1;    background-position: 60% 60%; filter: brightness(1) contrast(1); }
+  55%      { opacity: 0.33; background-position: 45% 45%; filter: brightness(1.2) contrast(1.25); }
+}
+
+@keyframes honour-holo-gradient {
+  0%, 100% { opacity: 0.5;  background-position: 50% 50%;   filter: brightness(0.5) contrast(1); }
+  5%, 9%   { opacity: 1;    background-position: 100% 100%; filter: brightness(0.75) contrast(1.25); }
+  13%, 17% { opacity: 0.88; background-position: 0% 0%; }
+  35%, 39% { opacity: 1;    background-position: 100% 100%; filter: brightness(0.5) contrast(1); }
+  55%      { opacity: 1;    background-position: 0% 0%;     filter: brightness(0.75) contrast(1.25); }
+}
+
+@keyframes honour-holo-card {
+  0%, 100% { transform: rotateZ(0deg) rotateX(0deg) rotateY(0deg); }
+  5%, 8%   { transform: rotateZ(0deg) rotateX(6deg) rotateY(-20deg); }
+  13%, 16% { transform: rotateZ(0deg) rotateX(-9deg) rotateY(32deg); }
+  35%, 38% { transform: rotateZ(3deg) rotateX(12deg) rotateY(20deg); }
+  55%      { transform: rotateZ(-3deg) rotateX(-12deg) rotateY(-27deg); }
+}
+
+/* Stagger the loop so the three cards never shimmer in unison. */
+.honour-scene:nth-child(2) .honour-card.is-idle,
+.honour-scene:nth-child(2) .honour-card.is-idle::before,
+.honour-scene:nth-child(2) .honour-card.is-idle::after { animation-delay: 0.4s; }
+.honour-scene:nth-child(3) .honour-card.is-idle,
+.honour-scene:nth-child(3) .honour-card.is-idle::before,
+.honour-scene:nth-child(3) .honour-card.is-idle::after { animation-delay: 0.8s; }
+
+/* Rank 1 gets the pen's five-colour eevee shine and a white hover bloom, so the
+   winner's card is visibly rarer than the other two. */
+.honour-card--rainbow:hover,
+.honour-card--rainbow.is-active {
+  box-shadow:
+    0 0 30px -5px #fff,
+    0 0 10px -2px #fff,
+    0 30px 22px -18px rgba(0, 0, 0, 0.55);
+}
+
+.honour-card--rainbow:hover::before,
+.honour-card--rainbow.is-active::before {
+  background-image: linear-gradient(
+    115deg,
+    transparent 20%,
+    var(--color1) 36%,
+    var(--color2) 43%,
+    var(--color3) 50%,
+    var(--color4) 57%,
+    var(--color5) 64%,
+    transparent 80%
+  );
+}
+
+/* The mascot art is a small PNG; contain + centre keeps it crisp instead of
+   upscaling it to cover the whole card. The gradient behind it fills the rest. */
+.honour-card {
+  background-size: 62% auto, cover;
+  background-position: 50% 38%, 50% 50%;
+}
+
+/* ── Card face ── */
+
+.honour-card__face {
+  position: relative;
+  z-index: 3;
+  display: flex;
+  height: 100%;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 0.6rem;
+  /* Scrim so the text stays readable over any artwork. */
+  background: linear-gradient(
+    to bottom,
+    rgba(4, 7, 18, 0.72) 0%,
+    rgba(4, 7, 18, 0.12) 26%,
+    rgba(4, 7, 18, 0.12) 58%,
+    rgba(4, 7, 18, 0.88) 100%
+  );
+}
+
+.honour-card__rank {
+  align-self: flex-start;
+  border-radius: 999px;
+  padding: 0.15rem 0.5rem;
+  font-size: 0.62rem;
+  font-weight: 900;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  color: #0b1020;
+  background: linear-gradient(100deg, var(--color1), var(--color2));
+  box-shadow: 0 1px 6px rgba(0, 0, 0, 0.4);
+}
+
+.honour-card__xp {
+  align-self: flex-end;
+  border-radius: 999px;
+  background: rgba(4, 7, 18, 0.62);
+  padding: 0.1rem 0.45rem;
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: #fff;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+
+.honour-card__name {
+  font-size: 0.82rem;
+  font-weight: 900;
+  color: #fff;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+  line-height: 1.15;
+}
+
+.honour-card__mascot {
+  margin-top: 0.1rem;
+  font-size: 0.6rem;
+  font-weight: 600;
+  color: rgba(255, 255, 255, 0.72);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.9);
+}
+
+/* ── Fly-in ── */
+
+.honour-scene {
+  animation: honour-fly-in 780ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes honour-fly-in {
+  0%   { opacity: 0; transform: translate3d(0, 55vh, 0) scale(0.5) rotateZ(-10deg); }
+  70%  { opacity: 1; transform: translate3d(0, -10px, 0) scale(1.04) rotateZ(2deg); }
+  100% { opacity: 1; transform: translate3d(0.1px, 0.1px, 0.1px) scale(1) rotateZ(0deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .honour-scene { animation: none; }
+  .honour-card,
+  .honour-card.is-idle,
+  .honour-card.is-idle::before,
+  .honour-card.is-idle::after {
+    animation: none;
+    transform: none !important;
+    transition: none;
+  }
+}

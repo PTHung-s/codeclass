@@ -1,0 +1,1019 @@
+import { useEffect, useState } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useParams } from "react-router-dom";
+import api from "../../lib/api";
+import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound } from "lucide-react";
+import { SkeletonCard } from "../../components/ui/skeletons";
+import { DifficultyBadge } from "../../components/ui/Badges";
+import { useAuthContext } from "../../contexts/AuthContext";
+import { Button } from "../../components/ui/button";
+import { Input } from "../../components/ui/input";
+import { Card, CardContent } from "../../components/ui/card";
+import { Avatar } from "../../components/ui/avatar";
+import { RadarChart, groupSkillsByTopic, topicsForLanguage, skillsForLanguage, type SkillLanguage } from "../../components/skills/RadarChart";
+import type { SkillState, TopicGroup } from "../../lib/api";
+import { useToast } from "../../hooks/useToast";
+import { useConfirmContext } from "../../hooks/useConfirm";
+import { StudentName } from "../../components/ui/StudentName";
+import { StreakHistoryManagePanel } from "../../components/streak/StreakHistory";
+
+interface PracticeLog {
+  id: string;
+  problemId: string;
+  problemTitle: string;
+  difficulty: string;
+  typingSpeed: number | null;
+  activeTimeSeconds: number | null;
+  totalTimeSeconds: number | null;
+  codeLength: number;
+  createdAt: string;
+}
+
+interface PracticeAnalytics {
+  totalProblemsSolved: number;
+  avgTypingSpeed: number | null;
+  avgTimePerProblem: number | null;
+  totalActiveTimeSeconds: number;
+  heatmapDays: { date: string; count: number }[];
+  timeHeatmapDays: { date: string; seconds: number }[];
+  practiceLogs: PracticeLog[];
+}
+
+export default function StudentProfile() {
+  const { studentId } = useParams();
+  const { user } = useAuthContext();
+  const toast = useToast();
+  const confirm = useConfirmContext();
+  const isStaff = user?.role === "teacher" || user?.role === "teaching_assistant" || user?.role === "admin";
+  const isAdmin = user?.role === "admin";
+  const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["student", studentId],
+    queryFn: () => api.get(`/students/${studentId}`).then((r) => r.data),
+    enabled: !!studentId,
+  });
+
+  // Teacher-visible: quiz attempts
+  // Heavy staff queries wait for the base profile (`data`) so mount doesn't
+  // fan out 6–8 parallel requests at once.
+  const quizQ = useQuery({
+    queryKey: ["student-quizzes", studentId],
+    queryFn: () => api.get(`/students/${studentId}/quizzes`).then((r) => r.data),
+    enabled: !!studentId && isStaff && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  // Teacher-visible: adaptive test attempts
+  const adaptiveQ = useQuery({
+    queryKey: ["student-adaptive-tests", studentId],
+    queryFn: () => api.get(`/students/${studentId}/adaptive-tests`).then((r) => r.data),
+    enabled: !!studentId && isStaff && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  // Attendance stats (teacher view)
+  const attQ = useQuery({
+    queryKey: ["student-attendance", studentId],
+    queryFn: () => api.get(`/students/${studentId}/attendance`).then((r) => r.data),
+    enabled: !!studentId && isStaff && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  // Time tracking stats (teacher view)
+  const trackQ = useQuery({
+    queryKey: ["student-tracking", studentId],
+    queryFn: () => api.get(`/tracking/stats?userId=${studentId}&days=30`).then((r) => r.data),
+    enabled: !!studentId && isStaff && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  // Skill evidence is shared with the student dashboard; staff can view it for any student.
+  const skillsQ = useQuery({
+    queryKey: ["student-skills", studentId],
+    queryFn: () => api.get(`/skills/${studentId}`).then((r) => r.data as SkillState[]),
+    enabled: !!studentId && isStaff && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  const skillTopicsQ = useQuery({
+    queryKey: ["skill-topics"],
+    queryFn: () => api.get("/skills").then((r) => r.data as TopicGroup[]),
+    enabled: isStaff,
+    staleTime: 5 * 60 * 1000,
+  });
+  const attStats = attQ.data?.stats;
+
+  const resetPassword = useMutation({
+    mutationFn: () => api.post(`/students/${studentId}/reset-password`).then((r) => r.data),
+    onSuccess: (result) => {
+      setTemporaryPassword(result.temporaryPassword);
+      toast.success({ title: "Đã tạo mật khẩu tạm", message: "Chỉ hiển thị tại đây một lần. Học sinh phải đổi lại sau khi đăng nhập." });
+    },
+    onError: (err: any) => toast.error({ title: "Không thể đặt lại mật khẩu", message: err.response?.data?.error || "Vui lòng thử lại." }),
+  });
+
+  if (isLoading) return <div className="max-w-5xl mx-auto space-y-6"><SkeletonCard /></div>;
+  if (error) {
+    const message = (error as any)?.response?.data?.error || "Không tải được tổng quan của học viên";
+    return (
+      <div className="mx-auto max-w-3xl rounded-xl border border-red-500/20 bg-red-500/10 p-5 text-sm text-red-700 dark:text-red-400">
+        {message}
+      </div>
+    );
+  }
+  if (!data) return <div className="text-muted-foreground">Không tìm thấy học viên</div>;
+
+  const { user: student, enrolledCourses, courseProgress, chapterProgress, clearedModuleIds, badges, practiceAnalytics } = data;
+  const pa: PracticeAnalytics = practiceAnalytics || { totalProblemsSolved: 0, avgTypingSpeed: null, avgTimePerProblem: null, totalActiveTimeSeconds: 0, heatmapDays: [], timeHeatmapDays: [], practiceLogs: [] };
+  const quizAttempts = quizQ.data || [];
+  const adaptiveAttempts = adaptiveQ.data || [];
+  const trackData = trackQ.data || { totalActiveHours: 0, totalTabOuts: 0, daysTracked: 0, daily: [] };
+  const quizPassed = quizAttempts.filter((a: any) => a.passed).length;
+  const adaptivePassed = adaptiveAttempts.filter((a: any) => a.passed || a.partialPass).length;
+
+  return (
+    <div className="max-w-5xl mx-auto space-y-6">
+      {/* Header */}
+      <div className="rounded-xl border border-border bg-card p-6 dark:bg-card dark:border-border">
+        <div className="flex items-start gap-4">
+          <div className="w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold text-xl">
+            {student?.fullName?.charAt(0) || "H"}
+          </div>
+          <div className="flex-1">
+            <StudentName fullName={student?.fullName || "Học sinh"} nickname={student?.nickname} primaryClassName="text-2xl font-bold text-foreground" secondaryClassName="text-xs font-medium text-muted-foreground" />
+            <p className="text-sm text-muted-foreground">{student?.email}</p>
+            {student?.bio && <p className="text-sm text-muted-foreground mt-2 dark:text-muted-foreground">{student.bio}</p>}
+          </div>
+          {student?.lastLoginAt && (
+            <div className="text-right text-xs text-muted-foreground">
+              <p>Đăng nhập lần cuối</p>
+              <p className="font-semibold text-muted-foreground">{new Date(student.lastLoginAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {isAdmin && (
+        <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-5 dark:border-amber-900 dark:bg-amber-950/20">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <h2 className="flex items-center gap-2 font-semibold text-amber-950 dark:text-amber-100"><KeyRound className="h-4 w-4" />Khôi phục tài khoản</h2>
+              <p className="mt-1 max-w-2xl text-sm text-amber-900 dark:text-amber-200">Không thể xem mật khẩu hiện tại vì hệ thống chỉ lưu hash. Tạo mật khẩu tạm mới để gửi cho học sinh; học sinh sẽ được yêu cầu đổi mật khẩu sau khi đăng nhập.</p>
+            </div>
+            <Button
+              variant="secondary"
+              disabled={resetPassword.isPending}
+              onClick={async () => {
+                const ok = await confirm({
+                  title: "Tạo mật khẩu tạm",
+                  message: `Tạo mật khẩu tạm mới cho ${student?.fullName || "học sinh này"}? Mật khẩu cũ sẽ không còn dùng được.`,
+                  confirmLabel: "Tạo mật khẩu",
+                  variant: "danger",
+                });
+                if (ok) resetPassword.mutate();
+              }}
+            >
+              {resetPassword.isPending ? "Đang tạo..." : "Tạo mật khẩu tạm"}
+            </Button>
+          </div>
+          {temporaryPassword && (
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-lg border border-amber-500/30 bg-card px-4 py-3 dark:border-amber-800 dark:bg-background">
+              <div className="min-w-0 flex-1"><p className="text-xs text-amber-800 dark:text-amber-300">Mật khẩu tạm — chỉ hiển thị trong phiên này</p><code className="mt-1 block break-all text-lg font-bold tracking-wide text-foreground dark:text-foreground">{temporaryPassword}</code></div>
+              <Button variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(temporaryPassword).then(() => toast.success({ title: "Đã sao chép mật khẩu tạm" })).catch(() => toast.error({ title: "Không thể sao chép" }))}><Copy className="mr-1.5 h-3.5 w-3.5" />Sao chép</Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Stats */}
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+        <StatBadge icon={<BookOpen />} label="Khóa học" value={enrolledCourses?.length ?? 0} color="blue" />
+        <StatBadge icon={<Code />} label="Bài đã giải" value={pa.totalProblemsSolved} color="indigo" />
+        <StatBadge icon={<Keyboard />} label="Tốc độ gõ TB" value={pa.avgTypingSpeed ? `${pa.avgTypingSpeed} CPM` : "N/A"} color="teal" />
+        <StatBadge icon={<Timer />} label="Tổng giờ code" value={formatSeconds(pa.totalActiveTimeSeconds)} color="green" />
+        <StatBadge icon={<TrendingUp />} label="TB mỗi bài" value={pa.avgTimePerProblem ? formatSeconds(pa.avgTimePerProblem) : "N/A"} color="amber" />
+        {isStaff && isStaff && (
+          <StatBadge icon={<Timer />} label="Giờ học trên web" value={`${trackData.totalActiveHours}h`} color="green" />
+        )}
+        {isStaff && isStaff && (
+          <StatBadge icon={<AlertTriangle />} label="Lần out tab" value={trackData.totalTabOuts} color="orange" />
+        )}
+      </div>
+
+      {isStaff && studentId && (
+        <StreakHistoryManagePanel userId={studentId} days={84} />
+      )}
+
+      {isStaff && (
+        <StudentSkillAssessment
+          skills={skillsQ.data || []}
+          topics={skillTopicsQ.data || []}
+          loading={skillsQ.isLoading || skillTopicsQ.isLoading}
+        />
+      )}
+
+      {/* Time tracking card (teacher view) */}
+      {isStaff && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">
+            <Timer className="inline h-4 w-4 mr-1.5 text-primary" />
+            Thời gian học trên web (30 ngày) — {trackData.daysTracked > 0 ? "đang theo dõi" : "chưa có dữ liệu"}
+          </h2>
+          <div className="flex items-center gap-4 mb-4">
+            <div className="text-center">
+              <p className="text-2xl font-black text-primary tabular-nums">{trackData.totalActiveHours}</p>
+              <p className="text-xs text-muted-foreground">tổng số giờ</p>
+            </div>
+            <div className="h-8 w-px bg-border dark:bg-muted" />
+            <div className="text-center">
+              <p className="text-2xl font-black text-amber-600 tabular-nums">{trackData.totalTabOuts}</p>
+              <p className="text-xs text-muted-foreground">lần out tab</p>
+            </div>
+            <div className="h-8 w-px bg-border dark:bg-muted" />
+            <div className="text-center">
+              <p className="text-2xl font-black text-foreground/90 tabular-nums">{trackData.daysTracked}</p>
+              <p className="text-xs text-muted-foreground">ngày có học</p>
+            </div>
+          </div>
+          {/* 30-day dual bar charts — minutes & tab-outs */}
+          {(() => {
+            const dailyMap: Record<string, { minutes: number; tabOuts: number }> = {};
+            (trackData.daily || []).forEach((d: any) => {
+              dailyMap[d.date] = { minutes: d.minutes || 0, tabOuts: d.tabOuts || 0 };
+            });
+            const vnDateKey = (date: Date) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Ho_Chi_Minh" }).format(date);
+            interface DayItem { date: string; label: string; minutes: number; tabOuts: number }
+            const days: DayItem[] = [];
+            for (let i = 29; i >= 0; i--) {
+              const d = new Date();
+              d.setDate(d.getDate() - i);
+              const key = vnDateKey(d);
+              const label = d.toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" });
+              days.push({ date: key, label, minutes: dailyMap[key]?.minutes || 0, tabOuts: dailyMap[key]?.tabOuts || 0 });
+            }
+            const CHART_H = 80;
+            const maxMins = Math.max(1, ...days.map(d => d.minutes));
+            const maxOuts = Math.max(1, ...days.map(d => d.tabOuts));
+
+            const BarChart = ({ getValue, max, color, unit }: {
+              getValue: (d: DayItem) => number;
+              max: number;
+              color: string;
+              unit: string;
+            }) => (
+              <div className="flex-1 flex flex-col">
+                <div className="flex items-end gap-px" style={{ height: CHART_H }}>
+                  {days.map((d) => {
+                    const val = getValue(d);
+                    const barH = val > 0 ? Math.max(3, Math.round((val / max) * CHART_H)) : 2;
+                    return (
+                      <div key={d.date} className="flex-1 flex items-end justify-center group" title={`${d.date}: ${val} ${unit}`}>
+                        <div
+                          className={`w-full rounded-t-[1px] transition-colors ${val > 0 ? color : 'bg-muted dark:bg-muted'}`}
+                          style={{ height: barH }}
+                        />
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex text-[9px] text-muted-foreground mt-1">
+                  {days.map((d, i) => (
+                    <div key={d.date} className="flex-1 text-center">
+                      {i % 7 === 0 ? d.label.slice(0, 2) : ""}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+
+            return (
+              <div className="flex gap-4">
+                <div className="flex-1">
+                  <p className="text-[10px] font-medium text-primary mb-1">Phút học</p>
+                  <BarChart getValue={d => d.minutes} max={maxMins} color="bg-primary/100 hover:bg-primary" unit="phút" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-[10px] font-medium text-amber-600 mb-1">Lần out tab</p>
+                  <BarChart getValue={d => d.tabOuts} max={maxOuts} color="bg-amber-500 hover:bg-amber-600" unit="lần out" />
+                </div>
+              </div>
+            );
+          })()}
+          <p className="mt-2 text-xs text-muted-foreground text-right">30 ngày gần nhất</p>
+        </div>
+      )}
+
+      {/* Contribution Heatmap */}
+      {pa.heatmapDays && pa.heatmapDays.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Số bài tập mỗi ngày (12 tuần)</h2>
+          <ActivityHeatmap days={pa.heatmapDays} />
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Typing Speed Chart */}
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Tốc độ gõ (CPM)</h2>
+          {pa.practiceLogs && pa.practiceLogs.filter(l => l.typingSpeed).length > 0 ? (
+            <LineChart data={pa.practiceLogs.filter(l => l.typingSpeed).slice(0, 30).reverse().map(l => ({
+              label: new Date(l.createdAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+              value: l.typingSpeed || 0,
+            }))} color="#0066cc" />
+          ) : (
+            <p className="text-sm text-muted-foreground py-8 text-center dark:text-muted-foreground">Chưa có dữ liệu tốc độ gõ</p>
+          )}
+        </div>
+
+        {/* Daily Coding Time Chart */}
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Thời gian code mỗi ngày</h2>
+          {pa.timeHeatmapDays && pa.timeHeatmapDays.filter(d => d.seconds > 0).length > 0 ? (
+            <BarChart data={pa.timeHeatmapDays.slice(-30).map(d => ({
+              label: new Date(d.date + "T00:00:00").toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit" }),
+              value: Math.round(d.seconds / 60),
+            }))} color="#10b981" unit="phút" />
+          ) : (
+            <p className="text-sm text-muted-foreground py-8 text-center dark:text-muted-foreground">Chưa có dữ liệu thời gian code</p>
+          )}
+        </div>
+      </div>
+
+      {/* Practice Logs Table */}
+      {pa.practiceLogs && pa.practiceLogs.length > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">
+            Nhật ký luyện tập ({pa.practiceLogs.length} bài)
+          </h2>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="text-left text-xs text-muted-foreground border-b border-border dark:text-muted-foreground dark:border-border">
+                  <th className="pb-2 font-medium">Bài tập</th>
+                  <th className="pb-2 font-medium">Độ khó</th>
+                  <th className="pb-2 font-medium">Tốc độ gõ</th>
+                  <th className="pb-2 font-medium">Thời gian</th>
+                  <th className="pb-2 font-medium">Số ký tự</th>
+                  <th className="pb-2 font-medium text-right">Ngày làm</th>
+                </tr>
+              </thead>
+              <tbody>
+                {pa.practiceLogs.slice(0, 50).map((log) => (
+                  <tr key={log.id} className="border-b border-border hover:bg-muted">
+                    <td className="py-2 pr-4 max-w-[200px] truncate text-foreground">{log.problemTitle}</td>
+                    <td className="py-2">
+                      <DifficultyBadge difficulty={log.difficulty} />
+                    </td>
+                    <td className="py-2 text-muted-foreground">
+                      {log.typingSpeed ? `${log.typingSpeed} CPM` : "—"}
+                    </td>
+                    <td className="py-2 text-muted-foreground">
+                      {log.activeTimeSeconds ? formatSeconds(log.activeTimeSeconds) : "—"}
+                    </td>
+                    <td className="py-2 text-muted-foreground text-xs dark:text-muted-foreground">{log.codeLength} ký tự</td>
+                    <td className="py-2 text-right text-muted-foreground text-xs dark:text-muted-foreground">
+                      {new Date(log.createdAt).toLocaleDateString("vi-VN")}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Weakness Tags (teacher view) ── */}
+      {isStaff && studentId && <WeaknessTagSection studentId={studentId} fullName={data?.fullName} />}
+
+      {/* ── Course Progress + Badges + Chapters (teacher view) ── */}
+      {isStaff && (
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Course progress */}
+          <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+            <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Tiến độ khóa học</h2>
+            {!enrolledCourses?.length ? (
+              <p className="text-sm text-muted-foreground">Chưa đăng ký khóa học nào.</p>
+            ) : (
+              <div className="space-y-2">
+                {enrolledCourses.map((ec: any) => {
+                  const cp = courseProgress?.[ec.courseId];
+                  const pct = cp?.percent ?? 0;
+                  return (
+                    <div key={ec.courseId} className="flex items-center gap-3">
+                      <span className="flex-1 min-w-0 text-sm text-foreground/90 truncate">{ec.course?.title}</span>
+                      <div className="flex items-center gap-2 w-32">
+                        <div className="h-2 flex-1 rounded-full bg-muted dark:bg-muted overflow-hidden">
+                          <div className={`h-full rounded-full transition-all ${pct >= 80 ? "bg-emerald-500" : pct >= 50 ? "bg-amber-500" : "bg-red-400"}`} style={{ width: `${pct}%` }} />
+                        </div>
+                        <span className="text-xs font-semibold tabular-nums text-muted-foreground w-10 text-right">{cp ? `${cp.completed}/${cp.total}` : "—"}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
+          {/* Badges + Chapters */}
+          <div className="space-y-4">
+            {badges?.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+                <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Huy hiệu ({badges.length})</h2>
+                <div className="flex flex-wrap gap-2">
+                  {badges.map((b: any, i: number) => (
+                    <span key={i} className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 px-3 py-1 text-xs font-medium text-amber-700 dark:bg-amber-950/30 dark:text-amber-300" title={b.description}>
+                      {b.icon} {b.name}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+            {chapterProgress?.length > 0 && (
+              <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+                <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Chương đã vượt ({chapterProgress.length})</h2>
+                <div className="flex flex-wrap gap-2">
+                  {chapterProgress.map((cp: any, i: number) => (
+                    <span key={i} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-3 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300">
+                      <Zap className="h-3 w-3" /> {cp.moduleId?.slice(-8)}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Course list */}
+      <div>
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground">Khóa học đã đăng ký</h2>
+          {!enrolledCourses?.length ? (
+            <p className="text-sm text-muted-foreground">Chưa đăng ký khóa học nào.</p>
+          ) : (
+            <div className="space-y-2">
+              {enrolledCourses.map((ec: any) => (
+                <div key={ec.courseId} className="text-sm text-foreground/90 py-1 dark:text-muted-foreground">{ec.course?.title}</div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Teacher-only: Quiz & Adaptive Test History ── */}
+      {isStaff && (
+        <>
+          {/* Summary row */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+            {attStats && (
+              <div className="rounded-xl border border-border bg-card p-4 dark:bg-card dark:border-border flex items-center gap-3">
+                <CalendarCheck className="h-8 w-8 text-emerald-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">Chuyên cần</p>
+                  <p className="text-lg font-bold tabular-nums text-foreground">
+                    {attStats.rate !== null ? `${attStats.rate}%` : "—"}
+                  </p>
+                  <p className="text-[10px] text-muted-foreground">{attStats.held} buổi · {attStats.present} có mặt</p>
+                </div>
+              </div>
+            )}
+            <div className="rounded-xl border border-border bg-card p-4 dark:bg-card dark:border-border flex items-center gap-3">
+              <CheckCircle2 className="h-8 w-8 text-primary" />
+              <div>
+                <p className="text-xs text-muted-foreground">Quiz đã làm</p>
+                <p className="text-lg font-bold tabular-nums text-foreground">
+                  {quizPassed}/{quizAttempts.length} <span className="text-xs font-normal text-muted-foreground">passed</span>
+                </p>
+              </div>
+            </div>
+            <div className="rounded-xl border border-border bg-card p-4 dark:bg-card dark:border-border flex items-center gap-3">
+              <Zap className="h-8 w-8 text-amber-500" />
+              <div>
+                <p className="text-xs text-muted-foreground">Test vượt chương</p>
+                <p className="text-lg font-bold tabular-nums text-foreground">
+                  {adaptivePassed}/{adaptiveAttempts.length} <span className="text-xs font-normal text-muted-foreground">passed</span>
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Quiz attempts per lesson */}
+          {quizQ.data && quizQ.data.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-primary" /> Bài kiểm tra từng bài ({quizQ.data.length} lần làm)
+              </h2>
+              <div className="space-y-2">
+                {quizQ.data.map((a: any) => (
+                  <QuizAttemptRow key={a.id} attempt={a} />
+                ))}
+              </div>
+            </div>
+          )}
+          {quizQ.data && quizQ.data.length === 0 && (
+            <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground flex items-center gap-2">
+                <CheckCircle2 className="h-4 w-4 text-muted-foreground/40" /> Bài kiểm tra từng bài
+              </h2>
+              <p className="text-sm text-muted-foreground">Chưa có lần làm quiz nào.</p>
+            </div>
+          )}
+
+          {/* Adaptive test attempts */}
+          {adaptiveQ.data && adaptiveQ.data.length > 0 && (
+            <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground flex items-center gap-2">
+                <Zap className="h-4 w-4 text-amber-500" /> Test vượt chương ({adaptiveQ.data.length} lần làm)
+              </h2>
+              <div className="space-y-2">
+                {adaptiveQ.data.map((a: any) => (
+                  <AdaptiveAttemptRow key={a.id} attempt={a} />
+                ))}
+              </div>
+            </div>
+          )}
+          {adaptiveQ.data && adaptiveQ.data.length === 0 && (
+            <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+              <h2 className="text-sm font-semibold text-foreground mb-3 dark:text-foreground flex items-center gap-2">
+                <Zap className="h-4 w-4 text-muted-foreground/40" /> Test vượt chương
+              </h2>
+              <p className="text-sm text-muted-foreground">Chưa có lần test vượt chương nào.</p>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function StudentSkillAssessment({
+  skills,
+  topics,
+  loading,
+}: {
+  skills: SkillState[];
+  topics: TopicGroup[];
+  loading: boolean;
+}) {
+  const [lang, setLang] = useState<SkillLanguage>("py");
+  const [langTouched, setLangTouched] = useState(false);
+
+  // Default tab = language the student has more evidence for (once), unless teacher already switched.
+  useEffect(() => {
+    if (langTouched || loading || skills.length === 0) return;
+    const cppEvidence = skills.filter((s) => s.skillId.startsWith("cpp.") && s.hasEvidence).length;
+    const pyEvidence = skills.filter((s) => s.skillId.startsWith("py.") && s.hasEvidence).length;
+    if (cppEvidence > pyEvidence) setLang("cpp");
+    else setLang("py");
+  }, [skills, loading, langTouched]);
+
+  if (loading) {
+    return <div className="rounded-xl border border-border bg-card p-5"><div className="h-56 animate-pulse rounded-lg bg-muted" /></div>;
+  }
+
+  const scopedTopics = topicsForLanguage(topics, lang);
+  const scopedSkills = skillsForLanguage(skills, lang);
+  const knownSkills = scopedSkills.filter((skill) => skill.hasEvidence);
+  // Pass ALL language skills so every catalog topic becomes a radar axis.
+  // Topics/skills without evidence render as "—" / 0, not hidden.
+  const radarData = groupSkillsByTopic(
+    scopedSkills.map((skill) => ({
+      skillId: skill.skillId,
+      name: skill.name,
+      mastery: skill.hasEvidence ? skill.mastery : 0,
+      trend: skill.trend,
+      hasEvidence: skill.hasEvidence,
+    })),
+    scopedTopics.map((topic) => ({
+      topicId: topic.topicId,
+      topicName: topic.topicName,
+      skillIds: topic.skills.map((skill) => skill.skillId),
+    })),
+    lang,
+  );
+  const average = knownSkills.length > 0
+    ? Math.round((knownSkills.reduce((sum, skill) => sum + skill.mastery, 0) / knownSkills.length) * 100)
+    : null;
+  const lowest = [...knownSkills].sort((a, b) => a.mastery - b.mastery).slice(0, 3);
+  const TrendIcon = { up: TrendingUp, down: TrendingDown, flat: Minus };
+
+  return (
+    <section className="rounded-xl border border-border bg-card p-5 shadow-sm">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h2 className="flex items-center gap-2 text-base font-bold text-card-foreground">
+            <Radar className="size-5 text-primary" /> Hồ sơ kỹ năng
+          </h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Chỉ dùng kết quả từ quiz, bài code và adaptive test có skill tag đã duyệt.
+          </p>
+        </div>
+        <div className="flex items-center gap-1 rounded-lg bg-muted p-1" role="tablist" aria-label="Chọn ngôn ngữ">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={lang === "py"}
+            onClick={() => { setLangTouched(true); setLang("py"); }}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+              lang === "py" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"
+            }`}
+          >
+            Python
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={lang === "cpp"}
+            onClick={() => { setLangTouched(true); setLang("cpp"); }}
+            className={`rounded-md px-3 py-1 text-xs font-semibold transition-colors ${
+              lang === "cpp" ? "bg-card text-primary shadow-sm" : "text-muted-foreground"
+            }`}
+          >
+            C++
+          </button>
+        </div>
+        <div className="rounded-lg bg-muted px-3 py-2 text-right">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">Điểm trung bình</p>
+          <p className="text-xl font-black tabular-nums">{average === null ? "—" : `${average}%`}</p>
+        </div>
+      </div>
+
+      {scopedSkills.length === 0 ? (
+        <p className="py-10 text-center text-sm text-muted-foreground">Học sinh chưa có dữ liệu đánh giá kỹ năng.</p>
+      ) : (
+        <div className="mt-5 grid gap-6 xl:grid-cols-[minmax(300px,0.85fr)_minmax(0,1.15fr)] xl:items-start">
+          <div className="rounded-lg border bg-muted/20 p-3">
+            {radarData.length >= 3 ? (
+              <RadarChart data={radarData} size={300} />
+            ) : (
+              <div className="flex min-h-[250px] items-center justify-center px-5 text-center text-sm text-muted-foreground">
+                Cần evidence ở ít nhất 3 nhóm kỹ năng để hiển thị bản đồ radar.
+              </div>
+            )}
+            <p className="mt-1 text-center text-xs text-muted-foreground">
+              {knownSkills.length}/{scopedSkills.length} kỹ năng đã có evidence
+              {radarData.length > 0 ? ` · ${radarData.filter((d) => d.hasEvidence).length}/${radarData.length} nhóm trên radar` : ""}
+            </p>
+          </div>
+
+          <div className="min-w-0">
+            {lowest.length > 0 && (
+              <div className="mb-3 rounded-lg border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-xs text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/20 dark:text-amber-200">
+                <span className="font-bold">Cần chú ý:</span> {lowest.map((skill) => skill.name).join(", ")}
+              </div>
+            )}
+            <div className="max-h-[360px] space-y-2 overflow-y-auto pr-1">
+              {scopedSkills.map((skill) => {
+                const Trend = TrendIcon[skill.trend];
+                const value = Math.round(skill.mastery * 100);
+                const bar = value >= 75 ? "bg-emerald-500" : value >= 50 ? "bg-amber-500" : "bg-red-500";
+                return (
+                  <div key={skill.skillId} className="rounded-lg border border-border p-3">
+                    <div className="flex items-center gap-2">
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium" title={skill.name}>{skill.name}</p>
+                      {skill.hasEvidence ? (
+                        <span className="shrink-0 text-sm font-bold tabular-nums">{value}%</span>
+                      ) : (
+                        <span className="shrink-0 text-xs font-medium text-muted-foreground">Chưa đánh giá</span>
+                      )}
+                    </div>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted">
+                        {skill.hasEvidence && <div className={`h-full rounded-full ${bar}`} style={{ width: `${value}%` }} />}
+                      </div>
+                      {skill.hasEvidence ? <Trend className={`size-3.5 ${skill.trend === "up" ? "text-emerald-500" : skill.trend === "down" ? "text-red-500" : "text-muted-foreground"}`} /> : null}
+                    </div>
+                    {skill.hasEvidence && <p className="mt-1 text-[11px] text-muted-foreground">{skill.evidenceCount || 0} evidence đã ghi nhận</p>}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function StatBadge({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: string }) {
+  const colors: Record<string, string> = {
+    blue: "bg-primary/10 text-primary", indigo: "bg-primary/10 text-primary",
+    green: "bg-green-50 text-green-700", teal: "bg-teal-500/10 text-teal-700",
+    orange: "bg-orange-500/10 text-orange-700", purple: "bg-primary/10 text-primary",
+    amber: "bg-amber-500/10 text-amber-700", rose: "bg-rose-50 text-rose-700",
+  };
+  return (
+    <div className="rounded-xl border border-border bg-card p-4 flex items-center gap-3 dark:bg-card dark:border-border">
+      <div className={`p-2 rounded-lg ${colors[color] || "bg-muted/40 text-foreground/90"}`}>{icon}</div>
+      <div>
+        <p className="text-xl font-bold text-foreground">{value}</p>
+        <p className="text-xs text-muted-foreground">{label}</p>
+      </div>
+    </div>
+  );
+}
+
+// ── GitHub-style Activity Heatmap ──
+function ActivityHeatmap({ days }: { days: { date: string; count: number }[] }) {
+  const maxCount = Math.max(1, ...days.map(d => d.count));
+  const weeks: { date: string; count: number }[][] = [];
+  for (let i = 0; i < days.length; i += 7) {
+    weeks.push(days.slice(i, i + 7));
+  }
+
+  function getColor(count: number): string {
+    if (count === 0) return "bg-muted";
+    const ratio = count / maxCount;
+    if (ratio <= 0.25) return "bg-green-200";
+    if (ratio <= 0.5) return "bg-green-400";
+    if (ratio <= 0.75) return "bg-green-600";
+    return "bg-green-800";
+  }
+
+  return (
+    <div className="flex gap-1 overflow-x-auto pb-2">
+      {weeks.map((week, wi) => (
+        <div key={wi} className="flex flex-col gap-1">
+          {week.map((day, di) => (
+            <div
+              key={di}
+              className={`w-3.5 h-3.5 rounded-sm ${getColor(day.count)}`}
+              title={`${day.date}: ${day.count} bài`}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ── Simple SVG Line Chart ──
+function LineChart({ data, color }: { data: { label: string; value: number }[]; color: string }) {
+  if (!data.length) return null;
+  const W = 300, H = 120, PAD = 20;
+  const maxVal = Math.max(1, ...data.map(d => d.value));
+  const points = data.map((d, i) => {
+    const x = PAD + (i / Math.max(1, data.length - 1)) * (W - 2 * PAD);
+    const y = H - PAD - (d.value / maxVal) * (H - 2 * PAD);
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32">
+        <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+        {data.map((d, i) => {
+          const x = PAD + (i / Math.max(1, data.length - 1)) * (W - 2 * PAD);
+          const y = H - PAD - (d.value / maxVal) * (H - 2 * PAD);
+          return <circle key={i} cx={x} cy={y} r="2.5" fill={color} />;
+        })}
+      </svg>
+      <div className="flex justify-between text-[10px] text-muted-foreground px-5 dark:text-muted-foreground">
+        <span>{data[0]?.label}</span>
+        <span>{data[data.length - 1]?.label}</span>
+      </div>
+    </div>
+  );
+}
+
+// ── Simple SVG Bar Chart ──
+function BarChart({ data, color, unit }: { data: { label: string; value: number }[]; color: string; unit: string }) {
+  if (!data.length) return null;
+  const W = 300, H = 120, PAD = 20;
+  const maxVal = Math.max(1, ...data.map(d => d.value));
+  const barWidth = Math.max(4, (W - 2 * PAD) / data.length - 1);
+
+  return (
+    <div className="w-full">
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-32">
+        {data.map((d, i) => {
+          const x = PAD + i * ((W - 2 * PAD) / data.length);
+          const barH = (d.value / maxVal) * (H - 2 * PAD);
+          const y = H - PAD - barH;
+          return <rect key={i} x={x} y={y} width={barWidth} height={barH} fill={color} rx="2" />;
+        })}
+      </svg>
+      <div className="flex justify-between text-[10px] text-muted-foreground px-5 dark:text-muted-foreground">
+        <span>{data[0]?.label}</span>
+        <span>{data[data.length - 1]?.label}</span>
+      </div>
+    </div>
+  );
+}
+
+function formatSeconds(s: number): string {
+  if (!s || s <= 0) return "0 phút";
+  if (s < 60) return `${s} giây`;
+  const mins = Math.floor(s / 60);
+  if (mins < 60) return `${mins} phút`;
+  const hrs = Math.floor(mins / 60);
+  const rm = mins % 60;
+  return rm > 0 ? `${hrs}h ${rm}m` : `${hrs}h`;
+}
+
+/* ── Quiz attempt accordion row ── */
+function QuizAttemptRow({ attempt: a }: { attempt: any }) {
+  const [open, setOpen] = useState(false);
+  const answers: any[] = a.answers || [];
+  const correctCount = answers.filter((r: any) => r.isCorrect).length;
+
+  return (
+    <div className={`rounded-xl border transition ${a.passed ? "border-emerald-100 dark:border-emerald-900/40" : "border-red-500/20 dark:border-red-900/40"} ${open ? "shadow-sm" : ""}`}>
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${a.passed ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300" : "bg-red-100 text-red-700 dark:text-red-400 dark:bg-red-900/40 dark:text-red-300"}`}>
+          {a.passed ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{a.quizTitle}</p>
+          <p className="text-xs text-muted-foreground">{a.moduleTitle} · {a.lessonTitle} · {new Date(a.createdAt).toLocaleDateString("vi-VN")}</p>
+        </div>
+        <div className="text-right">
+          <p className={`text-sm font-bold tabular-nums ${a.passed ? "text-emerald-600" : "text-red-500"}`}>{a.percent}%</p>
+          <p className="text-xs text-muted-foreground">{a.score}/{a.totalQuestions} · {correctCount} đúng</p>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && answers.length > 0 && (
+        <div className="border-t border-border px-4 pb-3 pt-2 dark:border-border space-y-1.5">
+          {answers.map((r: any, i: number) => (
+            <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs ${r.isCorrect ? "bg-emerald-500/10 dark:bg-emerald-950/20" : "bg-red-500/10 dark:bg-red-950/20"}`}>
+              {r.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />}
+              <span className="flex-1 min-w-0 text-foreground/90 truncate">{r.question || `Câu ${i + 1}`}</span>
+              <span className="shrink-0 text-muted-foreground">{String.fromCharCode(65 + (r.selectedIndex ?? 0))}</span>
+              {/* correctIndex is null when the server sealed the key (student has
+                  not passed this quiz yet) — do not fall back to 0 and print "A". */}
+              {!r.isCorrect && (r.correctIndex != null
+                ? <span className="shrink-0 text-emerald-600 font-semibold">→ {String.fromCharCode(65 + r.correctIndex)}</span>
+                : <span className="shrink-0 text-amber-500" title="Đáp án mở khi qua bài">→ 🔒</span>)}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── Adaptive test accordion row ── */
+function AdaptiveAttemptRow({ attempt: a }: { attempt: any }) {
+  const [open, setOpen] = useState(false);
+  const answers: any[] = a.answers || [];
+  const breakdown = a.lessonBreakdown || {};
+
+  return (
+    <div className={`rounded-xl border transition ${a.passed ? "border-emerald-100 dark:border-emerald-900/40" : a.partialPass ? "border-amber-100 dark:border-amber-900/40" : "border-red-500/20 dark:border-red-900/40"} ${open ? "shadow-sm" : ""}`}>
+      <button onClick={() => setOpen((o) => !o)} className="flex w-full items-center gap-3 px-4 py-3 text-left">
+        <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-xs font-bold ${a.passed ? "bg-emerald-100 text-emerald-700" : a.partialPass ? "bg-amber-100 text-amber-700" : "bg-red-100 text-red-700 dark:text-red-400"} dark:bg-opacity-20`}>
+          <Zap className="h-4 w-4" />
+        </span>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium text-foreground truncate">{a.moduleTitle || "Chương"}</p>
+          <p className="text-xs text-muted-foreground">{new Date(a.createdAt).toLocaleDateString("vi-VN")} · {a.totalQuestions} câu · Năng lực {a.abilityEnd}</p>
+        </div>
+        <div className="text-right">
+          <p className={`text-sm font-bold tabular-nums ${a.passed ? "text-emerald-600" : a.partialPass ? "text-amber-600" : "text-red-500"}`}>
+            {a.accuracyPercent}%
+          </p>
+          <p className="text-xs text-muted-foreground">{a.correctCount}/{a.totalQuestions} · {a.passed ? "Đạt" : a.partialPass ? "Một phần" : "Chưa đạt"}</p>
+        </div>
+        <ChevronDown className={`h-4 w-4 shrink-0 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="border-t border-border px-4 pb-3 pt-2 dark:border-border space-y-3">
+          {/* Lesson breakdown */}
+          {Object.keys(breakdown).length > 0 && (
+            <div className="grid grid-cols-2 gap-1">
+              {Object.entries(breakdown).map(([lid, perf]: [string, any]) => (
+                <div key={lid} className="flex items-center justify-between rounded-lg bg-muted/40 px-3 py-1.5 text-xs dark:bg-card">
+                  <span className="text-muted-foreground dark:text-muted-foreground truncate">{lid.slice(-8)}</span>
+                  <span className={`font-semibold tabular-nums ${perf.percent >= 60 ? "text-emerald-600" : "text-red-500"}`}>{perf.correct}/{perf.total} ({perf.percent}%)</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {/* Per-question answers */}
+          {answers.length > 0 && (
+            <div className="space-y-1">
+              <p className="text-xs font-semibold text-muted-foreground">Chi tiết câu trả lời:</p>
+              {answers.map((r: any, i: number) => (
+                <div key={i} className={`flex items-center gap-2 rounded-lg px-3 py-1.5 text-xs ${r.isCorrect ? "bg-emerald-500/10 dark:bg-emerald-950/20" : "bg-red-500/10 dark:bg-red-950/20"}`}>
+                  {r.isCorrect ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-500" /> : <XCircle className="h-3.5 w-3.5 shrink-0 text-red-500" />}
+                  <span className="flex-1 min-w-0 text-foreground/90 truncate">{r.question || `Câu ${i + 1}`}</span>
+                  <span className="shrink-0 text-muted-foreground">Độ khó {r.difficulty}</span>
+                  <span className="shrink-0 text-muted-foreground">{String.fromCharCode(65 + (r.selectedIndex ?? 0))}</span>
+                  {!r.isCorrect && <span className="shrink-0 text-emerald-600 font-semibold">→ {String.fromCharCode(65 + (r.correctIndex ?? 0))}</span>}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Weakness Tag Section ──
+function WeaknessTagSection({ studentId, fullName }: { studentId: string; fullName?: string }) {
+  const [adding, setAdding] = useState(false);
+  const [newTag, setNewTag] = useState("");
+  const [analyzing, setAnalyzing] = useState(false);
+
+  const tagsQ = useQuery({
+    queryKey: ["weakness-tags", studentId],
+    queryFn: () => api.get(`/students/${studentId}/weakness-tags`).then((r) => r.data),
+  });
+
+  const tags: any[] = tagsQ.data || [];
+  const activeTags = tags.filter((t: any) => t.status === "active");
+  const improvedTags = tags.filter((t: any) => t.status === "improved");
+
+  const handleAnalyze = async () => {
+    setAnalyzing(true);
+    try {
+      await api.post(`/students/${studentId}/weakness-tags/analyze`);
+      tagsQ.refetch();
+    } catch { /* ignore */ }
+    finally { setAnalyzing(false); }
+  };
+
+  const handleAddTag = async () => {
+    if (!newTag.trim()) return;
+    try {
+      await api.post(`/students/${studentId}/weakness-tags`, { tag: newTag.trim(), status: "active" });
+      setNewTag("");
+      setAdding(false);
+      tagsQ.refetch();
+    } catch { /* ignore */ }
+  };
+
+  const handleDelete = async (tagId: string) => {
+    try {
+      await api.delete(`/students/${studentId}/weakness-tags/${tagId}`);
+      tagsQ.refetch();
+    } catch { /* ignore */ }
+  };
+
+  return (
+    <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-foreground flex items-center gap-2">
+          🏷️ Điểm yếu {fullName && `của ${fullName}`}
+          {activeTags.length > 0 && (
+            <span className="rounded-full bg-red-100 px-2 py-0.5 text-xs font-bold text-red-600 dark:bg-red-950/40 dark:text-red-400">{activeTags.length}</span>
+          )}
+        </h2>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" onClick={handleAnalyze} disabled={analyzing} className="text-xs">
+            {analyzing ? "Đang phân tích..." : "🤖 AI phân tích"}
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setAdding(!adding)} className="text-xs">+ Thêm</Button>
+        </div>
+      </div>
+
+      {adding && (
+        <div className="flex gap-1 mb-3">
+          <Input placeholder="Tag mới..." value={newTag} onChange={(e) => setNewTag(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleAddTag()} />
+          <Button size="sm" onClick={handleAddTag}>Thêm</Button>
+        </div>
+      )}
+
+      {tags.length === 0 && !tagsQ.isLoading && (
+        <p className="text-xs text-muted-foreground">Chưa có tag nào. Bấm "🤖 AI phân tích" để quét hoạt động gần đây.</p>
+      )}
+
+      {activeTags.length > 0 && (
+        <div className="mb-3">
+          <p className="text-xs font-semibold text-red-600 mb-1.5">🔴 Đang yếu ({activeTags.length})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {activeTags.map((t: any) => (
+              <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-red-500/10 px-2.5 py-1 text-xs font-medium text-red-700 dark:text-red-400 dark:bg-red-950/30 dark:text-red-300"
+                title={`Severity: ${t.severity}/5 | Nguồn: ${t.source || "AI"} | Lần cuối: ${new Date(t.lastSeenAt).toLocaleDateString("vi-VN")}`}>
+                #{t.tag}
+                {t.severity > 1 && <span className="text-[10px] opacity-60">×{t.severity}</span>}
+                <button onClick={() => handleDelete(t.id)} className="ml-0.5 hover:text-red-900 dark:hover:text-red-100">×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {improvedTags.length > 0 && (
+        <div>
+          <p className="text-xs font-semibold text-emerald-600 mb-1.5">🟢 Đã cải thiện ({improvedTags.length})</p>
+          <div className="flex flex-wrap gap-1.5">
+            {improvedTags.map((t: any) => (
+              <span key={t.id} className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 px-2.5 py-1 text-xs font-medium text-emerald-700 dark:bg-emerald-950/30 dark:text-emerald-300"
+                title={`Cải thiện: ${t.improvedAt ? new Date(t.improvedAt).toLocaleDateString("vi-VN") : "?"}`}>
+                #{t.tag}
+                <button onClick={() => handleDelete(t.id)} className="ml-0.5 hover:text-emerald-900 dark:hover:text-emerald-100">×</button>
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tagsQ.isLoading && <div className="animate-pulse h-8 bg-muted rounded" />}
+    </div>
+  );
+}
