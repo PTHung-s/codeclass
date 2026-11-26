@@ -413,6 +413,7 @@ interface LeaderboardEntry {
 
 function TeacherDashboard() {
   const [studentQuery, setStudentQuery] = useState("");
+  const [showAllStudents, setShowAllStudents] = useState(false);
   const dashQ = useQuery({
     queryKey: ["dashboard-staff"],
     queryFn: () => api.get("/dashboard").then((r) => r.data),
@@ -439,6 +440,10 @@ function TeacherDashboard() {
         s.email.toLowerCase().includes(q),
     );
   }, [studentQuery, students]);
+
+  const visibleStudents = studentQuery.trim() || showAllStudents
+    ? filteredStudents
+    : filteredStudents.slice(0, 18);
 
   const activeCourseCount = courses.filter((c: any) => c.status === "active").length;
   const actionItems = dashQ.data?.actionItems as
@@ -622,27 +627,52 @@ function TeacherDashboard() {
               {studentQuery ? "Không tìm thấy học viên khớp từ khóa." : "Chưa có học viên nào."}
             </p>
           ) : (
-            <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-              {filteredStudents.map((student) => (
+            <>
+            <div className="min-w-0 grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">
+              {visibleStudents.map((student) => (
                 <Link
                   key={student.id}
                   to={`/students/${student.id}`}
-                  className="flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2 transition-colors hover:border-primary/30 hover:bg-muted/50"
+                  className="flex min-w-0 w-full items-center gap-2.5 overflow-hidden rounded-lg border border-border bg-card px-3 py-2 transition-colors hover:border-primary/30 hover:bg-muted/50"
                 >
-                  <img
-                    src={student.avatarUrl || getAnimalAvatarUrl(student.fullName)}
-                    alt=""
-                    className="size-8 shrink-0 rounded-full object-cover"
+                  <span
+                    className="relative grid size-8 shrink-0 place-items-center overflow-hidden rounded-full text-xs font-bold text-white"
                     style={{ backgroundColor: getAvatarBgColor(student.fullName) }}
-                  />
+                  >
+                    <img
+                      src={student.avatarUrl || getAnimalAvatarUrl(student.fullName)}
+                      alt=""
+                      className="relative z-10 size-full rounded-full object-cover"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    />
+                    <span className="absolute inset-0 z-0 flex items-center justify-center">
+                      {(student.fullName || "?").replace(/[^a-zA-Z0-9\u00C0-\u024F\u1E00-\u1EFF]/g, "").charAt(0).toUpperCase() || "?"}
+                    </span>
+                  </span>
                   <span className="min-w-0 flex-1">
-                    <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-xs font-semibold" />
+                    <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-xs font-semibold" inline />
                     <span className="block truncate text-[11px] text-muted-foreground">{student.email}</span>
                   </span>
                   <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/70" />
                 </Link>
               ))}
             </div>
+            {!studentQuery.trim() && filteredStudents.length > 18 && (
+              <div className="mt-3 flex justify-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllStudents((v) => !v)}
+                  className="h-8 text-xs"
+                >
+                  {showAllStudents
+                    ? "Thu gọn danh sách"
+                    : `Xem tất cả (${filteredStudents.length} học viên)`}
+                </Button>
+              </div>
+            )}
+            </>
           )}
         </CardContent>
       </Card>

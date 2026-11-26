@@ -280,6 +280,11 @@ export default function Assignments() {
                   ? "Chưa có bài tập nào được lưu trữ."
                   : "Chưa giao bài tập nào. Bấm “Giao bài tập” để tạo bài đầu tiên."}
             </p>
+            {!showArchived && !searchQuery.trim() && (
+              <Button size="sm" onClick={() => setCreateOpen(true)} className="mt-1">
+                <Plus className="size-3.5" /> Giao bài tập
+              </Button>
+            )}
           </CardContent>
         </Card>
       ) : (

@@ -337,7 +337,7 @@ export default function Leaderboard() {
       if (cancelled) return;
       const rewards = r.data?.rewards || [];
       if (rewards.length > 0) {
-        const msgs = rewards.map((rw: any) => `+${rw.amount} tokens (Top ${rw.rank} ${rw.type === "tokens" ? "Vàng" : "Chuỗi"})`);
+        const msgs = rewards.map((rw: any) => `+${rw.amount} tokens (Top ${rw.rank} ${rw.type === "tokens" ? "Tokens" : "Chuỗi"})`);
         toast.success({ title: "Thưởng bảng xếp hạng!", message: msgs.join(" · ") });
       }
     }).catch(() => {}).finally(() => { cancelled = true; });
@@ -348,13 +348,13 @@ export default function Leaderboard() {
     <div className="mx-auto max-w-3xl space-y-4">
       <PageHeader
         title="Bảng xếp hạng"
-        description="Top 10 mỗi ngày nhận thưởng."
+        description="Xếp hạng học tập — Top 10 mỗi ngày và mỗi tuần nhận thưởng Tokens."
       />
 
       <div className="flex h-9 items-center rounded-[8px] border border-border bg-card p-0.5">
         {([
           { key: "xp", label: "XP", Icon: Trophy },
-          { key: "tokens", label: "Top Vàng", Icon: Coins },
+          { key: "tokens", label: "Top Tokens", Icon: Coins },
           { key: "streak", label: "Top Chuỗi", Icon: Flame },
         ] as const).map(({ key, label, Icon }) => {
           const active = tab === key;

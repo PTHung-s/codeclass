@@ -164,6 +164,18 @@ function extractMetaChips(text: string): MetaChips {
   return { ...chips, rest: rest.length ? [rest] : [] };
 }
 
+function stripRedundantTrailingExamples(statement: string): string {
+  const normalized = statement.replace(/\r\n/g, "\n");
+  const idx = normalized.search(
+    /\n+(?:#{1,3}\s*)?(?:\*\*)?Ví dụ(?:\s*\d+)?\s*:?(?:\*\*)?\s*\n+[\s\S]*?(?:Input|Đầu vào)[\s\S]*?(?:Output|Đầu ra)/i,
+  );
+  if (idx <= 0) return statement;
+  const tail = normalized.slice(idx);
+  // Only strip if the example section sits at the end (no later sections like Ràng buộc / Giải thích).
+  if (/\n+#{1,3}\s+(?!Ví dụ|Input|Output)/i.test(tail)) return statement;
+  return normalized.slice(0, idx).trimEnd();
+}
+
 export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
   const { dark } = useDarkMode();
   const visibleTests = parseVisibleTests(problem.testCases);
@@ -180,11 +192,14 @@ export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
   const showRequirements = !!problem.requirementsText && (hasRequirementBody || requirements?.time || requirements?.memory || requirements?.source);
 
   const starterLang = detectCodeLang(problem.starterCode || "");
+  const displayStatement = problem.statement
+    ? (examples.length > 0 ? stripRedundantTrailingExamples(problem.statement) : problem.statement)
+    : "";
 
   return (
     <div className="space-y-6">
       {/* Đề bài — render tràn khung, không lồng hộp xám */}
-      {problem.statement && <LatexRenderer text={problem.statement} />}
+      {displayStatement && <LatexRenderer text={displayStatement} />}
 
       {/* Ví dụ */}
       {examples.length > 0 && (

@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Archive, BookOpen, ChevronLeft, ChevronRight, FlaskConical, Plus, Search } from "lucide-react";
+import { stripCourseMetaMarkers } from "../../lib/courseExperience";
 import { SkeletonCard } from "../../components/ui/skeletons";
 import { ErrorState, EmptyState } from "../../components/ui/StateViews";
 import { Button } from "../../components/ui/button";
@@ -16,8 +17,7 @@ import api from "../../lib/api";
 import { getCourseCoverUrl } from "../../lib/courseCovers";
 
 const statusOptions = [
-  { value: "current", label: "Đang dùng" },
-  { value: "active", label: "Đang hoạt động" },
+  { value: "current", label: "Đang mở" },
   { value: "draft", label: "Bản nháp" },
   { value: "archived", label: "Đã lưu trữ" },
   { value: "all", label: "Tất cả" },
@@ -263,13 +263,21 @@ function CourseCard({
 }) {
   const archived = course.status === "archived";
   const coverUrl = getCourseCoverUrl(course);
+  const cleanDescription = stripCourseMetaMarkers(course.description);
+  const fallbackGradients = [
+    "from-slate-800 via-blue-950 to-slate-900",
+    "from-slate-800 via-indigo-950 to-slate-900",
+    "from-slate-800 via-emerald-950 to-slate-900",
+    "from-slate-800 via-sky-950 to-slate-900",
+  ];
+  const gradIdx = Math.abs(String(course.title || "").split("").reduce((s, ch) => s + ch.charCodeAt(0), 0)) % fallbackGradients.length;
 
   return (
     <div
       role="button"
       tabIndex={0}
       aria-label={`Mở khóa học ${course.title || ""}`}
-      className="surface-interactive cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
+      className="surface-interactive group cursor-pointer overflow-hidden rounded-xl border border-border bg-card shadow-card focus:outline-none focus-visible:ring-2 focus-visible:ring-ring/40"
       onClick={onOpen}
       onKeyDown={(e) => {
         if (e.key === "Enter" || e.key === " ") {
@@ -284,11 +292,17 @@ function CourseCard({
             <img src={coverUrl} alt="" className="absolute inset-0 h-full w-full object-cover" loading="lazy" />
             <div className="absolute inset-0 bg-black/25" />
           </>
-        ) : null}
-        {!coverUrl ? <span className="relative text-2xl font-semibold text-foreground/30">{String(course.title || "?").charAt(0)}</span> : null}
-        <div className="absolute left-3 top-3">
-          <CourseStatusBadge status={course.status} onImage={Boolean(coverUrl)} />
-        </div>
+        ) : (
+          <div className={`absolute inset-0 flex flex-col items-center justify-center gap-1.5 bg-gradient-to-br ${fallbackGradients[gradIdx]} px-4 text-center text-white`}>
+            <BookOpen className="size-7 text-white/35" />
+            <span className="line-clamp-1 text-xs font-semibold tracking-wide text-white/85">{course.title}</span>
+          </div>
+        )}
+        {!canArchive && (
+          <div className="absolute left-3 top-3">
+            <CourseStatusBadge status={course.status} onImage />
+          </div>
+        )}
         {canArchive && !archived ? (
           <Button
             onClick={(event) => {
@@ -298,7 +312,7 @@ function CourseCard({
             disabled={isArchiving}
             variant="ghost"
             size="icon-sm"
-            className="absolute right-3 top-3 size-7 bg-card/85 text-muted-foreground shadow-sm backdrop-blur hover:bg-card hover:text-destructive"
+            className="absolute right-3 top-3 size-7 bg-card/85 text-muted-foreground opacity-0 shadow-sm backdrop-blur transition-opacity group-hover:opacity-100 focus-visible:opacity-100 hover:bg-card hover:text-destructive"
             title="Lưu trữ khóa học"
             aria-label="Lưu trữ khóa học"
           >
@@ -309,12 +323,13 @@ function CourseCard({
       <div className="p-3.5">
         <h3 className="mb-0.5 line-clamp-1 text-sm font-semibold text-foreground">{course.title}</h3>
         <p className="mb-2.5 line-clamp-1 text-xs text-muted-foreground">
-          {course.description || "Chưa có mô tả"}
+          {cleanDescription || "Chưa có mô tả"}
         </p>
         <div className="flex items-center justify-between gap-2 border-t border-border/60 pt-2">
           <p className="truncate text-[11px] text-muted-foreground">bởi {course.owner?.fullName || "CodeClass"}</p>
           {canArchive ? (
             <select
+              data-slot="course-status-select"
               aria-label={`Trạng thái khóa học ${course.title || ""}`}
               value={course.status || "draft"}
               disabled={isUpdatingStatus}

@@ -1,3 +1,13 @@
+export function stripCourseMetaMarkers(description?: string | null): string {
+  if (!description) return "";
+  return description
+    .replace(/\bcourse-type:[a-z0-9-]+\b/gi, "")
+    .replace(/\s*[·•|]\s*(?=[·•|]|$)/g, "")
+    .replace(/\s{2,}/g, " ")
+    .replace(/^[·•|\s-]+|[·•|\s]+$/g, "")
+    .trim();
+}
+
 export function normalizeText(value?: string | null) {
   return (value || "")
     .toLowerCase()

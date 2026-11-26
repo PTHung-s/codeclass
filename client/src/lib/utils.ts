@@ -11,7 +11,8 @@ export function cn(...inputs: ClassValue[]) {
  * Falls back to "anonymous" if no identifier is provided.
  */
 export function getAnimalAvatarUrl(identifier?: string | null): string {
-  const seed = identifier?.trim() || "anonymous";
+  const cleaned = (identifier || "").replace(/[^a-zA-Z0-9\u00C0-\u024F\u1E00-\u1EFF]+/g, "").trim();
+  const seed = cleaned || "student";
   return `https://anonymous-animals.azurewebsites.net/avatar/${encodeURIComponent(seed)}`;
 }
 

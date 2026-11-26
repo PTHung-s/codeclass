@@ -86,7 +86,7 @@ export default function Layout() {
             className={
               isFullBleedIde
                 ? "min-h-0 flex-1 overflow-hidden bg-background p-0 transition-colors"
-                : "min-h-0 flex-1 overflow-auto bg-background p-4 transition-colors md:p-6 lg:p-8"
+                : "min-h-0 flex-1 overflow-auto bg-background p-4 pb-20 transition-colors md:p-6 md:pb-20 lg:p-8 lg:pb-20"
             }
           >
             <AnimatePresence mode="wait" initial={false}>

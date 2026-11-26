@@ -82,7 +82,7 @@ interface QuestData {
 const REASON_LABELS: Record<string, string> = {
   problem_solved: "Giải bài tập", lesson_completed: "Hoàn thành bài học", assignment_submitted: "Nộp bài tập",
   quiz_passed: "Đỗ quiz", review_received: "Được chấm điểm", adaptive_passed: "Vượt bài kiểm tra chương",
-  adaptive_partial: "Đạt một phần chương", chapter_cleared: "Xóa chương học", contest_finished: "Hoàn thành kỳ thi",
+  adaptive_partial: "Đạt một phần chương", chapter_cleared: "Hoàn thành chương", contest_finished: "Hoàn thành kỳ thi",
   game_participated: "Tham gia game", help_solution: "Trả lời được chọn là giải pháp",
   help_request_posted: "Đặt câu hỏi hỗ trợ", bug_resolved: "Báo lỗi được xử lý", hacktest_approved: "Đề xuất test case",
   attendance_present: "Điểm danh", daily_claim: "Nhận thưởng hàng ngày", quest_claim: "Nhận thưởng nhiệm vụ",
@@ -247,12 +247,12 @@ export default function Tokens() {
         <Card className="p-4">
           <div className="flex items-center gap-2"><Lightbulb className="h-4 w-4 text-amber-500" /><span className="text-xs font-medium text-muted-foreground">Gợi ý</span></div>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{hintCredits}</p>
-          <p className="text-xs text-muted-foreground">hint credits</p>
+          <p className="text-xs text-muted-foreground">Lượt gợi ý</p>
         </Card>
         <Card className="p-4">
           <div className="flex items-center gap-2"><Shield className="h-4 w-4 text-primary" /><span className="text-xs font-medium text-muted-foreground">Bảo vệ</span></div>
           <p className="mt-1 text-2xl font-semibold tabular-nums text-foreground">{streakFreezes}</p>
-          <p className="text-xs text-muted-foreground">streak freeze</p>
+          <p className="text-xs text-muted-foreground">Khiên bảo vệ chuỗi</p>
         </Card>
       </div>
 
@@ -288,7 +288,7 @@ export default function Tokens() {
       </Card>
 
       {/* Main tabs */}
-      <div className="flex gap-1 overflow-x-auto rounded-lg bg-muted p-1">
+      <div className="flex flex-wrap gap-1 rounded-lg bg-muted p-1">
         {([
           ["quests", "Nhiệm vụ", Target, claimableCount],
           ["gacha", "Gói thẻ may mắn", Box, 0],
@@ -305,7 +305,7 @@ export default function Tokens() {
           ["mine", "Đổi của tôi", Trophy, 0],
           ["guide", "Cách kiếm", Coins, 0],
         ] as const).map(([key, label, Icon, badge]) => (
-          <button key={key} onClick={() => setTab(key as MainTab)} className={cn("relative flex shrink-0 items-center gap-1.5 rounded-md px-4 py-2 text-sm font-medium transition-colors", tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+          <button key={key} onClick={() => setTab(key as MainTab)} className={cn("relative flex shrink-0 items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors", tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
             <Icon className="h-4 w-4" /> {label}
             {badge > 0 && <span className="flex h-4 min-w-4 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">{badge}</span>}
           </button>

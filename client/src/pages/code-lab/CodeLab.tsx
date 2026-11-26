@@ -1187,7 +1187,7 @@ export default function CodeLab() {
                     ? "Chạy chương trình (Ctrl+Enter)"
                     : "Đang kết nối máy chủ terminal…"
               }
-              className="inline-flex h-7 items-center gap-1.5 rounded-[6px] bg-emerald-600 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-500 active:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex h-7 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[6px] bg-emerald-600 px-2.5 text-xs font-medium text-white shadow-sm transition-colors hover:bg-emerald-500 active:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {runFileBusy ? (
                 <Loader2 className="size-3.5 animate-spin" />
@@ -1195,7 +1195,7 @@ export default function CodeLab() {
                 <Play className="size-3 fill-current" />
               )}
               <span>Chạy</span>
-              <kbd className="hidden rounded bg-white/15 px-1 py-0.5 font-sans text-[10px] leading-none text-white/90 xl:inline">
+              <kbd className="hidden shrink-0 items-center whitespace-nowrap rounded bg-white/15 px-1.5 py-0.5 font-sans text-[10px] leading-none text-white/90 xl:inline-flex">
                 Ctrl+↵
               </kbd>
             </button>

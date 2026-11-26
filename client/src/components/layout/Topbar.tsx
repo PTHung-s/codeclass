@@ -32,12 +32,12 @@ import api from "../../lib/api";
 const routeLabels: Record<string, string> = {
   dashboard: "Bảng tin",
   courses: "Khóa học",
-  problems: "Thư viện đề",
+  problems: "Thư viện đề bài",
   contests: "Phòng thi",
   exams: "Phòng thi",
   materials: "Tài nguyên",
   settings: "Cài đặt",
-  admin: "AI Admin",
+  admin: "Quản trị hệ thống",
   content: "Quản lý nội dung",
   server: "Hiệu năng server",
   "skill-tags": "Duyệt tag kỹ năng",
@@ -69,7 +69,7 @@ const routeLabels: Record<string, string> = {
   "my-attendance": "Điểm danh",
   tuition: "Học phí",
   checklist: "Lộ trình",
-  "gamification-settings": "Cấu hình điểm",
+  "gamification-settings": "Cấu hình Gamification",
   "adaptive-test": "Bài kiểm tra thích ứng",
   "adaptive-history": "Lịch sử thích ứng",
   quiz: "Bài kiểm tra",
@@ -108,6 +108,12 @@ const breadcrumbResources: Record<string, { endpoint: (id: string) => string; fa
   "bug-reports": { endpoint: (id) => `/bug-reports/${id}`, fallback: "Báo lỗi" },
 };
 
+function isDynamicResourceSegment(segment: string, parentSegment?: string): boolean {
+  if (!parentSegment || !breadcrumbResources[parentSegment]) return false;
+  if (UUID_PATTERN.test(segment)) return true;
+  return !routeLabels[segment] && segment !== "new" && segment !== "edit" && segment.length >= 3;
+}
+
 function entityTitle(data: any, fallback: string): string {
   const value =
     data?.title ||
@@ -139,8 +145,9 @@ export default function Topbar({
   const dynamicSegments = useMemo(
     () =>
       pathSegments.flatMap((segment, index) => {
-        const resource = breadcrumbResources[pathSegments[index - 1]];
-        return UUID_PATTERN.test(segment) && resource
+        const parentSegment = pathSegments[index - 1];
+        const resource = breadcrumbResources[parentSegment];
+        return resource && isDynamicResourceSegment(segment, parentSegment)
           ? [{ segment, index, resource }]
           : [];
       }),
@@ -170,8 +177,9 @@ export default function Topbar({
 
     for (let i = 0; i < segments.length; i++) {
       const segment = segments[i];
+      const parentSegment = segments[i - 1];
       const path = "/" + segments.slice(0, i + 1).join("/");
-      if (UUID_PATTERN.test(segment)) {
+      if (isDynamicResourceSegment(segment, parentSegment)) {
         crumbs.push({ label: resolvedNames.get(segment) || "Chi tiết", path });
       } else if (segment === "new" || segment === "edit") {
         crumbs.push({ label: segment === "new" ? "Tạo mới" : "Chỉnh sửa", path });
@@ -289,7 +297,9 @@ export default function Topbar({
               src={user?.avatarUrl || getAnimalAvatarUrl(user?.fullName || user?.email || "")}
               alt=""
               className="absolute inset-0 size-full rounded-full object-cover"
+              onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
             />
+            <span>{(user?.nickname || user?.fullName || "U").charAt(0).toUpperCase()}</span>
           </button>
           <ProfileDropdown open={profileOpen} onClose={() => setProfileOpen(false)} />
         </div>
@@ -412,6 +422,7 @@ function PresenceRow({ student, now }: { student: PresenceStudent; now: number }
           alt=""
           className="size-7 rounded-full object-cover"
           style={{ backgroundColor: getAvatarBgColor(student.fullName) }}
+          onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
         />
         <span className={cn("absolute -bottom-0.5 -right-0.5 size-2.5 rounded-full border-2 border-popover", dotCls)} />
       </span>

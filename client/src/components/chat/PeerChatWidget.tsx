@@ -311,7 +311,7 @@ export default function PeerChatWidget() {
             exit={{ opacity: 0, y: 10, scale: 0.92 }}
             transition={{ type: "spring", stiffness: 420, damping: 30 }}
             className={`fixed right-3 z-[9998] flex items-center gap-2 transition-opacity duration-300 ${
-              isIdeRoute ? "bottom-8" : "bottom-3.5"
+              isIdeRoute ? "bottom-9" : "bottom-3.5"
             } ${idleDimmed ? "opacity-45 hover:opacity-100" : "opacity-100"}`}
           >
             {/* Preview tin nhắn mới */}
@@ -356,13 +356,13 @@ export default function PeerChatWidget() {
             <button
               type="button"
               onClick={handleOpen}
-              className="relative inline-flex h-8 items-center gap-1.5 rounded-full border border-border bg-card/95 px-2.5 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-all hover:border-primary/40 hover:shadow-lg dark:bg-[#161922]/95"
+              className="relative inline-flex h-8 w-8 items-center justify-center gap-1.5 rounded-full border border-border bg-card/95 text-xs font-medium text-foreground shadow-md backdrop-blur-md transition-all hover:border-primary/40 hover:shadow-lg sm:w-auto sm:px-2.5 dark:bg-[#161922]/95"
               title="Mở Live Chat"
               aria-label="Mở Live Chat"
             >
               <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse" />
               <MessageCircle className="size-3.5 text-primary" />
-              <span>Chat</span>
+              <span className="hidden sm:inline">Chat</span>
               {unread > 0 && (
                 <span className="flex h-4 min-w-[16px] items-center justify-center rounded-full bg-destructive px-1 font-mono text-[9px] font-bold text-destructive-foreground">
                   {unread > 99 ? "99+" : unread}
@@ -383,7 +383,7 @@ export default function PeerChatWidget() {
             transition={{ type: "spring", stiffness: 420, damping: 30 }}
             style={{ transformOrigin: "bottom right" }}
             className={`fixed right-3 z-[9998] flex h-[350px] max-h-[calc(100vh-48px)] w-[295px] flex-col overflow-hidden rounded-xl border border-white/10 bg-[#121216]/95 text-[#f5f5f7] shadow-2xl backdrop-blur-2xl transition-opacity duration-300 ${
-              isIdeRoute ? "bottom-8" : "bottom-3.5"
+              isIdeRoute ? "bottom-9" : "bottom-3.5"
             } ${idleDimmed ? "opacity-45 hover:opacity-100" : "opacity-100"}`}
           >
         {/* Header */}

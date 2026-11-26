@@ -16,7 +16,7 @@ import {
 } from "lucide-react";
 import { Button } from "../../components/ui/button";
 import { Badge } from "../../components/ui/badge";
-import { Progress, ProgressTrack, ProgressIndicator } from "../../components/ui/progress";
+import { Progress } from "../../components/ui/progress";
 import api from "../../lib/api";
 import { getStructuredCourseKind } from "../../lib/courseExperience";
 
@@ -88,7 +88,14 @@ export default function AlgorithmCourseCurriculum({
   const percent = totalLessons ? Math.round((completedLessons / totalLessons) * 100) : 0;
   const nextLesson = rows.find((lesson) => !lesson.completed) || rows[0];
   const courseKind = getStructuredCourseKind(course);
-  const courseLabel = courseKind === "python-basic" ? "Lộ trình Python cơ bản" : "Lộ trình tư duy thuật toán";
+  const courseLabel =
+    courseKind === "python-basic"
+      ? "Lộ trình Python cơ bản"
+      : courseKind === "cpp-basic"
+        ? "Lộ trình C++ cơ bản"
+        : courseKind === "competitive"
+          ? "Lộ trình lập trình thi đấu"
+          : "Lộ trình tư duy thuật toán";
   const isLoading = loadingModules || loadingLessons;
 
   const isModuleOpen = (moduleId: string) => openModules[moduleId] ?? moduleId === firstModuleId;
@@ -154,11 +161,7 @@ export default function AlgorithmCourseCurriculum({
               </div>
               <PlayCircle className="h-9 w-9 text-primary" />
             </div>
-            <Progress value={percent} className="mt-4">
-              <ProgressTrack className="h-2 bg-border dark:bg-muted">
-                <ProgressIndicator className="bg-primary" />
-              </ProgressTrack>
-            </Progress>
+            <Progress value={percent} className="mt-4 [&_[data-slot=progress-track]]:h-2" />
             <div className="mt-4 grid grid-cols-2 gap-2 text-center text-sm">
               <div className="rounded-lg bg-muted/40 px-3 py-2 dark:bg-background/30">
                 <p className="font-bold text-foreground">{modules.length}</p>

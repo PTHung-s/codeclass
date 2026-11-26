@@ -585,7 +585,11 @@ export default function ProblemDetail() {
  </div>
  <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-3.5 text-center">
  <p className="text-xl font-semibold tabular-nums text-emerald-700 dark:text-emerald-400">{assignedStudentsQuery.data?.totalSubmitted || 0}</p>
- <p className="mt-0.5 text-xs text-emerald-700/80 dark:text-emerald-400/80">Đã nộp</p>
+ <p className="mt-0.5 text-xs text-emerald-700/80 dark:text-emerald-400/80">
+ {(assignedStudentsQuery.data?.totalAssigned || 0) === 0 && (assignedStudentsQuery.data?.totalSubmitted || 0) > 0
+ ? "Đã nộp (tự luyện)"
+ : "Đã nộp"}
+ </p>
  </div>
  <div className="rounded-xl border border-amber-500/20 bg-amber-500/10 p-3.5 text-center">
  <p className="text-xl font-semibold tabular-nums text-amber-700 dark:text-amber-400">{assignedStudentsQuery.data?.totalPending || 0}</p>
@@ -616,42 +620,42 @@ export default function ProblemDetail() {
  <tbody>
  {assignedStudentsQuery.data.students.map((s: any) => (
  <tr key={s.id} className="border-b border-border last:border-0 hover:bg-muted/40">
- <td className="px-4 py-3">
+ <td className="px-4 py-3 max-w-[260px]">
  <button
  onClick={(e) => { e.stopPropagation(); navigate(`/students/${s.id}`); }}
- className="flex items-center gap-3 hover:opacity-80 transition-opacity text-left w-full"
+ className="flex w-full min-w-0 items-center gap-3 text-left transition-opacity hover:opacity-80"
  title="Xem lộ trình của học sinh này"
  >
  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white font-semibold text-xs shrink-0" style={{ backgroundColor: getAvatarBgColor(s.fullName) }}>
  {s.fullName?.charAt(0) ||"?"}
  </div>
- <div className="min-w-0">
- <StudentName fullName={s.fullName} nickname={s.nickname} primaryClassName="text-sm font-semibold text-foreground" />
+ <div className="min-w-0 flex-1">
+ <StudentName fullName={s.fullName} nickname={s.nickname} primaryClassName="text-sm font-semibold text-foreground" inline />
  <p className="text-xs text-muted-foreground truncate">{s.email}</p>
  </div>
  </button>
  </td>
- <td className="px-4 py-3">
+ <td className="px-4 py-3 whitespace-nowrap">
  <div className="flex flex-wrap gap-1">
  {s.assignedVia.map((via: string, i: number) => (
- <span key={i} className="text-[10px] px-1.5 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
+ <span key={i} className="whitespace-nowrap text-[10px] px-2 py-0.5 rounded-full font-medium bg-muted text-muted-foreground">
  {via}
  </span>
  ))}
  </div>
  </td>
- <td className="px-4 py-3 text-center">
+ <td className="px-4 py-3 text-center whitespace-nowrap">
  {s.hasSubmitted ? (
- <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
- <CheckCircle2 className="w-3 h-3" /> Đã nộp
+ <span className="inline-flex whitespace-nowrap items-center gap-1 rounded-full bg-emerald-500/15 px-2 py-0.5 text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+ <CheckCircle2 className="w-3 h-3 shrink-0" /> Đã nộp
  </span>
  ) : (
- <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
- <Clock className="w-3 h-3" /> Chưa nộp
+ <span className="inline-flex whitespace-nowrap items-center gap-1 rounded-full bg-amber-500/15 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:text-amber-400">
+ <Clock className="w-3 h-3 shrink-0" /> Chưa nộp
  </span>
  )}
  </td>
- <td className="px-4 py-3 text-center">
+ <td className="px-4 py-3 text-center whitespace-nowrap">
  {s.score !== null ? (
  <span className="text-sm font-semibold tabular-nums text-foreground">{s.score}/10</span>
  ) : s.hasSubmitted ? (
@@ -660,11 +664,11 @@ export default function ProblemDetail() {
  <span className="text-xs text-muted-foreground/50">-</span>
  )}
  </td>
- <td className="px-4 py-3 text-right">
- <div className="flex justify-end gap-2">
+ <td className="px-4 py-3 text-right whitespace-nowrap">
+ <div className="flex justify-end gap-3 whitespace-nowrap">
  <button
  onClick={(e) => { e.stopPropagation(); setChecklistStudent({ id: s.id, fullName: s.fullName, nickname: s.nickname, email: s.email }); }}
- className="text-sm font-medium text-muted-foreground hover:text-foreground"
+ className="whitespace-nowrap text-sm font-medium text-muted-foreground hover:text-foreground"
  >
  Lộ trình
  </button>
@@ -677,7 +681,7 @@ export default function ProblemDetail() {
    kind: s.submissionKind === "assignment" ? "assignment" : "practice",
  });
  }}
- className="text-sm font-medium text-primary hover:underline"
+ className="whitespace-nowrap text-sm font-medium text-primary hover:underline"
  >
  Xem code
  </button>

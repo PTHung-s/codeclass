@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { isStaff } from "../../lib/roles";
 import api from "../../lib/api";
-import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, ChevronDown, Clock, CheckCircle2 } from "lucide-react";
 import { useConfirmContext } from "../../hooks/useConfirm";
 import { SkeletonTable } from "../../components/ui/skeletons";
 import { ErrorState, EmptyState } from "../../components/ui/StateViews";
@@ -87,7 +87,7 @@ export default function ProblemList() {
     const solvedQuery = useQuery({
       queryKey: ["problemProgress", "solved"],
       queryFn: () => api.get("/problems/progress/solved").then((r) => r.data),
-      enabled: !isTeacher,
+      enabled: Boolean(user && !isTeacher),
     });
 
   const deleteMutation = useMutation({
@@ -232,19 +232,38 @@ export default function ProblemList() {
         <label htmlFor="problem-sort" className="sr-only">
           Sắp xếp
         </label>
-        <select
-          id="problem-sort"
-          value={sortBy}
-          onChange={(e) => setSortBy(e.target.value)}
-          className="h-8 rounded-lg border border-input bg-card px-2.5 py-0 text-xs leading-none outline-none focus:border-ring"
-        >
-          <option value="default">Sắp xếp mặc định</option>
-          <option value="title_asc">Tên A → Z</option>
-          <option value="title_desc">Tên Z → A</option>
-          <option value="difficulty">Độ khó tăng dần</option>
-          <option value="time_asc">Thời gian tăng dần</option>
-          <option value="time_desc">Thời gian giảm dần</option>
-        </select>
+        <div className="relative inline-flex h-7 items-center rounded-full border border-input bg-card pl-3 pr-2.5 text-[11px] font-medium text-foreground focus-within:border-ring focus-within:ring-2 focus-within:ring-ring/20">
+          <span className="inline-flex items-center gap-1.5 whitespace-nowrap">
+            <span>
+              {sortBy === "title_asc"
+                ? "Tên A → Z"
+                : sortBy === "title_desc"
+                  ? "Tên Z → A"
+                  : sortBy === "difficulty"
+                    ? "Độ khó tăng dần"
+                    : sortBy === "time_asc"
+                      ? "Thời gian tăng dần"
+                      : sortBy === "time_desc"
+                        ? "Thời gian giảm dần"
+                        : "Sắp xếp mặc định"}
+            </span>
+            <ChevronDown className="size-3 text-muted-foreground" />
+          </span>
+          <select
+            id="problem-sort"
+            data-slot="problem-sort"
+            value={sortBy}
+            onChange={(e) => setSortBy(e.target.value)}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
+          >
+            <option value="default">Sắp xếp mặc định</option>
+            <option value="title_asc">Tên A → Z</option>
+            <option value="title_desc">Tên Z → A</option>
+            <option value="difficulty">Độ khó tăng dần</option>
+            <option value="time_asc">Thời gian tăng dần</option>
+            <option value="time_desc">Thời gian giảm dần</option>
+          </select>
+        </div>
 
         {hasAnyFilter && (
           <Button
@@ -290,9 +309,7 @@ export default function ProblemList() {
                   <span>Tất cả</span>
                   <span className="text-[11px] tabular-nums text-muted-foreground">{normalizedProblems.length}</span>
                 </button>
-                {tagCounts
-                  .filter((t) => TOP_TAGS.includes(t.tag))
-                  .map(({ tag, count }) => (
+                {tagCounts.map(({ tag, count }) => (
                   <button
                     key={tag}
                     type="button"
@@ -465,7 +482,7 @@ export default function ProblemList() {
                               </span>
                             )}
                           </div>
-                          <p className="mt-0.5 line-clamp-1 text-[11px] text-muted-foreground">{formatProblemPreview(p.shortDescription)}</p>
+                          <p className="mt-0.5 block truncate text-[11px] text-muted-foreground">{formatProblemPreview(p.shortDescription)}</p>
                         </TableCell>
                         <TableCell className="px-3 py-2">
                           <DifficultyBadge difficulty={p.difficulty} />
@@ -554,8 +571,8 @@ function computeTagCounts(problems: any[]): TagCount[] {
   for (const p of problems || []) {
     const seen = new Set<string>();
     for (const t of p.tags || []) {
-      const tag = t.tag;
-      if (!seen.has(tag) && TOP_TAGS.includes(tag)) {
+      const tag = String(t.tag || "").trim();
+      if (tag && !seen.has(tag)) {
         counts[tag] = (counts[tag] || 0) + 1;
         seen.add(tag);
       }
@@ -563,5 +580,6 @@ function computeTagCounts(problems: any[]): TagCount[] {
   }
   return Object.entries(counts)
     .map(([tag, count]) => ({ tag, count }))
-    .sort((a, b) => b.count - a.count);
+    .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "vi"))
+    .slice(0, 20);
 }

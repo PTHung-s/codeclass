@@ -39,25 +39,25 @@ interface Redemption {
 }
 
 const XP_LABELS: Record<string, string> = {
- problemEasyXp:"Bài Easy",
- problemMediumXp:"Bài Medium",
- problemHardXp:"Bài Hard",
+ problemEasyXp:"Bài Dễ",
+ problemMediumXp:"Bài Trung bình",
+ problemHardXp:"Bài Khó",
  submissionXp:"Nộp bài tập",
  lessonXp:"Hoàn thành bài học",
  quizXpPerPoint:"Quiz (mỗi điểm đúng)",
  streakXp:"Streak (mỗi ngày)",
 };
 const TOKEN_LABELS: Record<string, string> = {
- problemEasyTokens:"Bài Easy",
- problemMediumTokens:"Bài Medium",
- problemHardTokens:"Bài Hard",
+ problemEasyTokens:"Bài Dễ",
+ problemMediumTokens:"Bài Trung bình",
+ problemHardTokens:"Bài Khó",
  lessonTokens:"Hoàn thành bài học",
  assignmentTokens:"Nộp bài tập",
  quizPassTokens:"Đỗ quiz",
  reviewTokensMultiplier:"Hệ số điểm chấm",
  adaptivePassTokens:"Vượt bài kiểm tra chương",
  adaptivePartialTokens:"Đạt một phần",
- chapterClearTokens:"Xóa chương",
+ chapterClearTokens:"Hoàn thành chương",
  contestFinishTokens:"Hoàn thành kỳ thi",
  gameParticipationTokens:"Tham gia game",
  helpRequestTokens:"Đặt câu hỏi hỗ trợ",

@@ -47,14 +47,14 @@ export function Leaderboard() {
   if (loading) return <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-blue-500" /></div>;
 
   const list = tab === "tokens" ? data?.topTokens : data?.topStreak;
-  const label = tab === "tokens" ? "Top Vàng" : "Top Chuỗi";
+  const label = tab === "tokens" ? "Top Tokens" : "Top Chuỗi";
   const unit = tab === "tokens" ? "tokens" : "🔥 ngày";
 
   return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-lg bg-muted/50 p-1">
         {([
-          { key: "tokens", label: "💰 Top Vàng", items: data?.topTokens ?? [] },
+          { key: "tokens", label: "💰 Top Tokens", items: data?.topTokens ?? [] },
           { key: "streak", label: "🔥 Top Chuỗi", items: data?.topStreak ?? [] },
         ] as const).map(({ key, label, items }) => (
           <button key={key} onClick={() => setTab(key as any)} className={`flex-1 rounded-md px-3 py-1.5 text-xs font-bold transition ${tab === key ? "bg-background text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}>

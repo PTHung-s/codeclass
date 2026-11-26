@@ -3,7 +3,7 @@ import { useParams, useNavigate, NavLink, Outlet } from "react-router-dom";
 import { ArrowLeft, GraduationCap, LineChart, Settings } from "lucide-react";
 import api from "../../lib/api";
 import { useAuthContext } from "../../contexts/AuthContext";
-import { isStructuredCourse } from "../../lib/courseExperience";
+import { isStructuredCourse, stripCourseMetaMarkers } from "../../lib/courseExperience";
 import { isStaff } from "../../lib/roles";
 import { getCourseCoverUrl } from "../../lib/courseCovers";
 import { ErrorState } from "../../components/ui/StateViews";
@@ -83,9 +83,9 @@ export default function CourseDetail() {
                 </h1>
                 <CourseStatusBadge status={course.status} />
               </div>
-              {course.description ? (
+              {stripCourseMetaMarkers(course.description) ? (
                 <p className="mt-1.5 max-w-2xl text-xs leading-5 text-muted-foreground sm:text-sm">
-                  {course.description}
+                  {stripCourseMetaMarkers(course.description)}
                 </p>
               ) : null}
             </div>
