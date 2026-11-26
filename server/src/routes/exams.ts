@@ -21,6 +21,7 @@ import {
   preflightExamSolutions,
 } from "../services/examTestcaseGen";
 import { startExamGradeJob, applyTeacherShortGrade, suggestShortComment } from "../services/examGrading";
+import { generateExamDraft } from "../services/examAiGenerator";
 import {
   assertExamReadAccess,
   assertExamStartAccess,
@@ -288,6 +289,54 @@ router.get("/question-sources", authenticate, requireRole(...STAFF), async (req:
   } catch (err) {
     console.error("[exams/question-sources]", err);
     res.status(500).json({ error: "Không tải được nguồn câu hỏi" });
+  }
+});
+
+// AI tự sinh đề thi hoặc bộ câu hỏi theo yêu cầu giáo viên / ngữ cảnh khóa học.
+router.post("/ai-generate", authenticate, requireRole(...STAFF), async (req: Request, res: Response) => {
+  try {
+    const prompt = typeof req.body?.prompt === "string" ? req.body.prompt.trim() : "";
+    const courseId = typeof req.body?.courseId === "string" && req.body.courseId.trim() ? req.body.courseId.trim() : undefined;
+    if (!prompt && !courseId) {
+      res.status(400).json({ error: "Vui lòng nhập chủ đề/mô tả yêu cầu hoặc chọn khóa học." });
+      return;
+    }
+
+    const clamp = (v: unknown, min: number, max: number, def: number) => {
+      const n = Math.round(Number(v));
+      return Number.isFinite(n) ? Math.max(min, Math.min(max, n)) : def;
+    };
+    const mcqCount = clamp(req.body?.mcqCount, 0, 20, 5);
+    const shortAnswerCount = clamp(req.body?.shortAnswerCount, 0, 10, 0);
+    const codingCount = clamp(req.body?.codingCount, 0, 6, 1);
+    const total = mcqCount + shortAnswerCount + codingCount;
+    if (total < 1 || total > 25) {
+      res.status(400).json({ error: "Tổng số câu hỏi cần sinh phải từ 1 đến 25." });
+      return;
+    }
+
+    const rawDiff = req.body?.difficulty;
+    const difficulty = rawDiff === "easy" || rawDiff === "medium" || rawDiff === "hard" || rawDiff === "mixed" ? rawDiff : "mixed";
+    const codeLanguage = req.body?.codeLanguage === "cpp" ? "cpp" : "python";
+    const existingStems = Array.isArray(req.body?.existingStems)
+      ? req.body.existingStems.map((s: unknown) => String(s ?? "").trim()).filter(Boolean).slice(0, 30)
+      : undefined;
+
+    const result = await generateExamDraft({
+      prompt,
+      courseId,
+      mcqCount,
+      shortAnswerCount,
+      codingCount,
+      difficulty,
+      codeLanguage,
+      existingStems,
+    });
+    res.json(result);
+  } catch (err: any) {
+    console.error("[exams/ai-generate]", err);
+    const code = typeof err?.statusCode === "number" ? err.statusCode : 502;
+    res.status(code).json({ error: err?.message || "AI chưa tạo được đề thi. Vui lòng thử lại." });
   }
 });
 
