@@ -7,6 +7,7 @@ import { Button } from "../../components/ui/button";
 import { useAntiCheat } from "../../hooks/useAntiCheat";
 import { useConfirmContext } from "../../hooks/useConfirm";
 import { useDarkMode } from "../../hooks/useDarkMode";
+import { useToast } from "../../hooks/useToast";
 import { Hearts, FullscreenModal, ViolationToast } from "../../components/ui/AntiCheat";
 import { ARENA_EDITOR_OPTIONS, configureArenaEditor } from "../../components/arena/arenaMonaco";
 import ExamMarkdown from "../../components/ui/ExamMarkdown";
@@ -40,6 +41,7 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
   const navigate = useNavigate();
   const qc = useQueryClient();
   const confirm = useConfirmContext();
+  const toast = useToast();
   const { dark } = useDarkMode();
   const [idx, setIdx] = useState(0);
   const [drafts, setDrafts] = useState<Record<string, AnswerDraft>>({});
@@ -106,9 +108,12 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
     try {
       await api.post(`/exams/${examId}/attempt/submit`);
     } catch { /* may already be submitted/expired */ }
+    if (examId && attemptQ.data?.id) {
+      try { localStorage.removeItem(`exam:draft:${examId}:${attemptQ.data.id}`); } catch { /* ignore */ }
+    }
     qc.invalidateQueries({ queryKey: ["exam-attempt", examId] });
     navigate(`/exams/${examId}/result`);
-  }, [examId, navigate, qc]);
+  }, [examId, attemptQ.data?.id, navigate, qc]);
 
   const anti = useAntiCheat({
     enabled: Boolean(antiEnabled),
@@ -121,7 +126,7 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
     },
   });
 
-  // seed drafts from attempt — lock code language to question language
+  // seed drafts from attempt + merge any newer localStorage backup (anti-loss on network drop)
   useEffect(() => {
     if (!attempt?.answers) return;
     const map: Record<string, AnswerDraft> = {};
@@ -135,9 +140,25 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
         isFlagged: a.isFlagged,
       };
     }
+    if (!preview && examId && attempt.id) {
+      try {
+        const raw = localStorage.getItem(`exam:draft:${examId}:${attempt.id}`);
+        if (raw) {
+          const parsed = JSON.parse(raw) as { drafts?: Record<string, AnswerDraft> };
+          if (parsed?.drafts && typeof parsed.drafts === "object") {
+            for (const [qid, localDraft] of Object.entries(parsed.drafts)) {
+              const serverDraft = map[qid] || {};
+              const merged = { ...serverDraft, ...localDraft };
+              map[qid] = merged;
+              dirtyRef.current.add(qid);
+            }
+          }
+        }
+      } catch { /* ignore */ }
+    }
     setDrafts((prev) => ({ ...map, ...prev }));
     if ((attempt as any).serverTime) applyServerTime((attempt as any).serverTime);
-  }, [attempt?.id, questions]);
+  }, [attempt?.id, examId, preview, questions]);
 
   // Đánh dấu "đang thi" để các widget khác (peer chat) chặn gửi ảnh trong giờ làm bài.
   useEffect(() => {
@@ -248,6 +269,9 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
       return api.post(`/exams/${examId}/attempt/submit`).then((r) => r.data);
     },
     onSuccess: () => {
+      if (examId && attempt?.id) {
+        try { localStorage.removeItem(`exam:draft:${examId}:${attempt.id}`); } catch { /* ignore */ }
+      }
       qc.invalidateQueries({ queryKey: ["exam-attempt", examId] });
       navigate(`/exams/${examId}/result`);
     },
@@ -259,7 +283,7 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
       setHbPaused(false);
       qc.invalidateQueries({ queryKey: ["exam-attempt", examId] });
     },
-    onError: (e: any) => alert(e?.response?.data?.error || "Không tiếp tục được"),
+    onError: (e: any) => toast.error({ title: e?.response?.data?.error || "Không tiếp tục được" }),
   });
 
   const runMut = useMutation({
@@ -277,10 +301,21 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
 
   const setDraft = (questionId: string, patch: Partial<AnswerDraft>) => {
     dirtyRef.current.add(questionId);
-    setDrafts((prev) => ({
-      ...prev,
-      [questionId]: { ...prev[questionId], ...patch },
-    }));
+    setDrafts((prev) => {
+      const next = {
+        ...prev,
+        [questionId]: { ...prev[questionId], ...patch },
+      };
+      if (!preview && examId && attempt?.id) {
+        try {
+          localStorage.setItem(
+            `exam:draft:${examId}:${attempt.id}`,
+            JSON.stringify({ drafts: next, updatedAt: Date.now() }),
+          );
+        } catch { /* quota/private mode */ }
+      }
+      return next;
+    });
   };
 
   const progress = useMemo(() => {
@@ -468,19 +503,23 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
             </Button>
           </div>
 
-          <div className="mt-1">
-            <ExamMarkdown content={q.stem} />
-          </div>
-          {q.mo_ta_de && (
-            <div className="mt-3 rounded-lg border border-border bg-muted/40 p-3">
-              <ExamMarkdown content={q.mo_ta_de} compact />
-            </div>
-          )}
-          {q.rang_buoc && (
-            <p className="mt-2 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-200">
-              <span className="font-semibold uppercase tracking-wide">Giới hạn: </span>
-              {q.rang_buoc}
-            </p>
+          {q.loai !== "thuc_hanh" && (
+            <>
+              <div className="mt-1">
+                <ExamMarkdown content={q.stem} />
+              </div>
+              {q.mo_ta_de && (
+                <div className="mt-3 rounded-lg border border-border bg-muted/40 p-3">
+                  <ExamMarkdown content={q.mo_ta_de} compact />
+                </div>
+              )}
+              {q.rang_buoc && (
+                <p className="mt-2 rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-200">
+                  <span className="font-semibold uppercase tracking-wide">Giới hạn: </span>
+                  {q.rang_buoc}
+                </p>
+              )}
+            </>
           )}
 
           {q.loai === "trac_nghiem" && (
@@ -529,67 +568,88 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
           )}
 
           {q.loai === "thuc_hanh" && (
-            <div className="mt-4 space-y-3">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium uppercase">
-                  {q.ngon_ngu || "python"}
-                </span>
-                <Button size="sm" variant="secondary" className="h-8 text-xs" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
-                  <Play className="h-3.5 w-3.5" /> {runMut.isPending ? "Đang chạy…" : "Chạy sample"}
-                </Button>
-              </div>
-              <div className="overflow-hidden rounded-xl border border-border">
-                <Editor
-                  height="300px"
-                  language={q.ngon_ngu === "cpp" ? "cpp" : "python"}
-                  theme={dark ? "codeclass-arena" : "vs"}
-                  value={d.codeAnswer || ""}
-                  onChange={(val) => setDraft(q.id, { codeAnswer: val || "" })}
-                  beforeMount={configureArenaEditor}
-                  options={{
-                    ...ARENA_EDITOR_OPTIONS,
-                    fontSize: 14,
-                    minimap: { enabled: false },
-                    wordWrap: "on",
-                  }}
-                />
-              </div>
-              {q.testcase_mau?.length > 0 && (
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {q.testcase_mau.map((t: any, i: number) => (
-                    <div key={i} className="overflow-hidden rounded-lg border border-border bg-muted/40">
-                      <div className="flex items-center justify-between border-b border-border bg-muted/70 px-3 py-1">
-                        <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
-                          Ví dụ {i + 1}
-                        </span>
-                        {t.mo_ta && <span className="text-[11px] text-muted-foreground">{t.mo_ta}</span>}
-                      </div>
-                      <div className="grid grid-cols-2 divide-x divide-border">
-                        <div className="px-3 py-2">
-                          <div className="text-[10px] font-semibold uppercase text-muted-foreground">Input</div>
-                          <pre className="mt-0.5 overflow-x-auto font-mono text-[0.78rem] leading-5">{t.input}</pre>
+            <div className="mt-2 grid gap-4 lg:grid-cols-2">
+              {/* Left pane: Problem statement + samples */}
+              <div className="min-w-0 space-y-3">
+                <ExamMarkdown content={q.stem} />
+                {q.mo_ta_de && (
+                  <div className="rounded-lg border border-border bg-muted/40 p-3">
+                    <ExamMarkdown content={q.mo_ta_de} compact />
+                  </div>
+                )}
+                {q.rang_buoc && (
+                  <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-800 dark:text-amber-200">
+                    <span className="font-semibold uppercase tracking-wide">Giới hạn: </span>
+                    {q.rang_buoc}
+                  </p>
+                )}
+                {q.testcase_mau?.length > 0 && (
+                  <div className="grid gap-2">
+                    {q.testcase_mau.map((t: any, i: number) => (
+                      <div key={i} className="overflow-hidden rounded-lg border border-border bg-muted/40">
+                        <div className="flex items-center justify-between border-b border-border bg-muted/70 px-3 py-1">
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                            Ví dụ {i + 1}
+                          </span>
+                          {t.mo_ta && <span className="text-[11px] text-muted-foreground">{t.mo_ta}</span>}
                         </div>
-                        <div className="px-3 py-2">
-                          <div className="text-[10px] font-semibold uppercase text-muted-foreground">Output</div>
-                          <pre className="mt-0.5 overflow-x-auto font-mono text-[0.78rem] leading-5">{t.output}</pre>
+                        <div className="grid grid-cols-2 divide-x divide-border">
+                          <div className="px-3 py-2">
+                            <div className="text-[10px] font-semibold uppercase text-muted-foreground">Input</div>
+                            <pre className="mt-0.5 overflow-x-auto font-mono text-[0.78rem] leading-5">{t.input}</pre>
+                          </div>
+                          <div className="px-3 py-2">
+                            <div className="text-[10px] font-semibold uppercase text-muted-foreground">Output</div>
+                            <pre className="mt-0.5 overflow-x-auto font-mono text-[0.78rem] leading-5">{t.output}</pre>
+                          </div>
                         </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {runResult && (
-                <div className="rounded-lg border border-border p-2 text-xs">
-                  Sample: {runResult.passedCount}/{runResult.totalTests} passed
-                  <ul className="mt-1 space-y-1">
-                    {(runResult.results || []).map((r: any) => (
-                      <li key={r.testNum} className={r.passed ? "text-emerald-600" : "text-destructive"}>
-                        #{r.testNum} {r.passed ? "OK" : r.status}
-                      </li>
                     ))}
-                  </ul>
+                  </div>
+                )}
+              </div>
+
+              {/* Right pane: Taller Monaco Editor + Run sample */}
+              <div className="min-w-0 space-y-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span className="rounded-md border border-border bg-muted px-2 py-1 text-xs font-medium uppercase">
+                    {q.ngon_ngu || "python"}
+                  </span>
+                  <Button size="sm" variant="secondary" className="h-8 text-xs" disabled={runMut.isPending} onClick={() => runMut.mutate()}>
+                    <Play className="h-3.5 w-3.5" /> {runMut.isPending ? "Đang chạy…" : "Chạy sample"}
+                  </Button>
                 </div>
-              )}
+                <div className="overflow-hidden rounded-xl border border-border">
+                  <Editor
+                    height="440px"
+                    language={q.ngon_ngu === "cpp" ? "cpp" : "python"}
+                    theme={dark ? "codeclass-arena" : "vs"}
+                    value={d.codeAnswer || ""}
+                    onChange={(val) => setDraft(q.id, { codeAnswer: val || "" })}
+                    beforeMount={configureArenaEditor}
+                    options={{
+                      ...ARENA_EDITOR_OPTIONS,
+                      fontSize: 14,
+                      minimap: { enabled: false },
+                      wordWrap: "on",
+                    }}
+                  />
+                </div>
+                {runResult && (
+                  <div className="rounded-lg border border-border p-2.5 text-xs">
+                    <p className="font-semibold">
+                      Sample: {runResult.passedCount}/{runResult.totalTests} passed
+                    </p>
+                    <ul className="mt-1 space-y-1">
+                      {(runResult.results || []).map((r: any) => (
+                        <li key={r.testNum} className={r.passed ? "text-emerald-600 dark:text-emerald-400" : "text-destructive"}>
+                          #{r.testNum} {r.passed ? "OK" : r.status}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           )}
 

@@ -1463,6 +1463,7 @@ model DebugArenaMatch {
   currentQuestionIndex Int                  @default(-1) @map("current_question_index")
   phaseEndsAt          DateTime?            @map("phase_ends_at")
   arenaType            String               @default("debug") @map("arena_type") // debug | quiz
+  questionSource       String               @default("ai") @map("question_source") // ai | bank
   chaosEnabled         Boolean              @default(false) @map("chaos_enabled")
   createdById          String               @map("created_by")
   createdAt            DateTime             @default(now()) @map("created_at")
@@ -2115,6 +2116,7 @@ model CodeDuelRound {
   /// Teacher-controlled availability. Disabled rounds stay in the authoring
   /// list but are never selected for the match or shown to students.
   enabled          Boolean           @default(true)
+  startedAt        DateTime?         @map("started_at")
   createdAt        DateTime          @default(now()) @map("created_at")
 
   match       CodeDuelMatch          @relation(fields: [matchId], references: [id], onDelete: Cascade)

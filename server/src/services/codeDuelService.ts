@@ -154,22 +154,58 @@ export function parseRewards(raw?: string | null): CodeDuelRewards {
   };
 }
 
-/** Cumulative tie-break penalty for equal totalScore: sum of each AC'd round's
- *  accept time (epoch ms). Everyone codes on the same shared clock per round, so
- *  a smaller sum means the player reached AC faster overall — used to rank
- *  players who finish with the same score (ICPC-style "total solve time"). */
-async function penaltyForUsers(matchId: string, userIds: string[]): Promise<Map<string, number>> {
+export interface PenaltySubmissionInput {
+  userId: string;
+  roundId: string;
+  acceptedAt: Date;
+  roundStartedAt?: Date | null;
+}
+
+/**
+ * Pure helper computing ICPC-style relative solve duration penalty (ms) from each
+ * round's start time instead of summing raw Unix epoch timestamps.
+ * For legacy rounds lacking `roundStartedAt`, falls back to earliest AC in that round - 1s.
+ */
+export function computeRelativePenalties(subs: PenaltySubmissionInput[]): Map<string, number> {
   const map = new Map<string, number>();
-  if (!userIds.length) return map;
-  const subs = await prisma.codeDuelSubmission.findMany({
-    where: { matchId, userId: { in: userIds }, acceptedAt: { not: null } },
-    select: { userId: true, acceptedAt: true },
-  });
+  if (!subs.length) return map;
+
+  const fallbackBaselineByRound = new Map<string, number>();
   for (const s of subs) {
-    if (!s.acceptedAt) continue;
-    map.set(s.userId, (map.get(s.userId) || 0) + s.acceptedAt.getTime());
+    if (s.roundStartedAt) continue;
+    const t = s.acceptedAt.getTime();
+    const cur = fallbackBaselineByRound.get(s.roundId);
+    if (cur === undefined || t < cur) fallbackBaselineByRound.set(s.roundId, t);
+  }
+
+  for (const s of subs) {
+    const baseline = s.roundStartedAt
+      ? s.roundStartedAt.getTime()
+      : (fallbackBaselineByRound.get(s.roundId) ?? s.acceptedAt.getTime()) - 1000;
+    const elapsedMs = Math.max(0, s.acceptedAt.getTime() - baseline);
+    map.set(s.userId, (map.get(s.userId) || 0) + elapsedMs);
   }
   return map;
+}
+
+/** Cumulative tie-break penalty for equal totalScore: sum of elapsed solve time
+ *  (ms) from each round's start until AC. */
+async function penaltyForUsers(matchId: string, userIds: string[]): Promise<Map<string, number>> {
+  if (!userIds.length) return new Map<string, number>();
+  const subs = await prisma.codeDuelSubmission.findMany({
+    where: { matchId, userId: { in: userIds }, acceptedAt: { not: null } },
+    select: { userId: true, roundId: true, acceptedAt: true, round: { select: { startedAt: true } } },
+  });
+  return computeRelativePenalties(
+    subs
+      .filter((s): s is typeof s & { acceptedAt: Date } => !!s.acceptedAt)
+      .map((s) => ({
+        userId: s.userId,
+        roundId: s.roundId,
+        acceptedAt: s.acceptedAt,
+        roundStartedAt: s.round?.startedAt ?? null,
+      })),
+  );
 }
 
 /** Sort players by totalScore desc, then penalty asc (faster AC ranks higher),
@@ -498,13 +534,14 @@ async function enterRound(matchId: string, orderIndex: number) {
     await finishMatch(matchId);
     return;
   }
-  await prisma.codeDuelRound.update({ where: { id: round.id }, data: { status: "active" } });
+  const roundStartedAt = new Date();
+  await prisma.codeDuelRound.update({ where: { id: round.id }, data: { status: "active", startedAt: roundStartedAt } });
   await prisma.codeDuelMatch.update({
     where: { id: matchId },
     data: {
       status: "in_progress",
       currentRoundIndex: orderIndex,
-      roundEndsAt: new Date(Date.now() + round.timeLimitSeconds * 1000),
+      roundEndsAt: new Date(roundStartedAt.getTime() + round.timeLimitSeconds * 1000),
       paused: false,
       pausedRemaining: 0,
     },
@@ -770,12 +807,14 @@ export async function extendRound(matchId: string, seconds: number) {
   if (!match) throw new Error("Không tìm thấy trận đấu");
   if (!match.roundEndsAt) throw new Error("Không có khoảng thời gian để kéo dài");
   const add = Math.max(1, Math.min(3600, Math.round(seconds) || 0));
+  const newEndsAt = new Date(match.roundEndsAt.getTime() + add * 1000);
   await prisma.codeDuelMatch.update({
     where: { id: matchId },
-    data: { roundEndsAt: new Date(match.roundEndsAt.getTime() + add * 1000) },
+    data: { roundEndsAt: newEndsAt },
   });
   await syncState(matchId);
-  await broadcast(matchId, "code_duel_timer", { remainingSeconds: 0, status: match.status, paused: false });
+  const remainingSeconds = Math.max(0, Math.ceil((newEndsAt.getTime() - Date.now()) / 1000));
+  await broadcast(matchId, "code_duel_timer", { remainingSeconds, status: match.status, paused: match.paused });
   return { ok: true, seconds: add };
 }
 
@@ -883,8 +922,8 @@ export async function resetMatch(matchId: string) {
   if (roundIds.length > 0) {
     await prisma.codeDuelSubmission.deleteMany({ where: { roundId: { in: roundIds } } });
   }
-  // Reset rounds to ready (removes active/judged leftovers).
-  await prisma.codeDuelRound.updateMany({ where: { matchId }, data: { status: "ready" } });
+  // Reset rounds to ready (removes active/judged leftovers and startedAt).
+  await prisma.codeDuelRound.updateMany({ where: { matchId }, data: { status: "ready", startedAt: null } });
   // Reset cumulative scores / ranks / out-tabs back to a fresh slate.
   await prisma.codeDuelPlayer.updateMany({
     where: { matchId },

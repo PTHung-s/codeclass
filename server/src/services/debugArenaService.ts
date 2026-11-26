@@ -57,6 +57,7 @@ export interface CreateArenaInput {
   playerIds: string[];
   mode?: "versus" | "practice";
   arenaType?: "debug" | "quiz";
+  questionSource?: "ai" | "bank";
   chaosEnabled?: boolean;
 }
 
@@ -117,6 +118,7 @@ export interface ArenaState {
     phase: string;
     mode: string;
     arenaType: string;
+    questionSource?: string;
     currentQuestionIndex: number;
     questionCount: number;
     secondsPerQuestion: number;
@@ -363,6 +365,7 @@ export async function createArena(input: CreateArenaInput, createdById: string) 
       revealSeconds: input.revealSeconds,
       countdownSeconds: 3,
       arenaType: input.arenaType || "debug",
+      questionSource: input.questionSource === "bank" ? "bank" : "ai",
       // Chaos is deliberately unavailable in practice and Quiz Arena.
       chaosEnabled: Boolean(input.chaosEnabled && mode === "versus" && (input.arenaType || "debug") === "debug"),
       tokenRewards: JSON.stringify(mode === "practice" ? [] : input.tokenRewards || []),
@@ -654,16 +657,32 @@ async function startQuizArena(matchId: string) {
       : (await computeKnowledgeScope(match.players.map((p) => p.userId), match.courseId || undefined)).note);
   if (note !== match.scopeNote) await prisma.debugArenaMatch.update({ where: { id: matchId }, data: { scopeNote: note } });
 
+  let effectiveQuestionCount = match.questionCount;
   try {
-    await generateQuizPairForMatch(matchId, 0);
+    if (match.questionSource === "bank") {
+      const loaded = await loadBankQuizQuestionsForMatch(matchId, 0, match.questionCount);
+      if (loaded === 0) {
+        await generateQuizPairForMatch(matchId, 0);
+      } else if (loaded < match.questionCount) {
+        effectiveQuestionCount = loaded;
+        await prisma.debugArenaMatch.update({ where: { id: matchId }, data: { questionCount: loaded } });
+      }
+    } else {
+      try {
+        await generateQuizPairForMatch(matchId, 0);
+      } catch (aiErr) {
+        const fallbackLoaded = await loadBankQuizQuestionsForMatch(matchId, 0, Math.min(2, match.questionCount)).catch(() => 0);
+        if (fallbackLoaded === 0) throw aiErr;
+      }
+    }
   } catch (error) {
     await prisma.debugArenaMatch.update({ where: { id: matchId }, data: { status: "lobby", phase: "lobby", phaseEndsAt: null } });
-    await broadcast(matchId, "arena_generation_failed", { message: "AI chưa tạo được câu hỏi hợp lệ. Có thể thử bắt đầu lại." });
+    await broadcast(matchId, "arena_generation_failed", { message: "Chưa tải hoặc sinh được câu hỏi hợp lệ. Có thể thử bắt đầu lại hoặc chuyển sang Ngân hàng câu hỏi." });
     throw error;
   }
   await prisma.debugArenaMatch.update({
     where: { id: matchId },
-    data: { status: "in_progress", phase: "countdown", currentQuestionIndex: -1, phaseEndsAt: new Date(Date.now() + match.countdownSeconds * 1000) },
+    data: { status: "in_progress", phase: "countdown", currentQuestionIndex: -1, questionCount: effectiveQuestionCount, phaseEndsAt: new Date(Date.now() + match.countdownSeconds * 1000) },
   });
   startTicker(matchId);
   await syncState(matchId);
@@ -812,6 +831,147 @@ async function upsertQuizItem(spec: QuizQuestionSpec) {
       aiSkillSuggest: spec.skillId,
     },
   });
+}
+
+function shuffleLocal<T>(arr: T[]): T[] {
+  const copy = [...arr];
+  for (let i = copy.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [copy[i], copy[j]] = [copy[j], copy[i]];
+  }
+  return copy;
+}
+
+/**
+ * Populate Quiz Arena questions directly from approved QuizBankItem + QuizQuestion
+ * records (instantaneous startup + zero-downtime fallback when LLM is unavailable).
+ */
+async function loadBankQuizQuestionsForMatch(matchId: string, startIndex: number, countNeeded: number): Promise<number> {
+  if (countNeeded <= 0) return 0;
+  const match = await prisma.debugArenaMatch.findUnique({ where: { id: matchId } });
+  if (!match || match.arenaType !== "quiz") return 0;
+
+  const skillScope = await deriveQuizSkillScope(match.moduleId);
+  const existing = await prisma.debugArenaQuestion.findMany({
+    where: { matchId },
+    select: { orderIndex: true, quizItem: { select: { fingerprint: true } } },
+  });
+  const usedOrderIndexes = new Set(existing.map((e) => e.orderIndex));
+  const usedFingerprints = new Set(existing.flatMap((e) => (e.quizItem?.fingerprint ? [e.quizItem.fingerprint] : [])));
+
+  const [bankScoped, bankAny, lessonScoped, lessonAny] = await Promise.all([
+    skillScope.length
+      ? prisma.quizBankItem.findMany({
+          where: { status: "approved", testsSkill: { in: skillScope } },
+          take: 40,
+        })
+      : Promise.resolve([]),
+    prisma.quizBankItem.findMany({
+      where: { status: "approved" },
+      take: 60,
+    }),
+    match.moduleId || match.courseId
+      ? prisma.quizQuestion.findMany({
+          where: {
+            quiz: {
+              lesson: match.moduleId ? { moduleId: match.moduleId } : { courseId: match.courseId! },
+            },
+          },
+          include: { quiz: { select: { title: true } } },
+          take: 50,
+        })
+      : Promise.resolve([]),
+    prisma.quizQuestion.findMany({
+      include: { quiz: { select: { title: true } } },
+      take: 60,
+    }),
+  ]);
+
+  const toSpec = (
+    title: string,
+    statement: string,
+    rawOptions: string,
+    correctIndex: number,
+    explanation: string | null,
+    topic: string,
+    difficulty: number | null | undefined,
+    skillId: string | null | undefined,
+  ): QuizQuestionSpec | null => {
+    const opts = parseQuizOptions(rawOptions);
+    if (!opts || opts.length < 2) return null;
+    const safeIdx = Number.isInteger(correctIndex) && correctIndex >= 0 && correctIndex < opts.length ? correctIndex : 0;
+    const cleanStmt = statement.trim();
+    if (!cleanStmt) return null;
+    return {
+      title: (title || cleanStmt.slice(0, 60)).slice(0, 180),
+      statement: cleanStmt.slice(0, 1800),
+      options: opts,
+      correctIndex: safeIdx,
+      explanation: (explanation || "Đáp án đúng theo nội dung bài học.").slice(0, 1200),
+      topic: topic || "Ngân hàng câu hỏi",
+      difficulty: Math.max(1, Math.min(5, Math.round(difficulty || 3))),
+      skillId: skillId || undefined,
+    };
+  };
+
+  const orderedGroups: QuizQuestionSpec[][] = [
+    shuffleLocal(bankScoped)
+      .map((b) => toSpec(b.stem.slice(0, 60), b.stem, b.options, b.answerIndex, b.explanation, b.testsSkill || "Ngân hàng", b.difficultyAuthored, b.testsSkill))
+      .filter((x): x is QuizQuestionSpec => !!x),
+    shuffleLocal(lessonScoped)
+      .map((lq) => toSpec(lq.quiz?.title || lq.question.slice(0, 60), lq.question, lq.options, lq.correctIndex, lq.explanation, lq.quiz?.title || "Bài học", lq.difficulty, lq.skillId))
+      .filter((x): x is QuizQuestionSpec => !!x),
+    shuffleLocal(bankAny)
+      .map((b) => toSpec(b.stem.slice(0, 60), b.stem, b.options, b.answerIndex, b.explanation, b.testsSkill || "Ngân hàng", b.difficultyAuthored, b.testsSkill))
+      .filter((x): x is QuizQuestionSpec => !!x),
+    shuffleLocal(lessonAny)
+      .map((lq) => toSpec(lq.quiz?.title || lq.question.slice(0, 60), lq.question, lq.options, lq.correctIndex, lq.explanation, lq.quiz?.title || "Bài học", lq.difficulty, lq.skillId))
+      .filter((x): x is QuizQuestionSpec => !!x),
+  ];
+
+  let added = 0;
+  for (const group of orderedGroups) {
+    for (const spec of group) {
+      if (added >= countNeeded) break;
+      const fp = quizItemFingerprint(spec);
+      if (usedFingerprints.has(fp)) continue;
+      usedFingerprints.add(fp);
+
+      let orderIndex = startIndex + added;
+      while (usedOrderIndexes.has(orderIndex)) orderIndex += 1;
+      usedOrderIndexes.add(orderIndex);
+
+      const item = await upsertQuizItem(spec);
+      await prisma.debugArenaQuestion.create({
+        data: {
+          matchId,
+          orderIndex,
+          language: "python",
+          title: item.title,
+          statement: item.statement,
+          input: "",
+          expectedOutput: "",
+          shownCode: "",
+          correctCode: "",
+          hasBug: false,
+          quizItemId: item.id,
+          quizOptions: item.options,
+          quizCorrectIndex: item.correctIndex,
+          quizExplanation: item.explanation,
+          quizTopic: item.topic,
+          quizDifficulty: item.authoredDifficulty,
+          quizEffectiveDifficulty: item.effectiveDifficulty || item.authoredDifficulty,
+          quizCalibrationSamples: item.calibrationSamples,
+          quizCalibrationConfidence: item.calibrationConfidence,
+          quizCalibrationStatus: item.calibrationStatus,
+        },
+      });
+      added += 1;
+    }
+    if (added >= countNeeded) break;
+  }
+
+  return added;
 }
 
 /** Persist a single validated question to the DB. */
@@ -1260,7 +1420,17 @@ async function enterQuestion(matchId: string, index: number) {
       await syncState(matchId);
       await broadcast(matchId, "arena_phase", { phase: "generating" });
       try {
-        await generateQuizPairForMatch(matchId, index);
+        if (match.questionSource === "bank") {
+          const loaded = await loadBankQuizQuestionsForMatch(matchId, index, match.questionCount - index);
+          if (loaded === 0) await generateQuizPairForMatch(matchId, index);
+        } else {
+          try {
+            await generateQuizPairForMatch(matchId, index);
+          } catch (aiErr) {
+            const loaded = await loadBankQuizQuestionsForMatch(matchId, index, 1).catch(() => 0);
+            if (loaded === 0) throw aiErr;
+          }
+        }
       } catch (error) {
         console.error("quiz question generation failed:", error);
         await finishArena(matchId);
@@ -1385,7 +1555,15 @@ async function enterQuizReveal(match: any) {
   const nextIndex = match.currentQuestionIndex + 1;
   if (nextIndex < match.questionCount) {
     const exists = match.questions.some((question: any) => question.orderIndex === nextIndex);
-    if (!exists) generateQuizPairForMatch(match.id, nextIndex).catch((error) => console.error("quiz pair generation error:", error));
+    if (!exists) {
+      if (match.questionSource === "bank") {
+        loadBankQuizQuestionsForMatch(match.id, nextIndex, match.questionCount - nextIndex).catch(() => {});
+      } else {
+        generateQuizPairForMatch(match.id, nextIndex).catch(async () => {
+          await loadBankQuizQuestionsForMatch(match.id, nextIndex, 1).catch(() => {});
+        });
+      }
+    }
   }
 }
 
@@ -1956,6 +2134,7 @@ export async function getArenaState(matchId: string, viewerUserId?: string): Pro
       phase: match.phase,
       mode: match.mode,
       arenaType: match.arenaType,
+      questionSource: match.questionSource,
       currentQuestionIndex: match.currentQuestionIndex,
       questionCount: match.questionCount,
       secondsPerQuestion: match.secondsPerQuestion,

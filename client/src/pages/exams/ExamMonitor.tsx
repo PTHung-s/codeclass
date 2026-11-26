@@ -5,12 +5,16 @@ import api from "../../lib/api";
 import { Button } from "../../components/ui/button";
 import { onCentrifugoEvent, startCentrifugo, subscribeCentrifugo } from "../../lib/centrifugo";
 import QuestionPaperView, { buildDisplayPaper } from "../../components/exams/QuestionPaperView";
-import { ArrowLeft, Pause, Play, Radar, RefreshCw, ShieldAlert } from "lucide-react";
+import { useToast } from "../../hooks/useToast";
+import { useConfirmContext } from "../../hooks/useConfirm";
+import { ArrowLeft, Clock, Pause, Play, Radar, RefreshCw, RotateCcw, ShieldAlert } from "lucide-react";
 
 export default function ExamMonitor() {
   const { examId } = useParams<{ examId: string }>();
   const navigate = useNavigate();
   const qc = useQueryClient();
+  const toast = useToast();
+  const confirm = useConfirmContext();
   const [selected, setSelected] = useState<string | null>(null);
   const [liveExtra, setLiveExtra] = useState<Record<string, any>>({});
   const [qIdx, setQIdx] = useState(0);
@@ -67,6 +71,24 @@ export default function ExamMonitor() {
     mutationFn: (p: { attemptId: string; paused: boolean }) =>
       api.post(`/exams/${examId}/monitor/${p.attemptId}/pause`, { paused: p.paused }).then((r) => r.data),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["exam-monitor", examId] }),
+  });
+
+  const extendMut = useMutation({
+    mutationFn: (p: { attemptId: string; addMinutes: number; reopen?: boolean; forceReopen?: boolean }) =>
+      api
+        .post(`/exams/${examId}/monitor/${p.attemptId}/extend`, {
+          addMinutes: p.addMinutes,
+          reopen: p.reopen,
+          forceReopen: p.forceReopen,
+        })
+        .then((r) => r.data),
+    onSuccess: (_res, vars) => {
+      qc.invalidateQueries({ queryKey: ["exam-monitor", examId] });
+      toast.success({
+        title: vars.reopen ? `Đã mở lại bài thi (+${vars.addMinutes} phút)` : `Đã gia hạn +${vars.addMinutes} phút`,
+      });
+    },
+    onError: (e: any) => toast.error({ title: "Không thể gia hạn", message: e?.response?.data?.error }),
   });
 
   const students = monQ.data?.students || [];
@@ -211,23 +233,62 @@ export default function ExamMonitor() {
                     {extra?.violationCount ?? active.live?.violationCount ?? 0}
                   </p>
                 </div>
-                <Button
-                  size="sm"
-                  variant={Boolean(active.attempt.pause?.paused) ? "secondary" : "destructive"}
-                  disabled={pauseMut.isPending}
-                  onClick={() =>
-                    pauseMut.mutate({
-                      attemptId: active.attempt.id,
-                      paused: !Boolean(active.attempt.pause?.paused),
-                    })
-                  }
-                >
-                  {Boolean(active.attempt.pause?.paused) ? (
-                    <><Play className="h-4 w-4" /> Cho làm tiếp</>
+                <div className="flex flex-wrap items-center gap-2">
+                  {active.attempt.status === "in_progress" ? (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={extendMut.isPending}
+                      onClick={() => extendMut.mutate({ attemptId: active.attempt.id, addMinutes: 10 })}
+                    >
+                      <Clock className="h-3.5 w-3.5" /> +10 phút
+                    </Button>
                   ) : (
-                    <><Pause className="h-4 w-4" /> Tạm dừng bài</>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={extendMut.isPending}
+                      onClick={async () => {
+                        const alreadyGraded = active.attempt.gradeStatus === "graded";
+                        const ok = await confirm({
+                          title: "Mở lại bài thi cho học sinh?",
+                          message: alreadyGraded
+                            ? `Bài làm của ${active.attempt.student?.fullName} đã chấm xong. Mở lại thêm 10 phút sẽ đưa bài về trạng thái đang làm.`
+                            : `Cho phép ${active.attempt.student?.fullName} làm tiếp thêm 10 phút?`,
+                          confirmLabel: "Mở lại (+10p)",
+                          variant: alreadyGraded ? "danger" : "primary",
+                        });
+                        if (ok) {
+                          extendMut.mutate({
+                            attemptId: active.attempt.id,
+                            addMinutes: 10,
+                            reopen: true,
+                            forceReopen: alreadyGraded,
+                          });
+                        }
+                      }}
+                    >
+                      <RotateCcw className="h-3.5 w-3.5" /> Mở lại (+10p)
+                    </Button>
                   )}
-                </Button>
+                  <Button
+                    size="sm"
+                    variant={Boolean(active.attempt.pause?.paused) ? "secondary" : "destructive"}
+                    disabled={pauseMut.isPending}
+                    onClick={() =>
+                      pauseMut.mutate({
+                        attemptId: active.attempt.id,
+                        paused: !Boolean(active.attempt.pause?.paused),
+                      })
+                    }
+                  >
+                    {Boolean(active.attempt.pause?.paused) ? (
+                      <><Play className="h-4 w-4" /> Cho làm tiếp</>
+                    ) : (
+                      <><Pause className="h-4 w-4" /> Tạm dừng bài</>
+                    )}
+                  </Button>
+                </div>
               </div>
 
               {Boolean(active.attempt.pause?.paused) && (

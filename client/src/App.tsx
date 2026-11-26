@@ -31,6 +31,7 @@ function lazyRetry<T extends ComponentType<any>>(importFn: () => Promise<{ defau
 const CourseList = lazyRetry(() => import("./pages/courses/CourseList"));
 const MaterialList = lazyRetry(() => import("./pages/materials/MaterialList"));
 const MaterialDetail = lazyRetry(() => import("./pages/materials/MaterialDetail"));
+const GameHub = lazyRetry(() => import("./pages/games/GameHub"));
 const ArenaList = lazyRetry(() => import("./pages/arena/ArenaList"));
 const ArenaCreate = lazyRetry(() => import("./pages/arena/ArenaCreate"));
 const ArenaHistory = lazyRetry(() => import("./pages/arena/ArenaHistory"));
@@ -199,6 +200,7 @@ export default function App() {
           } />
           <Route path="materials" element={<MaterialList />} />
           <Route path="materials/:id" element={<MaterialDetail />} />
+          <Route path="games" element={<GameHub />} />
           <Route path="arena" element={<ArenaList />} />
           <Route path="arena/new" element={
             <ProtectedRoute roles={["teacher", "admin", "teaching_assistant"]}>

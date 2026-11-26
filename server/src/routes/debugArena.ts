@@ -93,6 +93,7 @@ router.post("/", requireRole("teacher", "admin", "teaching_assistant"), async (r
       playerIds,
       arenaType,
       chaosEnabled,
+      questionSource,
     } = req.body;
 
     if (!title) {
@@ -114,6 +115,7 @@ router.post("/", requireRole("teacher", "admin", "teaching_assistant"), async (r
         playerIds: Array.isArray(playerIds) ? playerIds : [],
         arenaType: arenaType === "quiz" ? "quiz" : "debug",
         chaosEnabled: Boolean(chaosEnabled),
+        questionSource: questionSource === "bank" ? "bank" : "ai",
       },
       req.user!.userId,
     );

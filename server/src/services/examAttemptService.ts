@@ -121,14 +121,6 @@ export async function assertExamReadAccess(
     select: { id: true, status: true },
   });
 
-  if (exam.courseId) {
-    const mem = await prisma.courseMember.findFirst({
-      where: { courseId: exam.courseId, userId },
-      select: { id: true },
-    });
-    if (!mem) return { ok: false, code: 403, error: ExamMsg.notInCourse, exam };
-  }
-
   // Existing attempt: can open lobby/result/take (take still checks writable)
   if (attempt) return { ok: true, exam, reason: "has_attempt" };
 

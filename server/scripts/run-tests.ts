@@ -11,6 +11,7 @@ const testFiles = [
   "src/services/__tests__/crossFeatureLogic.test.ts",
   "src/services/__tests__/assignmentService.test.ts",
   "src/services/__tests__/dbBackupAndReport.test.ts",
+  "src/services/__tests__/examAndGameLogic.test.ts",
 ];
 
 let failedSuites = 0;

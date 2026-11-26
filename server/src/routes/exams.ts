@@ -38,6 +38,7 @@ import { runCppCode } from "../utils/cppRunner";
 import { publishCentrifugo } from "../services/centrifugo";
 import { broadcastToStaff } from "../services/gameWebSocket";
 import { notifyNotificationChanged } from "../services/notificationEvents";
+import { resolveCourseStudents } from "../services/assignmentService";
 import { ExamMsg } from "../services/examMessages";
 import {
   buildShuffledPaper,
@@ -197,12 +198,6 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
 
     if (!isStaffRole(role)) {
       where.status = "published";
-      const memberships = await prisma.courseMember.findMany({
-        where: { userId: req.user!.userId },
-        select: { courseId: true },
-      });
-      const ids = memberships.map((m) => m.courseId);
-      where.OR = [{ courseId: null }, { courseId: { in: ids } }];
     }
 
     const exams = await prisma.exam.findMany({
@@ -218,6 +213,81 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
   } catch (err) {
     console.error("[exams/list]", err);
     res.status(500).json({ error: ExamMsg.listFailed });
+  }
+});
+
+// Nguồn câu hỏi có sẵn (Problems, QuizBankItem, QuizQuestion) để nhặt vào đề thi trên UI.
+router.get("/question-sources", authenticate, requireRole(...STAFF), async (req: Request, res: Response) => {
+  try {
+    const q = typeof req.query.q === "string" ? req.query.q.trim() : "";
+    const limit = Math.min(50, Math.max(1, Number(req.query.limit) || 25));
+
+    const [problems, rawQuizBankItems, lessonQuestions] = await Promise.all([
+      prisma.problem.findMany({
+        where: {
+          status: { not: "archived" },
+          ...(q ? { OR: [{ title: { contains: q } }, { shortDescription: { contains: q } }] } : {}),
+        },
+        select: {
+          id: true,
+          title: true,
+          difficulty: true,
+          statement: true,
+          sampleInput: true,
+          sampleOutput: true,
+          teacherSolution: true,
+          testCases: true,
+          skillId: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.quizBankItem.findMany({
+        where: {
+          status: "approved",
+          ...(q ? { stem: { contains: q } } : {}),
+        },
+        select: {
+          id: true,
+          stem: true,
+          options: true,
+          answerIndex: true,
+          explanation: true,
+          difficultyAuthored: true,
+          testsSkill: true,
+        },
+        orderBy: { createdAt: "desc" },
+        take: limit,
+      }),
+      prisma.quizQuestion.findMany({
+        where: {
+          ...(q ? { question: { contains: q } } : {}),
+        },
+        select: {
+          id: true,
+          question: true,
+          options: true,
+          correctIndex: true,
+          difficulty: true,
+          explanation: true,
+          skillId: true,
+          quiz: { select: { title: true } },
+        },
+        take: limit,
+      }),
+    ]);
+
+    res.json({
+      problems,
+      quizBankItems: rawQuizBankItems.map((b) => ({
+        ...b,
+        difficulty: b.difficultyAuthored,
+      })),
+      lessonQuestions,
+    });
+  } catch (err) {
+    console.error("[exams/question-sources]", err);
+    res.status(500).json({ error: "Không tải được nguồn câu hỏi" });
   }
 });
 
@@ -337,20 +407,7 @@ router.post("/:id/publish", authenticate, requireRole(...STAFF), async (req: Req
         select: { id: true },
       });
       if (!existingNotif) {
-        let studentIds: string[] = [];
-        if (exam.courseId) {
-          const members = await prisma.courseMember.findMany({
-            where: { courseId: exam.courseId, roleInCourse: "student", status: "active" },
-            select: { userId: true },
-          });
-          studentIds = members.map((m) => m.userId);
-        } else {
-          const students = await prisma.user.findMany({
-            where: { role: "student", status: "active" },
-            select: { id: true },
-          });
-          studentIds = students.map((s) => s.id);
-        }
+        const { studentIds } = await resolveCourseStudents(exam.courseId);
         if (studentIds.length > 0) {
           await prisma.notification.createMany({
             data: studentIds.map((uid) => ({
@@ -1074,6 +1131,69 @@ router.post("/:id/monitor/:attemptId/pause", authenticate, requireRole(...STAFF)
   } catch (err) {
     console.error("[exams/pause]", err);
     res.status(500).json({ error: ExamMsg.heartbeatFailed });
+  }
+});
+
+// Gia hạn thêm phút hoặc mở lại bài cho 1 học sinh khi gặp sự cố mạng/hết giờ
+router.post("/:id/monitor/:attemptId/extend", authenticate, requireRole(...STAFF), async (req: Request, res: Response) => {
+  try {
+    const examId = paramId(req.params.id);
+    const attemptId = paramId(req.params.attemptId);
+    const rawMin = Number(req.body?.addMinutes);
+    const addMinutes = Number.isFinite(rawMin) ? Math.max(1, Math.min(180, Math.round(rawMin))) : 10;
+    const reopen = Boolean(req.body?.reopen);
+    const forceReopen = Boolean(req.body?.forceReopen);
+
+    const attempt = await prisma.examAttempt.findFirst({ where: { id: attemptId, examId } });
+    if (!attempt) {
+      res.status(404).json({ error: ExamMsg.notFound });
+      return;
+    }
+
+    const now = new Date();
+    let updated;
+    if (attempt.status === "in_progress") {
+      const baseMs = Math.max(attempt.expiresAt.getTime(), now.getTime());
+      const expiresAt = new Date(baseMs + addMinutes * 60_000);
+      updated = await prisma.examAttempt.update({
+        where: { id: attempt.id },
+        data: { expiresAt },
+      });
+    } else {
+      if (!reopen) {
+        res.status(400).json({ error: "Bài thi đã kết thúc — cần xác nhận mở lại (reopen: true)." });
+        return;
+      }
+      if (attempt.gradeStatus === "graded" && !forceReopen) {
+        res.status(400).json({ error: "Bài thi đã chấm xong — cần xác nhận forceReopen để mở lại." });
+        return;
+      }
+      const expiresAt = new Date(now.getTime() + addMinutes * 60_000);
+      updated = await prisma.examAttempt.update({
+        where: { id: attempt.id },
+        data: {
+          status: "in_progress",
+          submittedAt: null,
+          pauseJson: null,
+          expiresAt,
+          ...(attempt.gradeStatus !== "ungraded" ? { gradeStatus: "ungraded" } : {}),
+        },
+      });
+    }
+
+    emitExamStaff(examId, {
+      type: "exam_pause",
+      payload: { examId, attemptId: attempt.id, studentId: attempt.studentId, extendedMinutes: addMinutes, reopened: reopen },
+    });
+    res.json({
+      ok: true,
+      status: updated.status,
+      expiresAt: updated.expiresAt.toISOString(),
+      ...serverNowPayload(),
+    });
+  } catch (err) {
+    console.error("[exams/extend]", err);
+    res.status(500).json({ error: "Không gia hạn được thời gian thi" });
   }
 });
 

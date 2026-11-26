@@ -44,6 +44,7 @@ export function ArenaCreateForm({ cfg }: { cfg: ArenaTypeConfig }) {
   // Once the teacher touches the language pills, their choice wins and the
   // course dropdown stops steering it.
   const [languageTouched, setLanguageTouched] = useState(false);
+  const [questionSource, setQuestionSource] = useState<"ai" | "bank">(cfg.type === "quiz" ? "bank" : "ai");
   const [tokens, setTokens] = useState<number[]>([30, 20, 10]);
   const [players, setPlayers] = useState<string[]>([]);
   const [search, setSearch] = useState("");
@@ -75,6 +76,7 @@ export function ArenaCreateForm({ cfg }: { cfg: ArenaTypeConfig }) {
       api
         .post("/arenas", {
           arenaType: cfg.type,
+          questionSource: cfg.type === "quiz" ? questionSource : "ai",
           title: title.trim(),
           courseId: courseId || undefined,
           moduleId: moduleId || undefined,
@@ -255,6 +257,40 @@ export function ArenaCreateForm({ cfg }: { cfg: ArenaTypeConfig }) {
               ))}
             </div>
           </div>
+
+          {cfg.type === "quiz" && (
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-muted-foreground">Nguồn câu hỏi trắc nghiệm</span>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <button
+                  type="button"
+                  onClick={() => setQuestionSource("bank")}
+                  className={cn(
+                    "rounded-xl border p-3 text-left text-xs transition-colors",
+                    questionSource === "bank" ? "border-primary bg-primary/8" : "border-border bg-card hover:bg-muted/40",
+                  )}
+                >
+                  <span className="block font-bold text-foreground">Ngân hàng câu hỏi (Tức thì)</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    Lấy ngay từ Quiz Bank đã duyệt và câu hỏi bài học — không phải chờ AI.
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setQuestionSource("ai")}
+                  className={cn(
+                    "rounded-xl border p-3 text-left text-xs transition-colors",
+                    questionSource === "ai" ? "border-primary bg-primary/8" : "border-border bg-card hover:bg-muted/40",
+                  )}
+                >
+                  <span className="block font-bold text-foreground">AI sinh câu hỏi mới</span>
+                  <span className="mt-0.5 block text-[11px] text-muted-foreground">
+                    Tự tạo câu hỏi bám sát chương học (tự động dự phòng bằng Ngân hàng nếu AI lỗi).
+                  </span>
+                </button>
+              </div>
+            </div>
+          )}
 
           {cfg.chaos && (
             <button

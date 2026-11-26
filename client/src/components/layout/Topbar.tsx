@@ -83,6 +83,7 @@ const routeLabels: Record<string, string> = {
   take: "Làm bài",
   preview: "Xem trước",
   quests: "Nhiệm vụ",
+  games: "Sảnh trò chơi",
   meet: "Phòng học",
 };
 

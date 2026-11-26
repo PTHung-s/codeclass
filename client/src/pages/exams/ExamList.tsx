@@ -95,7 +95,7 @@ export default function ExamList() {
         actions={
           staff ? (
             <Button size="sm" onClick={() => navigate("/exams/new")}>
-              <Plus className="size-3.5" /> Tạo đề từ JSON
+              <Plus className="size-3.5" /> Tạo đề thi
             </Button>
           ) : undefined
         }
@@ -162,7 +162,7 @@ export default function ExamList() {
           </p>
           {staff && exams.length === 0 && (
             <Button className="mt-3" size="sm" variant="outline" onClick={() => navigate("/exams/new")}>
-              Upload JSON đề mẫu
+              Tạo đề thi đầu tiên
             </Button>
           )}
         </div>
