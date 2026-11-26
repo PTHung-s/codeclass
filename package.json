@@ -1,1 +1,19 @@
-{}
+{
+  "name": "codeclass-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:server": "npm --prefix server run dev",
+    "dev:client": "npm --prefix client run dev",
+    "dev:meeting": "npm --prefix meeting/server run dev",
+    "db:push": "npm --prefix server run prisma:push && npm --prefix server run prisma:generate",
+    "typecheck:server": "npm --prefix server exec -- tsc --noEmit",
+    "typecheck:client": "npm --prefix client exec -- tsc --noEmit",
+    "test": "npm --prefix server test",
+    "build:server": "npm --prefix server run build",
+    "build:client": "npm --prefix client run build",
+    "build:meeting:server": "npm --prefix meeting/server run build",
+    "build:meeting:client": "npm --prefix meeting/client run build",
+    "build:all": "npm run build:server && npm run build:client && npm run build:meeting:server && npm run build:meeting:client"
+  }
+}

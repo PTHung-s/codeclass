@@ -10,6 +10,8 @@ dist/
 /backups/
 /server/prisma/backups/
 *.log
+*.bak
+*.corruptbak
 .DS_Store
 
 # Local tooling and generated caches

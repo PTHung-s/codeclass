@@ -10,15 +10,7 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "test": "tsx scripts/run-tests.ts",
-    "test:quiz-arena": "tsx scripts/test-quiz-arena.ts",
-    "test:exam-import": "tsx scripts/smoke-exam-import.ts",
-    "seed:rewards": "tsx scripts/seed-rewards.ts",
-    "seed:quests": "tsx scripts/seed-quests.ts",
-    "seed:cpp-course": "tsx src/scripts/seedCppCourse.ts",
-    "seed:materials": "node scripts/seed-material-collections.js",
-    "crawl:list": "tsx scripts/crawl-vnoj.ts list 5",
-    "crawl:import": "tsx scripts/crawl-vnoj.ts import 30",
-    "cleanup": "tsx scripts/archive/cleanup-problems.ts"
+    "seed:cpp-course": "tsx src/scripts/seedCppCourse.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

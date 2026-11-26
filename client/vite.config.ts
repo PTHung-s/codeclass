@@ -16,22 +16,16 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (id.includes("vite/preload-helper") || id.includes("commonjsHelpers")) return "vendor-react";
-          if (id.startsWith("\0") || !id.includes("node_modules")) return;
+          if (!id.includes("node_modules")) return;
           if (id.includes("framer-motion")) return "vendor-motion";
           if (id.includes("lucide-react")) return "vendor-icons";
-          if (id.includes("@tanstack") || id.includes("axios") || id.includes("centrifuge")) return "vendor-data";
           if (id.includes("@monaco-editor") || id.includes("monaco-editor")) return "vendor-monaco";
           if (id.includes("katex")) return "vendor-katex";
           if (
+            id.includes("react-markdown") ||
             id.includes("react-syntax-highlighter") ||
             id.includes("refractor") ||
-            id.includes("prismjs")
-          ) {
-            return "vendor-syntax";
-          }
-          if (
-            id.includes("react-markdown") ||
+            id.includes("prismjs") ||
             id.includes("remark-") ||
             id.includes("rehype-") ||
             id.includes("unified") ||
@@ -41,13 +35,8 @@ export default defineConfig({
           ) {
             return "vendor-markdown";
           }
-          if (
-            id.includes("react-dom") ||
-            id.includes("react-router") ||
-            id.includes("/react/") ||
-            id.includes("\\react\\")
-          ) {
-            return "vendor-react";
+          if (id.includes("@tanstack") || id.includes("axios") || id.includes("centrifuge")) {
+            return "vendor-data";
           }
         },
       },
@@ -62,6 +51,11 @@ export default defineConfig({
       },
       "/ws": {
         target: "http://localhost:3001",
+        ws: true,
+        changeOrigin: true,
+      },
+      "/meet": {
+        target: "http://localhost:5000",
         ws: true,
         changeOrigin: true,
       },
