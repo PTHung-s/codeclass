@@ -605,6 +605,86 @@ router.get("/students/:studentId/assignments", authenticate, async (req: Request
   }
 });
 
+/* ── GET /students/:studentId/meetings ── */
+router.get("/students/:studentId/meetings", authenticate, async (req: Request, res: Response) => {
+  try {
+    const studentId = param(req, "studentId");
+    const { userId, role } = req.user!;
+    if (!(await canViewStudentProfile(userId, role, studentId))) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    const [attendances, quizSubmissions] = await Promise.all([
+      prisma.meetingAttendance.findMany({
+        where: { userId: studentId },
+        include: {
+          room: {
+            select: {
+              id: true,
+              title: true,
+              hostName: true,
+              course: { select: { id: true, title: true } },
+            },
+          },
+        },
+        orderBy: { joinedAt: "desc" },
+        take: 40,
+      }),
+      prisma.meetingQuizSubmission.findMany({
+        where: { userId: studentId },
+        include: {
+          session: {
+            select: {
+              id: true,
+              title: true,
+              kind: true,
+              totalQuestions: true,
+              room: { select: { id: true, title: true, course: { select: { id: true, title: true } } } },
+            },
+          },
+        },
+        orderBy: { completedAt: "desc" },
+        take: 50,
+      }),
+    ]);
+
+    res.json({
+      attendances: attendances.map((a) => ({
+        id: a.id,
+        roomId: a.roomId,
+        roomTitle: a.room.title,
+        courseTitle: a.room.course?.title || null,
+        hostName: a.room.hostName,
+        joinedAt: a.joinedAt,
+        leftAt: a.leftAt,
+        durationSeconds: a.durationSeconds,
+        points: a.points,
+        violations: a.violations,
+        savedCodeCount: a.savedCodeCount,
+      })),
+      quizSubmissions: quizSubmissions.map((s) => ({
+        id: s.id,
+        sessionId: s.sessionId,
+        roomId: s.roomId,
+        roomTitle: s.session.room.title,
+        courseTitle: s.session.room.course?.title || null,
+        title: s.session.title,
+        kind: s.session.kind,
+        score: s.score,
+        totalQuestions: s.totalQuestions,
+        accuracy: s.accuracy,
+        timeTaken: s.timeTaken,
+        rank: s.rank,
+        completedAt: s.completedAt,
+      })),
+    });
+  } catch (err) {
+    console.error("student meetings error:", err);
+    res.status(500).json({ error: "Failed to fetch student meetings" });
+  }
+});
+
 /* ── GET /students/:studentId/weekly-report ── */
 router.get(
   "/students/:studentId/weekly-report",

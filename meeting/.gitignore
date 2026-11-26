@@ -1,0 +1,14 @@
+# Dependencies & build outputs
+node_modules/
+dist/
+
+# Environment & logs
+.env
+.env.local
+.env.*.local
+*.log
+.DS_Store
+
+# Local runtime data & source archive
+server/data/
+codeclass-meeting-source.zip

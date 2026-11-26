@@ -134,6 +134,7 @@ const SOURCE_LABELS: Record<string, string> = {
   arena_quiz: "Đấu trường Quiz",
   challenge: "Thử thách trong bài",
   code_duel: "Đấu code",
+  meeting_quiz: "Quiz trong lớp Meeting",
   decay: "Quên theo thời gian",
 };
 
@@ -330,6 +331,7 @@ const SOURCE_PROFILES: Record<string, SourceProfile> = {
   lesson_quiz: { guessScale: 1.00, slipScale: 1.00, sourceWeight: 1.00, maxSessionEvidence: 1.5 },
   session_quiz: { guessScale: 1.00, slipScale: 1.00, sourceWeight: 1.00, maxSessionEvidence: 1.5 },
   arena_quiz: { guessScale: 1.10, slipScale: 1.15, sourceWeight: 0.85, maxSessionEvidence: 1.2 },
+  meeting_quiz: { guessScale: 1.05, slipScale: 1.10, sourceWeight: 0.95, maxSessionEvidence: 1.4 },
 };
 
 /**

@@ -1,0 +1,317 @@
+@import "tailwindcss";
+
+/* ─── Design tokens ───────────────────────────────────────────
+   Một bảng màu trung tính thật + accent amber (bỏ xanh dương mặc định
+   vốn là "dấu hiệu AI"). 3 mức radius. Dùng qua class: bg-base, text-accent,
+   border-line, rounded-card, rounded-ctl, rounded-panel. */
+@theme {
+  --color-base: #0e0f13;
+  --color-raised: #16181d;
+  --color-overlay: #1d2027;
+  --color-elevated: #23262e;
+  --color-line: rgba(255, 255, 255, 0.07);
+  --color-line-strong: rgba(255, 255, 255, 0.12);
+
+  --color-accent: #f5a524;
+  --color-accent-ink: #1a1206;
+  --color-ok: #34d399;
+  --color-warn: #fbbf24;
+  --color-danger: #f0564f;
+  --color-muted: #8b8f98;
+
+  --radius-ctl: 8px;
+  --radius-card: 12px;
+  --radius-panel: 16px;
+
+  --shadow-modal: 0 20px 50px rgba(0, 0, 0, 0.55);
+
+  --font-sans: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+}
+
+:root {
+  color-scheme: dark;
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background-color: var(--color-base);
+  color: #e8eaed;
+  font-family: var(--font-sans);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+video {
+  object-fit: cover;
+}
+
+.mirror {
+  transform: scaleX(-1);
+}
+
+.no-mirror {
+  transform: scaleX(1);
+}
+
+/* Scrollbar tinh gọn, dùng chung */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.18);
+}
+
+/* Flexlayout — đồng bộ nền với token mới */
+.flexlayout__layout { background-color: var(--color-base) !important; }
+.flexlayout__tabset { background-color: var(--color-base) !important; }
+.flexlayout__tabset_header { background-color: var(--color-raised) !important; }
+.flexlayout__tab_button {
+  background-color: var(--color-raised) !important;
+  color: var(--color-muted) !important;
+  border-bottom: 2px solid transparent !important;
+  font-weight: 500;
+}
+.flexlayout__tab_button--selected {
+  background-color: var(--color-base) !important;
+  color: #fff !important;
+  border-bottom: 2px solid var(--color-accent) !important;
+}
+.flexlayout__splitter { background-color: var(--color-base) !important; }
+.flexlayout__splitter:hover { background-color: var(--color-accent) !important; }
+
+/* ─── Hệ thống Motion Primitives 60fps (GPU transform/opacity) ─── */
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in { animation: fade-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+
+/* Polyfill nhẹ cho các class animate-in đang dùng ở SidebarTemplate / Quiz / AI / Assignment */
+@keyframes drawer-right-in {
+  from { opacity: 0; transform: translateX(24px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes modal-scale-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.95); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes backdrop-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+@keyframes popover-pop-in {
+  from { opacity: 0; transform: translateY(-6px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes strip-slide-down {
+  from { opacity: 0; transform: translateY(-100%); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-top-in {
+  from { opacity: 0; transform: translateY(-8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes slide-bottom-in {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes msg-pop-in {
+  from { opacity: 0; transform: translateY(8px) scale(0.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-enter {
+  from { opacity: 0; transform: translateY(12px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes toast-exit {
+  from { opacity: 1; transform: translateY(0) scale(1); }
+  to { opacity: 0; transform: translateY(8px) scale(0.96); }
+}
+@keyframes toast-countdown {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+@keyframes hud-pop {
+  from { opacity: 0; transform: translate(-50%, 8px) scale(0.94); }
+  to { opacity: 1; transform: translate(-50%, 0) scale(1); }
+}
+@keyframes float-reaction {
+  0% { opacity: 0; transform: translate(-50%, 0) scale(0.55); }
+  14% { opacity: 1; transform: translate(-50%, -26px) scale(1.16); }
+  30% { opacity: 1; transform: translate(calc(-50% + 8px), -68px) scale(1); }
+  65% { opacity: 0.92; transform: translate(calc(-50% - 8px), -145px) scale(1.02); }
+  100% { opacity: 0; transform: translate(-50%, -225px) scale(0.92); }
+}
+@keyframes hand-wave {
+  0%, 100% { transform: rotate(0deg); }
+  20% { transform: rotate(-14deg); }
+  45% { transform: rotate(16deg); }
+  65% { transform: rotate(-10deg); }
+  80% { transform: rotate(8deg); }
+}
+@keyframes eq-bounce {
+  0%, 100% { transform: scaleY(0.32); }
+  50% { transform: scaleY(1); }
+}
+@keyframes avatar-speak-ring {
+  0%, 100% { box-shadow: 0 0 0 2px rgba(245, 165, 36, 0.55), 0 0 0 6px rgba(245, 165, 36, 0.14); }
+  50% { box-shadow: 0 0 0 3px rgba(245, 165, 36, 0.9), 0 0 0 12px rgba(245, 165, 36, 0.04); }
+}
+@keyframes terminal-shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(220%); }
+}
+@keyframes output-flash {
+  0% { background-color: rgba(245, 165, 36, 0.14); }
+  100% { background-color: transparent; }
+}
+@keyframes badge-pop {
+  0% { transform: scale(0.65); }
+  60% { transform: scale(1.18); }
+  100% { transform: scale(1); }
+}
+@keyframes skeleton-sweep {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+.anim-drawer-right { animation: drawer-right-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-modal { animation: modal-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-backdrop { animation: backdrop-fade-in 0.16s ease-out both; }
+.anim-popover { animation: popover-pop-in 0.17s cubic-bezier(0.16, 1, 0.3, 1) both; transform-origin: top center; }
+.anim-strip { animation: strip-slide-down 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-msg { animation: msg-pop-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-toast-in { animation: toast-enter 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-toast-out { animation: toast-exit 0.18s ease-in forwards; }
+.anim-hud-in { animation: hud-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-float-reaction { animation: float-reaction 2.6s cubic-bezier(0.22, 1, 0.36, 1) forwards; }
+.anim-hand-wave { animation: hand-wave 1.8s ease-in-out infinite; transform-origin: 70% 80%; }
+.anim-avatar-speak { animation: avatar-speak-ring 1.3s ease-in-out infinite; }
+.anim-output-flash { animation: output-flash 0.55s ease-out both; }
+.anim-badge-pop { animation: badge-pop 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-stagger-1 { animation: slide-bottom-in 0.34s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.anim-stagger-2 { animation: slide-bottom-in 0.38s cubic-bezier(0.16, 1, 0.3, 1) 0.08s both; }
+
+/* Speaking 3-bar equalizer */
+.eq-bar {
+  width: 2.5px;
+  height: 11px;
+  border-radius: 999px;
+  background-color: var(--color-accent);
+  transform-origin: bottom center;
+  animation: eq-bounce 0.65s ease-in-out infinite;
+}
+.eq-bar:nth-child(2) { animation-delay: 0.16s; height: 13px; }
+.eq-bar:nth-child(3) { animation-delay: 0.32s; height: 9px; }
+
+/* Terminal shimmer bar */
+.anim-terminal-shimmer {
+  animation: terminal-shimmer 1.15s ease-in-out infinite;
+}
+
+/* Toast countdown bar — tạm dừng khi hover */
+.toast-progress {
+  transform-origin: left center;
+  animation: toast-countdown linear forwards;
+}
+.group:hover .toast-progress {
+  animation-play-state: paused;
+}
+
+/* Skeleton shimmer */
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.04) 25%, rgba(255, 255, 255, 0.09) 50%, rgba(255, 255, 255, 0.04) 75%);
+  background-size: 200% 100%;
+  animation: skeleton-sweep 1.4s ease-in-out infinite;
+}
+
+/* Hồi sinh các class animate-in dùng sẵn ở các component hiện có */
+.animate-in.slide-in-from-right { animation: drawer-right-in 0.22s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-in.zoom-in { animation: modal-scale-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-in.slide-in-from-top-2 { animation: slide-top-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-in.slide-in-from-bottom-2 { animation: slide-bottom-in 0.28s cubic-bezier(0.16, 1, 0.3, 1) both; }
+.animate-in.fade-in:not(.zoom-in):not(.slide-in-from-right):not(.slide-in-from-top-2):not(.slide-in-from-bottom-2) {
+  animation: fade-in 0.2s ease-out both;
+}
+
+/* Tôn trọng cài đặt giảm chuyển động của hệ điều hành */
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-in,
+  .anim-drawer-right,
+  .anim-modal,
+  .anim-backdrop,
+  .anim-popover,
+  .anim-strip,
+  .anim-msg,
+  .anim-toast-in,
+  .anim-toast-out,
+  .anim-hud-in,
+  .anim-float-reaction,
+  .anim-hand-wave,
+  .anim-avatar-speak,
+  .anim-output-flash,
+  .anim-badge-pop,
+  .anim-stagger-1,
+  .anim-stagger-2,
+  .anim-terminal-shimmer,
+  .eq-bar,
+  .skeleton-shimmer,
+  .animate-in {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Lobby form controls */
+.lobby-input {
+  width: 100%;
+  background: var(--color-raised);
+  border: 1px solid var(--color-line);
+  border-radius: var(--radius-ctl);
+  padding: 0.7rem 0.9rem;
+  color: #fff;
+  outline: none;
+  font-size: 0.9rem;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.lobby-input::placeholder { color: #6b7078; }
+.lobby-input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px rgba(245, 165, 36, 0.15);
+}
+.lobby-primary {
+  padding: 0.7rem 1.25rem;
+  border-radius: var(--radius-ctl);
+  background: var(--color-accent);
+  color: var(--color-accent-ink);
+  font-weight: 700;
+  font-size: 0.9rem;
+  transition: filter 0.15s, transform 0.1s;
+}
+.lobby-primary:hover { filter: brightness(1.08); }
+.lobby-primary:active { transform: scale(0.98); }
+.lobby-ghost {
+  padding: 0.7rem 1.25rem;
+  border-radius: var(--radius-ctl);
+  border: 1px solid var(--color-line-strong);
+  color: #e8eaed;
+  font-weight: 600;
+  font-size: 0.9rem;
+  transition: background 0.15s, transform 0.1s;
+}
+.lobby-ghost:hover { background: var(--color-line); }
+.lobby-ghost:active { transform: scale(0.98); }

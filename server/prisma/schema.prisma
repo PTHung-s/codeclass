@@ -135,6 +135,9 @@ model User {
   examLiveSnapshots                             ExamLiveSnapshot[]
   examGradeJobsStarted                          ExamGradeJob[]         @relation("ExamGradeStarter")
   codeLabSnippets                               CodeLabSnippet[]
+  hostedMeetingRooms                            MeetingRoom[]          @relation("MeetingHost")
+  meetingAttendances                            MeetingAttendance[]
+  meetingQuizSubmissions                        MeetingQuizSubmission[]
 
   @@map("users")
 }
@@ -168,6 +171,7 @@ model Course {
   teacherNotes    TeacherNote[]
   sessionLessons  SessionLesson[]
   exams           Exam[]
+  meetingRooms    MeetingRoom[]
 
   @@map("courses")
 }
@@ -2652,6 +2656,106 @@ model CodeLabSnippet {
 
   @@index([userId, updatedAt])
   @@map("code_lab_snippets")
+}
+
+model MeetingRoom {
+  id                     String                  @id
+  title                  String
+  courseId               String?                 @map("course_id")
+  hostUserId             String?                 @map("host_user_id")
+  hostName               String                  @default("") @map("host_name")
+  hasPassword            Boolean                 @default(false) @map("has_password")
+  status                 String                  @default("live") // live | ended
+  isBreakout             Boolean                 @default(false) @map("is_breakout")
+  parentRoomId           String?                 @map("parent_room_id")
+  activeParticipantCount Int                     @default(0) @map("active_participant_count")
+  peakParticipantCount   Int                     @default(0) @map("peak_participant_count")
+  activeQuizTitle        String?                 @map("active_quiz_title")
+  examMonitoring         Boolean                 @default(false) @map("exam_monitoring")
+  activeParticipantsJson String                  @default("[]") @map("active_participants_json")
+  lastSyncedAt           DateTime                @default(now()) @map("last_synced_at")
+  endedAt                DateTime?               @map("ended_at")
+  createdAt              DateTime                @default(now()) @map("created_at")
+  updatedAt              DateTime                @updatedAt @map("updated_at")
+
+  course       Course?               @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  host         User?                 @relation("MeetingHost", fields: [hostUserId], references: [id], onDelete: SetNull)
+  attendances  MeetingAttendance[]
+  quizSessions MeetingQuizSession[]
+
+  @@index([status, updatedAt])
+  @@index([courseId])
+  @@map("meeting_rooms")
+}
+
+model MeetingAttendance {
+  id              String    @id @default(uuid())
+  roomId          String    @map("room_id")
+  userId          String?   @map("user_id")
+  participantKey  String    @map("participant_key")
+  displayName     String    @map("display_name")
+  role            String?
+  joinedAt        DateTime  @default(now()) @map("joined_at")
+  leftAt          DateTime? @map("left_at")
+  durationSeconds Int       @default(0) @map("duration_seconds")
+  points          Int       @default(0)
+  violations      Int       @default(0)
+  savedCodeCount  Int       @default(0) @map("saved_code_count")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  room MeetingRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User?       @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([roomId, participantKey])
+  @@index([userId, joinedAt])
+  @@map("meeting_attendances")
+}
+
+model MeetingQuizSession {
+  id             String                  @id @default(uuid())
+  externalQuizId String                  @map("external_quiz_id")
+  roomId         String                  @map("room_id")
+  courseId       String?                 @map("course_id")
+  kind           String                  @default("quiz") // quiz | adaptive
+  title          String
+  questionsJson  String                  @default("[]") @map("questions_json")
+  totalQuestions Int                     @default(0) @map("total_questions")
+  startedAt      DateTime                @default(now()) @map("started_at")
+  endedAt        DateTime?               @map("ended_at")
+  createdAt      DateTime                @default(now()) @map("created_at")
+  updatedAt      DateTime                @updatedAt @map("updated_at")
+
+  room        MeetingRoom             @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  submissions MeetingQuizSubmission[]
+
+  @@unique([roomId, externalQuizId, kind])
+  @@index([courseId, createdAt])
+  @@map("meeting_quiz_sessions")
+}
+
+model MeetingQuizSubmission {
+  id             String   @id @default(uuid())
+  sessionId      String   @map("session_id")
+  roomId         String   @map("room_id")
+  userId         String?  @map("user_id")
+  participantKey String   @map("participant_key")
+  studentName    String   @map("student_name")
+  score          Int      @default(0)
+  totalQuestions Int      @default(0) @map("total_questions")
+  accuracy       Float    @default(0)
+  timeTaken      Int      @default(0) @map("time_taken")
+  rank           Int?
+  answersJson    String   @default("[]") @map("answers_json")
+  completedAt    DateTime @default(now()) @map("completed_at")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  session MeetingQuizSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  user    User?              @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, participantKey])
+  @@index([userId, completedAt])
+  @@map("meeting_quiz_submissions")
 }
 
 

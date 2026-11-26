@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../../lib/api";
-import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck, FileText, Target, ListChecks, Lock } from "lucide-react";
+import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck, FileText, Target, ListChecks, Lock, Video } from "lucide-react";
 import { SkeletonCard } from "../../components/ui/skeletons";
 import { DifficultyBadge } from "../../components/ui/Badges";
 import { useAuthContext } from "../../contexts/AuthContext";
@@ -109,6 +109,40 @@ export default function StudentProfile() {
   const examsQ = useQuery<any[]>({
     queryKey: ["student-exams", studentId],
     queryFn: () => api.get(`/students/${studentId}/exams`).then((r) => r.data),
+    enabled: !!studentId && !!data,
+    staleTime: 60 * 1000,
+  });
+
+  const meetingsQ = useQuery<{
+    attendances: Array<{
+      id: string;
+      roomId: string;
+      roomTitle: string;
+      courseTitle?: string | null;
+      hostName: string;
+      joinedAt: string;
+      durationSeconds: number;
+      points: number;
+      violations: number;
+    }>;
+    quizSubmissions: Array<{
+      id: string;
+      sessionId: string;
+      roomId: string;
+      roomTitle: string;
+      courseTitle?: string | null;
+      title: string;
+      kind: string;
+      score: number;
+      totalQuestions: number;
+      accuracy: number;
+      timeTaken: number;
+      rank?: number | null;
+      completedAt: string;
+    }>;
+  }>({
+    queryKey: ["student-meetings", studentId],
+    queryFn: () => api.get(`/students/${studentId}/meetings`).then((r) => r.data),
     enabled: !!studentId && !!data,
     staleTime: 60 * 1000,
   });
@@ -635,6 +669,63 @@ export default function StudentProfile() {
                 </Link>
               );
             })}
+          </div>
+        </div>
+      )}
+
+      {/* Lịch sử Quiz trong Meeting */}
+      {(meetingsQ.data?.quizSubmissions?.length ?? 0) > 0 && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-foreground">
+            <Video className="h-4 w-4 text-primary" />
+            Lịch sử Quiz trong Meeting ({meetingsQ.data!.quizSubmissions.length})
+          </h2>
+          <div className="divide-y divide-border">
+            {meetingsQ.data!.quizSubmissions.map((mq) => (
+              <Link
+                key={mq.id}
+                to="/meet"
+                className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm transition-colors hover:bg-muted/40 rounded-lg px-2 -mx-2"
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center gap-1.5">
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase ${
+                        mq.kind === "adaptive"
+                          ? "bg-violet-500/15 text-violet-600 dark:text-violet-300"
+                          : "bg-primary/10 text-primary"
+                      }`}
+                    >
+                      {mq.kind === "adaptive" ? "Adaptive" : "Quiz"}
+                    </span>
+                    <p className="truncate font-medium text-foreground">{mq.title}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Phòng: {mq.roomTitle}
+                    {mq.courseTitle ? ` · ${mq.courseTitle}` : ""} ·{" "}
+                    {new Date(mq.completedAt).toLocaleDateString("vi-VN")}
+                  </p>
+                </div>
+                <div className="flex items-center gap-2.5 shrink-0">
+                  {mq.rank != null && (
+                    <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium text-muted-foreground">
+                      Hạng #{mq.rank}
+                    </span>
+                  )}
+                  <span
+                    className={`rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums ${
+                      mq.accuracy >= 70
+                        ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                        : mq.accuracy >= 45
+                          ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                          : "bg-red-500/15 text-red-600 dark:text-red-400"
+                    }`}
+                  >
+                    {mq.score}/{mq.totalQuestions} ({mq.accuracy}%)
+                  </span>
+                </div>
+              </Link>
+            ))}
           </div>
         </div>
       )}

@@ -1,0 +1,24 @@
+services:
+  mediasoup:
+    build: .
+    container_name: mediasoup-server
+    restart: unless-stopped
+    ports:
+      - "4443:4443"        # HTTP: REST API + Socket.IO signaling
+      - "40000-40100:40000-40100/udp"   # WebRTC media (UDP)
+      - "40000-40100:40000-40100/tcp"   # WebRTC media (TCP fallback)
+    environment:
+      PORT: 4443
+      LISTEN_IP: 0.0.0.0
+      # ⚠️ ĐỔI thành IP public của server trước khi chạy production!
+      ANNOUNCED_IP: ${ANNOUNCED_IP:-}
+      RTC_MIN_PORT: 40000
+      RTC_MAX_PORT: 40100
+      MEDIASOUP_WORKERS: ${MEDIASOUP_WORKERS:-2}
+    # network_mode: host   # Bật dòng này trên Linux nếu muốn hiệu năng tối đa
+                           # (khi đó bỏ mục ports và ANNOUNCED_IP có thể là IP thật)
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"

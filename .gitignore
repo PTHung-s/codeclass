@@ -25,3 +25,9 @@ __pycache__/
 /_*.json
 /_*.py
 /server/prisma/migration-shadow.db
+
+# Integrated meeting sub-app runtime data & builds
+/meeting/server/data/
+/meeting/server/dist/
+/meeting/client/dist/
+/meeting/mediasoup-server/dist/

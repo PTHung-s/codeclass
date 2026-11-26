@@ -16,6 +16,9 @@
 
 import prisma from "../utils/prisma";
 import { randomUUID } from "node:crypto";
+import { SKILL_SEEDS } from "../utils/skillGraph";
+
+const CANONICAL_SKILL_IDS = new Set(SKILL_SEEDS.map((s) => s.skillId));
 
 export type SkillEvidenceSource =
   | "lesson_quiz"
@@ -25,7 +28,8 @@ export type SkillEvidenceSource =
   | "arena_quiz"
   | "challenge"
   | "code_duel"
-  | "exam";
+  | "exam"
+  | "meeting_quiz";
 
 export interface SkillEvidenceInput {
   userId: string;
@@ -420,4 +424,58 @@ export async function resolveCodeDuelRoundSkill(
     select: { skillId: true, status: true },
   });
   return m && m.status === "approved" ? m.skillId : null;
+}
+
+/**
+ * Từ một bài nộp Quiz / Adaptive Quiz trong lớp Meeting.
+ * Chỉ giữ những câu hỏi gắn skillId canonical tồn tại trong SKILL_SEEDS.
+ */
+export function fromMeetingQuizSubmission(
+  userId: string,
+  sessionId: string,
+  roomId: string,
+  answers: Array<{
+    questionId: string;
+    isCorrect: boolean;
+    skillId?: string | null;
+    difficulty?: string | number | null;
+  }>,
+  occurredAt: Date,
+): SkillEvidenceInput[] {
+  if (!userId || !sessionId || !roomId || !Array.isArray(answers)) return [];
+  const diffMap: Record<string, number> = { easy: 2, medium: 3, hard: 4 };
+  const sessionKey = `meeting_quiz:${sessionId}`;
+  const seenKeys = new Set<string>();
+  const rows: SkillEvidenceInput[] = [];
+
+  answers.forEach((a, idx) => {
+    const skillId = typeof a.skillId === "string" ? a.skillId.trim() : "";
+    if (!skillId || !CANONICAL_SKILL_IDS.has(skillId)) return;
+    const questionKey = String(a.questionId || `q_${idx}`).trim() || `q_${idx}`;
+    const dedup = `${skillId}:${questionKey}`;
+    if (seenKeys.has(dedup)) return;
+    seenKeys.add(dedup);
+
+    let difficultyUsed = 3;
+    if (typeof a.difficulty === "string") {
+      difficultyUsed = diffMap[a.difficulty.toLowerCase()] ?? 3;
+    } else if (typeof a.difficulty === "number" && Number.isFinite(a.difficulty)) {
+      difficultyUsed = Math.max(1, Math.min(5, Math.round(a.difficulty)));
+    }
+
+    rows.push({
+      userId,
+      skillId,
+      source: "meeting_quiz",
+      contextId: roomId,
+      questionKey,
+      sessionKey,
+      isCorrect: Boolean(a.isCorrect),
+      difficultyUsed,
+      weight: 1,
+      occurredAt,
+    });
+  });
+
+  return rows;
 }
