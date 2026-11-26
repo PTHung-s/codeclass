@@ -3,6 +3,8 @@ import { useQuery, useMutation, useQueryClient } from"@tanstack/react-query";
 import { useEffect, useRef, useState, useMemo, useCallback } from"react";
 import api from"../../lib/api";
 import { useToast } from"../../hooks/useToast";
+import { useAuthContext } from"../../contexts/AuthContext";
+import { isStaff } from"../../lib/roles";
 import DinoGame from"../../components/ui/DinoGame";
 import MatchPairs from"../../components/ui/MatchPairs";
 import PythonRunner from"../../components/ui/PythonRunner";
@@ -226,6 +228,8 @@ export default function LessonView() {
  const location = useLocation();
  const qc = useQueryClient();
  const toast = useToast();
+ const { user } = useAuthContext();
+ const staff = isStaff(user?.role);
 
  const { data: lesson, isLoading, error } = useQuery({
  queryKey: ["lesson", lessonId],
@@ -566,7 +570,7 @@ export default function LessonView() {
  {lesson.description && (
  <p className="text-muted-foreground text-sm leading-relaxed flex-1 min-w-[200px]">{lesson.description}</p>
  )}
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
  {estimatedMinutes && (
  <Badge variant="secondary" className="gap-1.5 px-2.5 py-1">
  <Clock className="w-3.5 h-3.5" />{estimatedMinutes}p
@@ -577,6 +581,20 @@ export default function LessonView() {
  </Badge>
  {scrollProgress > 0 && scrollProgress < 100 && (
  <span className="text-[11px] text-muted-foreground tabular-nums">Đã đọc {Math.round(scrollProgress)}%</span>
+ )}
+ {staff && lesson && (
+ <Button
+  variant="outline"
+  size="xs"
+  className="h-7 gap-1 text-xs"
+  onClick={() =>
+    navigate(
+      `/assignments?quickType=lesson&quickId=${encodeURIComponent(lesson.id)}&quickTitle=${encodeURIComponent(lesson.title)}`,
+    )
+  }
+ >
+  <ClipboardCheck className="w-3.5 h-3.5" /> Giao bài học
+ </Button>
  )}
  </div>
  </div>

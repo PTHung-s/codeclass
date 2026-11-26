@@ -332,6 +332,9 @@ router.post("/quizzes/:id/attempt", authenticate, async (req: Request, res: Resp
 
     if (role === "student" && passed) {
       import("../utils/badgeEngine").then(({ checkBadges }) => checkBadges(userId)).catch(() => {});
+      import("../services/assignmentService")
+        .then(({ checkAndAwardAssignmentRewards }) => checkAndAwardAssignmentRewards(userId, { quizId }))
+        .catch(() => {});
     }
     // Recalculate skill mastery after every quiz submission (fire-and-forget)
     if (role === "student") {

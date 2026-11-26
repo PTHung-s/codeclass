@@ -219,6 +219,7 @@ model Lesson {
   createdAt         DateTime         @default(now()) @map("created_at")
   updatedAt         DateTime         @updatedAt @map("updated_at")
   assignments       Assignment[]
+  assignmentItems   AssignmentItem[]
   challengeAttempts ChallengeAttempt[]
   lessonMaterials   LessonMaterial[]
   progress          LessonProgress[]
@@ -431,6 +432,7 @@ model Problem {
   aiSkillSuggest     String?             @map("ai_skill_suggest") // AI suggested skill
   skillTagStatus     String              @default("untagged") @map("skill_tag_status") // untagged | ai_pending | approved | rejected
   assignments        Assignment[]
+  assignmentItems    AssignmentItem[]
   contestProblems    ContestProblem[]
   contestSubmissions ContestSubmission[]
   hackTests          HackTest[]
@@ -489,23 +491,52 @@ model Assignment {
   deadline            DateTime?
   publishDate         DateTime?           @map("publish_date")
   maxScore            Float               @default(10) @map("max_score")
-  allowLateSubmission Boolean             @default(false) @map("allow_late_submission")
-  latePenaltyRule     String?             @map("late_penalty_rule")
-  isRequired          Boolean             @default(true) @map("is_required")
-  status              String              @default("draft")
-  createdById         String              @map("created_by")
-  createdAt           DateTime            @default(now()) @map("created_at")
-  updatedAt           DateTime            @updatedAt @map("updated_at")
-  assignedStudents    AssignmentStudent[]
-  createdBy           User                @relation(fields: [createdById], references: [id])
-  problem             Problem?            @relation(fields: [problemId], references: [id])
-  lesson              Lesson?             @relation(fields: [lessonId], references: [id])
-  module              Module?             @relation(fields: [moduleId], references: [id])
-  course              Course?             @relation(fields: [courseId], references: [id])
-  rubricCriteria      RubricCriterion[]
-  submissions         Submission[]
+  allowLateSubmission   Boolean             @default(false) @map("allow_late_submission")
+  latePenaltyRule       String?             @map("late_penalty_rule")
+  strictDeadline        Boolean             @default(false) @map("strict_deadline")
+  autoAssignNewStudents Boolean             @default(false) @map("auto_assign_new_students")
+  rewardOnTime          Boolean             @default(true) @map("reward_on_time")
+  bonusTokens           Int                 @default(0) @map("bonus_tokens")
+  bonusXp               Int                 @default(0) @map("bonus_xp")
+  reminderSentAt        DateTime?           @map("reminder_sent_at")
+  isRequired            Boolean             @default(true) @map("is_required")
+  status                String              @default("draft")
+  createdById           String              @map("created_by")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  assignedStudents      AssignmentStudent[]
+  items                 AssignmentItem[]
+  createdBy             User                @relation(fields: [createdById], references: [id])
+  problem               Problem?            @relation(fields: [problemId], references: [id])
+  lesson                Lesson?             @relation(fields: [lessonId], references: [id])
+  module                Module?             @relation(fields: [moduleId], references: [id])
+  course                Course?             @relation(fields: [courseId], references: [id])
+  rubricCriteria        RubricCriterion[]
+  submissions           Submission[]
 
   @@map("assignments")
+}
+
+model AssignmentItem {
+  id           String     @id @default(uuid())
+  assignmentId String     @map("assignment_id")
+  itemType     String     @map("item_type") // "problem" | "quiz" | "lesson"
+  problemId    String?    @map("problem_id")
+  quizId       String?    @map("quiz_id")
+  lessonId     String?    @map("lesson_id")
+  orderIndex   Int        @default(0) @map("order_index")
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  problem    Problem?   @relation(fields: [problemId], references: [id], onDelete: Cascade)
+  quiz       Quiz?      @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  lesson     Lesson?    @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([assignmentId, orderIndex])
+  @@index([problemId])
+  @@index([quizId])
+  @@index([lessonId])
+  @@map("assignment_items")
 }
 
 model RubricCriterion {
@@ -569,9 +600,10 @@ model Quiz {
   shuffle       Boolean        @default(true)
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
-  attempts      QuizAttempt[]
-  questions     QuizQuestion[]
-  lesson        Lesson         @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  attempts        QuizAttempt[]
+  questions       QuizQuestion[]
+  assignmentItems AssignmentItem[]
+  lesson          Lesson           @relation(fields: [lessonId], references: [id], onDelete: Cascade)
 
   @@map("quizzes")
 }
@@ -817,6 +849,9 @@ model AssignmentStudent {
   id           String     @id @default(uuid())
   assignmentId String     @map("assignment_id")
   studentId    String     @map("student_id")
+  createdAt    DateTime   @default(now()) @map("created_at")
+  completedAt  DateTime?  @map("completed_at")
+  rewardedAt   DateTime?  @map("rewarded_at")
   student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
   assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
 

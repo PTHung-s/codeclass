@@ -350,8 +350,13 @@ router.post("/lessons/:id/progress", authenticate, async (req: Request, res: Res
     } catch { /* xp award failed silently */ }
 
     res.json({ ...progress, tokensAwarded });
-    // Check badges in background
+    // Check badges & on-time assignment rewards in background
     import("../utils/badgeEngine").then(({ checkBadges }) => checkBadges(userId)).catch(() => {});
+    if (req.user!.role === "student") {
+      import("../services/assignmentService")
+        .then(({ checkAndAwardAssignmentRewards }) => checkAndAwardAssignmentRewards(userId, { lessonId }))
+        .catch(() => {});
+    }
   } catch {
     res.status(500).json({ error: "Failed to save progress" });
   }

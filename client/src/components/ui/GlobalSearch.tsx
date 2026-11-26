@@ -112,7 +112,7 @@ export default function GlobalSearch() {
       items.push({ key: `exam:${e.id}`, to: `/exams/${e.id}` });
     }
     for (const a of results.assignments || []) {
-      const to = !staff && a.problemId ? `/problems/${a.problemId}` : staff ? "/assignments" : "/my-assignments";
+      const to = staff ? "/assignments" : "/my-assignments";
       items.push({ key: `assign:${a.id}`, to });
     }
     for (const m of results.materials || []) {
@@ -373,7 +373,7 @@ export default function GlobalSearch() {
                 </div>
                 {results.assignments.map((a) => {
                   const idx = indexMap.get(`assign:${a.id}`) ?? -1;
-                  const to = !staff && a.problemId ? `/problems/${a.problemId}` : staff ? "/assignments" : "/my-assignments";
+                  const to = staff ? "/assignments" : "/my-assignments";
                   return (
                     <button
                       key={a.id}

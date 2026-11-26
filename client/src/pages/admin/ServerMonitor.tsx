@@ -1,5 +1,10 @@
-import { Activity, Eye, EyeOff } from"lucide-react";
+import { useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Activity, Database, Download, Eye, EyeOff, RefreshCw } from"lucide-react";
 import { cn } from"../../lib/utils";
+import api from"../../lib/api";
+import { useAuthContext } from"../../contexts/AuthContext";
+import { useToast } from"../../hooks/useToast";
 import HonourPreviewPanel from"../../components/honour/HonourPreviewPanel";
 import {
  METRICS_HISTORY,
@@ -183,6 +188,118 @@ export default function ServerMonitor() {
  {Math.round((METRICS_HISTORY * POLL_SEC) / 60)} phút gần nhất và reset khi tải lại trang.
  </p>
  </div>
+
+ <DatabaseBackupPanel />
+ </div>
+ );
+}
+
+interface BackupListResponse {
+ dbSizeBytes: number;
+ maxBackups: number;
+ backups: Array<{ filename: string; sizeBytes: number; createdAt: string }>;
+}
+
+function fmtSize(bytes: number): string {
+ if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+ if (bytes >= 1024) return `${Math.round(bytes / 1024)} KB`;
+ return `${bytes} B`;
+}
+
+function DatabaseBackupPanel() {
+ const { user } = useAuthContext();
+ const toast = useToast();
+ const queryClient = useQueryClient();
+ const [downloadingFile, setDownloadingFile] = useState<string | null>(null);
+ const isAdmin = user?.role === "admin";
+
+ const { data, isLoading } = useQuery<BackupListResponse>({
+ queryKey: ["admin-backups"],
+ queryFn: () => api.get("/admin/backups").then((r) => r.data),
+ enabled: isAdmin,
+ });
+
+ const createBackup = useMutation({
+ mutationFn: () => api.post("/admin/backups").then((r) => r.data),
+ onSuccess: (res) => {
+ queryClient.invalidateQueries({ queryKey: ["admin-backups"] });
+ toast.success({ title: "Đã sao lưu dữ liệu", message: `${res.filename} (${fmtSize(res.sizeBytes)})` });
+ },
+ onError: () => toast.error({ title: "Không tạo được bản sao lưu" }),
+ });
+
+ if (!isAdmin) return null;
+
+ const handleDownload = async (filename: string) => {
+ setDownloadingFile(filename);
+ try {
+ const res = await api.get(`/admin/backups/${encodeURIComponent(filename)}/download`, { responseType: "blob" });
+ const url = URL.createObjectURL(res.data);
+ const a = document.createElement("a");
+ a.href = url;
+ a.download = filename;
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
+ URL.revokeObjectURL(url);
+ } catch {
+ toast.error({ title: "Không tải được tệp sao lưu" });
+ } finally {
+ setDownloadingFile(null);
+ }
+ };
+
+ return (
+ <div className="rounded-xl border border-border bg-card p-4 space-y-3">
+ <div className="flex flex-wrap items-center justify-between gap-3">
+ <div>
+ <h2 className="flex items-center gap-2 text-sm font-bold text-foreground">
+ <Database className="h-4 w-4 text-primary" />
+ Sao lưu cơ sở dữ liệu (SQLite)
+ </h2>
+ <p className="mt-0.5 text-xs text-muted-foreground">
+ Tự động snapshot mỗi 24 giờ qua <code>VACUUM INTO</code> và giữ {data?.maxBackups ?? 7} bản gần nhất
+ {data ? ` · DB hiện tại ${fmtSize(data.dbSizeBytes)}` : ""}.
+ </p>
+ </div>
+ <button
+ type="button"
+ disabled={createBackup.isPending}
+ onClick={() => createBackup.mutate()}
+ className="inline-flex items-center gap-1.5 rounded-lg border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary transition-colors hover:bg-primary/15 disabled:opacity-50"
+ >
+ <RefreshCw className={cn("h-3.5 w-3.5", createBackup.isPending && "animate-spin")} />
+ {createBackup.isPending ? "Đang sao lưu..." : "Sao lưu ngay"}
+ </button>
+ </div>
+
+ {isLoading ? (
+ <p className="text-xs text-muted-foreground">Đang tải danh sách bản sao lưu...</p>
+ ) : !data?.backups.length ? (
+ <p className="text-xs text-muted-foreground">Chưa có bản sao lưu nào. Nhấn &quot;Sao lưu ngay&quot; để tạo bản đầu tiên.</p>
+ ) : (
+ <div className="divide-y divide-border rounded-lg border border-border">
+ {data.backups.map((b) => (
+ <div key={b.filename} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-xs">
+ <div className="min-w-0 flex-1">
+ <p className="truncate font-mono font-medium text-foreground">{b.filename}</p>
+ <p className="text-[11px] text-muted-foreground">
+ {new Date(b.createdAt).toLocaleString("vi-VN")} · {fmtSize(b.sizeBytes)}
+ </p>
+ </div>
+ <button
+ type="button"
+ disabled={downloadingFile === b.filename}
+ onClick={() => handleDownload(b.filename)}
+ className="inline-flex items-center gap-1 rounded-md border border-border bg-background px-2.5 py-1 text-[11px] font-medium text-foreground hover:bg-muted/60 disabled:opacity-50"
+ >
+ <Download className="h-3 w-3" />
+ {downloadingFile === b.filename ? "Đang tải..." : "Tải về"}
+ </button>
+ </div>
+ ))}
+ </div>
+ )}
  </div>
  );
 }

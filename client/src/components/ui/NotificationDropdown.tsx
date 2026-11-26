@@ -28,6 +28,8 @@ interface NotificationDropdownProps {
 const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
   assignment: ClipboardList,
   assignment_published: ClipboardList,
+  assignment_reminder: AlertTriangle,
+  assignment_reward: Award,
   new_submission: FileText,
   late_submission: AlertTriangle,
   submission_reviewed: CheckCircle2,
@@ -43,6 +45,8 @@ const typeIcons: Record<string, React.ComponentType<{ className?: string }>> = {
 const typeLabels: Record<string, string> = {
   assignment: "Bài tập",
   assignment_published: "Bài tập",
+  assignment_reminder: "Nhắc hạn",
+  assignment_reward: "Thưởng bài tập",
   new_submission: "Bài nộp",
   late_submission: "Nộp muộn",
   submission_reviewed: "Đã chấm",
@@ -101,6 +105,8 @@ export default function NotificationDropdown({ open, onClose }: NotificationDrop
       navigate(`/course/${id}`);
     } else if (entityType === "assignment" || entityType === "submission") {
       navigate(staff ? "/assignments" : "/my-assignments");
+    } else if (entityType === "checklist") {
+      navigate("/checklist");
     } else if (entityType === "exam" && id) {
       navigate(n.type === "exam_graded" && !staff ? `/exams/${id}/result` : `/exams/${id}`);
     } else if (entityType === "problem" && id) {

@@ -23,7 +23,7 @@ import { Button } from"../../components/ui/button";
 import { SkeletonProblemDetail } from"../../components/ui/skeletons/SkeletonProblemDetail";
 import { StudentName } from"../../components/ui/StudentName";
 import Editor from"@monaco-editor/react";
-import { ArrowLeft, Bug, CheckCircle2, Clock, ClipboardList, Database, Edit, FileText, Loader2, Send, ShieldCheck, Tag, Terminal, Users, XCircle } from"lucide-react";
+import { ArrowLeft, Bug, CheckCircle2, ClipboardCheck, Clock, ClipboardList, Database, Edit, FileText, Loader2, Send, ShieldCheck, Tag, Terminal, Users, XCircle } from"lucide-react";
 
 type PracticeTrackingState = {
  startedAt: number;
@@ -442,7 +442,18 @@ export default function ProblemDetail() {
  </div>
 
  {isTeacher && (
- <div className="flex items-center gap-2">
+ <div className="flex flex-wrap items-center gap-2">
+ <Button
+  variant="outline"
+  size="sm"
+  onClick={() =>
+    navigate(
+      `/assignments?quickType=problem&quickId=${encodeURIComponent(problem.id)}&quickTitle=${encodeURIComponent(problem.title)}`,
+    )
+  }
+ >
+  <ClipboardCheck className="h-3.5 w-3.5" /> Giao bài này
+ </Button>
  <Button variant="outline" size="sm" onClick={() => navigate(`/problems/${problemId}/edit`)}>
  <Edit className="h-3.5 w-3.5" /> Chỉnh sửa
  </Button>

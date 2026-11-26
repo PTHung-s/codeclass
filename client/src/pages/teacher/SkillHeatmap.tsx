@@ -5,8 +5,9 @@ import type { HeatmapResponse } from "../../lib/api";
 import { cn } from "../../lib/utils";
 import { Card, CardContent } from "../../components/ui/card";
 import { Badge } from "../../components/ui/badge";
-import { Users, AlertTriangle, TrendingDown } from "lucide-react";
+import { Users, AlertTriangle, TrendingDown, Target } from "lucide-react";
 import { StudentName } from "../../components/ui/StudentName";
+import { Button } from "../../components/ui/button";
 
 const MASTERY_COLOR = (val: number) => {
   const pct = Math.round(val * 100);
@@ -99,9 +100,18 @@ export default function SkillHeatmap() {
               <tr className="border-b bg-muted/50">
                 <th className="sticky left-0 z-10 bg-muted/50 px-3 py-2 text-left font-bold">Học sinh</th>
                 {visibleSkills.map((s) => (
-                  <th key={s.skillId} className="px-2 py-2 text-center font-medium whitespace-nowrap" title={s.name}>
-                    <div>{s.topicName}</div>
-                    <div className="text-[10px] text-muted-foreground">{s.name.slice(0, 20)}</div>
+                  <th key={s.skillId} className="px-2 py-2 text-center font-medium whitespace-nowrap" title={`${s.name} — bấm để giao bài khắc phục`}>
+                    <button
+                      type="button"
+                      onClick={() => navigate(`/assignments?remedialSkill=${encodeURIComponent(s.skillId)}`)}
+                      className="group inline-flex flex-col items-center hover:text-primary transition-colors"
+                    >
+                      <span>{s.topicName}</span>
+                      <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground group-hover:text-primary">
+                        {s.name.slice(0, 20)}
+                        <Target className="size-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                      </span>
+                    </button>
                   </th>
                 ))}
               </tr>
@@ -110,12 +120,22 @@ export default function SkillHeatmap() {
               {data.students.map((student) => (
                 <tr key={student.userId} className="border-b hover:bg-muted/30">
                   <td className="sticky left-0 z-10 bg-card px-3 py-2">
-                    <button
-                      className="font-medium text-left hover:text-blue-600 transition-colors"
-                      onClick={() => navigate(`/students/${student.userId}`)}
-                    >
-                      <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-xs font-medium" />
-                    </button>
+                    <div className="flex items-center justify-between gap-2">
+                      <button
+                        className="font-medium text-left hover:text-blue-600 transition-colors"
+                        onClick={() => navigate(`/students/${student.userId}`)}
+                      >
+                        <StudentName fullName={student.fullName} nickname={student.nickname} primaryClassName="text-xs font-medium" />
+                      </button>
+                      <button
+                        type="button"
+                        title="Giao bài khắc phục riêng cho học sinh này"
+                        onClick={() => navigate(`/assignments?remedialStudent=${encodeURIComponent(student.userId)}`)}
+                        className="rounded p-1 text-muted-foreground/60 hover:bg-primary/10 hover:text-primary transition-colors"
+                      >
+                        <Target className="size-3.5" />
+                      </button>
+                    </div>
                   </td>
                   {visibleSkills.map((s) => {
                     const state = student.skills[s.skillId];
@@ -196,7 +216,7 @@ export default function SkillHeatmap() {
               Cụm học sinh đang kẹt ({data.stuckClusters.length})
             </h2>
             {data.stuckClusters.map((c) => (
-              <div key={c.skillId} className="flex items-center gap-3 rounded-lg border border-border p-3 text-xs">
+              <div key={c.skillId} className="flex flex-wrap items-center gap-3 rounded-lg border border-border p-3 text-xs">
                 <TrendingDown className="h-4 w-4 text-red-500 shrink-0" />
                 <div className="min-w-0 flex-1">
                   <p className="font-medium">{c.skillName}</p>
@@ -205,6 +225,14 @@ export default function SkillHeatmap() {
                   </p>
                 </div>
                 <Badge variant="destructive" className="text-[10px]">{c.count} người</Badge>
+                <Button
+                  size="xs"
+                  variant="outline"
+                  className="h-7 gap-1 text-[11px]"
+                  onClick={() => navigate(`/assignments?remedialSkill=${encodeURIComponent(c.skillId)}`)}
+                >
+                  <Target className="size-3" /> Giao bài khắc phục
+                </Button>
               </div>
             ))}
           </CardContent>

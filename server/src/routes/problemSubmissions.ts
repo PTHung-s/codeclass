@@ -260,9 +260,12 @@ router.get("/problems/:problemId/assigned-students", authenticate, async (req: R
       return;
     }
 
-    // Find assignments that link to this problem
+    // Find assignments that link to this problem (legacy problemId or multi-item AssignmentItem)
     const assignments = await prisma.assignment.findMany({
-      where: { problemId, status: "published" },
+      where: {
+        status: "published",
+        OR: [{ problemId }, { items: { some: { problemId } } }],
+      },
       include: {
         course: { select: { id: true, title: true } },
         assignedStudents: {
@@ -659,6 +662,9 @@ async function runJudgeInBackground(params: {
         .update({ where: { id: submissionId }, data: { tokensAwarded, xpAwarded } })
         .catch(() => {});
       import("../utils/badgeEngine").then(({ checkBadges }) => checkBadges(studentId)).catch(() => {});
+      import("../services/assignmentService")
+        .then(({ checkAndAwardAssignmentRewards }) => checkAndAwardAssignmentRewards(studentId, { problemId }))
+        .catch(() => {});
       import("../services/skillMastery")
         .then(({ queueMasteryRecalculation }) => queueMasteryRecalculation(studentId))
         .catch((err) => console.error("Mastery recalc error:", err));

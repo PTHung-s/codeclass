@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Link, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../../lib/api";
-import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck } from "lucide-react";
+import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck, FileText, Target, ListChecks, Lock } from "lucide-react";
 import { SkeletonCard } from "../../components/ui/skeletons";
 import { DifficultyBadge } from "../../components/ui/Badges";
 import { useAuthContext } from "../../contexts/AuthContext";
@@ -10,6 +10,7 @@ import { Button } from "../../components/ui/button";
 import { Input } from "../../components/ui/input";
 import { Card, CardContent } from "../../components/ui/card";
 import { Avatar } from "../../components/ui/avatar";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../../components/ui/dialog";
 import { RadarChart, groupSkillsByTopic, topicsForLanguage, skillsForLanguage, type SkillLanguage } from "../../components/skills/RadarChart";
 import type { SkillState, TopicGroup } from "../../lib/api";
 import { useToast } from "../../hooks/useToast";
@@ -41,12 +42,14 @@ interface PracticeAnalytics {
 
 export default function StudentProfile() {
   const { studentId } = useParams();
+  const navigate = useNavigate();
   const { user } = useAuthContext();
   const toast = useToast();
   const confirm = useConfirmContext();
   const isStaff = user?.role === "teacher" || user?.role === "teaching_assistant" || user?.role === "admin";
   const isAdmin = user?.role === "admin";
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
+  const [reportOpen, setReportOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["student", studentId],
@@ -109,6 +112,28 @@ export default function StudentProfile() {
     enabled: !!studentId && !!data,
     staleTime: 60 * 1000,
   });
+
+  const assignmentsQ = useQuery<{
+    summary: { total: number; passed: number; attempting: number; notStarted: number; late: number; overdue: number; locked: number; completionRate: number };
+    assignments: Array<{
+      id: string;
+      title: string;
+      deadline: string | null;
+      course: { id: string; title: string } | null;
+      status: "not_started" | "attempting" | "passed";
+      completedItems: number;
+      totalItems: number;
+      attempts: number;
+      isLate: boolean;
+      overdue: boolean;
+      locked: boolean;
+    }>;
+  }>({
+    queryKey: ["student-assignments", studentId],
+    queryFn: () => api.get(`/students/${studentId}/assignments`).then((r) => r.data),
+    enabled: !!studentId && !!data,
+    staleTime: 60 * 1000,
+  });
   const attStats = attQ.data?.stats;
 
   const resetPassword = useMutation({
@@ -152,14 +177,30 @@ export default function StudentProfile() {
             <p className="text-sm text-muted-foreground">{student?.email}</p>
             {student?.bio && <p className="text-sm text-muted-foreground mt-2 dark:text-muted-foreground">{student.bio}</p>}
           </div>
-          {student?.lastLoginAt && (
-            <div className="text-right text-xs text-muted-foreground">
-              <p>Đăng nhập lần cuối</p>
-              <p className="font-semibold text-muted-foreground">{new Date(student.lastLoginAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
-            </div>
-          )}
+          <div className="flex flex-col items-end gap-2">
+            {student?.lastLoginAt && (
+              <div className="text-right text-xs text-muted-foreground">
+                <p>Đăng nhập lần cuối</p>
+                <p className="font-semibold text-muted-foreground">{new Date(student.lastLoginAt).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" })}</p>
+              </div>
+            )}
+            {isStaff && studentId && (
+              <div className="flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}>
+                  <FileText className="mr-1.5 h-3.5 w-3.5" /> Báo cáo tuần (Zalo)
+                </Button>
+                <Button size="sm" variant="default" onClick={() => navigate(`/assignments?remedialStudent=${encodeURIComponent(studentId)}`)}>
+                  <Target className="mr-1.5 h-3.5 w-3.5" /> Giao bài khắc phục
+                </Button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {isStaff && studentId && (
+        <WeeklyReportDialog open={reportOpen} studentId={studentId} onClose={() => setReportOpen(false)} />
+      )}
 
       {isAdmin && (
         <div className="rounded-xl border border-amber-500/25 bg-amber-500/10 p-5 dark:border-amber-900 dark:bg-amber-950/20">
@@ -467,6 +508,85 @@ export default function StudentProfile() {
           )}
         </div>
       </div>
+
+      {/* Bài tập được giao */}
+      {assignmentsQ.data && (
+        <div className="rounded-xl border border-border bg-card p-5 dark:bg-card dark:border-border">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h2 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+              <ListChecks className="h-4 w-4 text-primary" />
+              Bài tập được giao ({assignmentsQ.data.summary.passed}/{assignmentsQ.data.summary.total})
+            </h2>
+            {assignmentsQ.data.summary.total > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                <span className="rounded-full bg-emerald-500/15 px-2 py-0.5 font-medium text-emerald-700 dark:text-emerald-400">
+                  Hoàn thành {assignmentsQ.data.summary.completionRate}%
+                </span>
+                {assignmentsQ.data.summary.overdue > 0 && (
+                  <span className="rounded-full bg-destructive/15 px-2 py-0.5 font-medium text-destructive">
+                    {assignmentsQ.data.summary.overdue} quá hạn
+                  </span>
+                )}
+                {assignmentsQ.data.summary.late > 0 && (
+                  <span className="rounded-full bg-amber-500/15 px-2 py-0.5 font-medium text-amber-700 dark:text-amber-300">
+                    {assignmentsQ.data.summary.late} nộp muộn
+                  </span>
+                )}
+              </div>
+            )}
+          </div>
+          {!assignmentsQ.data.assignments.length ? (
+            <p className="text-sm text-muted-foreground">Chưa có bài tập nào được giao.</p>
+          ) : (
+            <div className="divide-y divide-border">
+              {assignmentsQ.data.assignments.map((asg) => (
+                <Link
+                  key={asg.id}
+                  to={isStaff ? "/assignments" : "/my-assignments"}
+                  className="flex flex-wrap items-center justify-between gap-2 py-2.5 text-sm transition-colors hover:bg-muted/40 rounded-lg px-2 -mx-2"
+                >
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium text-foreground">{asg.title}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {asg.course?.title ? `${asg.course.title} · ` : ""}
+                      {asg.totalItems > 1 ? `${asg.completedItems}/${asg.totalItems} mục · ` : ""}
+                      {asg.deadline
+                        ? `Hạn: ${new Date(asg.deadline).toLocaleDateString("vi-VN", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}`
+                        : "Không có hạn"}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    {asg.locked && (
+                      <span className="inline-flex items-center gap-0.5 rounded-full bg-destructive/10 px-2 py-0.5 text-[10px] font-medium text-destructive">
+                        <Lock className="h-2.5 w-2.5" /> Khóa hạn
+                      </span>
+                    )}
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-[11px] font-medium ${
+                        asg.status === "passed"
+                          ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-400"
+                          : asg.overdue
+                            ? "bg-destructive/15 text-destructive"
+                            : asg.status === "attempting"
+                              ? "bg-amber-500/15 text-amber-700 dark:text-amber-300"
+                              : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {asg.status === "passed"
+                        ? `Đã đạt${asg.isLate ? " (muộn)" : ""}`
+                        : asg.overdue
+                          ? "Quá hạn"
+                          : asg.status === "attempting"
+                            ? "Đang làm"
+                            : "Chưa làm"}
+                    </span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Lịch sử phòng thi */}
       {(examsQ.data?.length ?? 0) > 0 && (
@@ -1167,5 +1287,89 @@ function WeaknessTagSection({ studentId, fullName }: { studentId: string; fullNa
 
       {tagsQ.isLoading && <div className="animate-pulse h-8 bg-muted rounded" />}
     </div>
+  );
+}
+
+function WeeklyReportDialog({
+  open,
+  studentId,
+  onClose,
+}: {
+  open: boolean;
+  studentId: string;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const [days, setDays] = useState<7 | 14 | 30>(7);
+  const [draft, setDraft] = useState("");
+
+  const reportQ = useQuery<{ reportText: string; days: number }>({
+    queryKey: ["student-weekly-report", studentId, days],
+    queryFn: () => api.get(`/students/${studentId}/weekly-report`, { params: { days } }).then((r) => r.data),
+    enabled: open && !!studentId,
+  });
+
+  useEffect(() => {
+    if (reportQ.data?.reportText !== undefined) {
+      setDraft(reportQ.data.reportText);
+    }
+  }, [reportQ.data?.reportText]);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(draft);
+      toast.success({ title: "Đã sao chép báo cáo", message: "Bạn có thể dán thẳng vào Zalo cho phụ huynh." });
+    } catch {
+      toast.error({ title: "Không thể sao chép tự động" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-xl">
+        <DialogHeader>
+          <DialogTitle>Báo cáo học tập gửi phụ huynh (Zalo)</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="inline-flex items-center gap-1 rounded-lg border border-border bg-muted/40 p-0.5">
+              {([7, 14, 30] as const).map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => setDays(d)}
+                  className={`rounded-md px-2.5 py-1 text-xs font-medium transition-colors ${
+                    days === d ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {d} ngày qua
+                </button>
+              ))}
+            </div>
+            <span className="text-[11px] text-muted-foreground">Có thể chỉnh sửa nội dung trước khi gửi</span>
+          </div>
+
+          {reportQ.isFetching && !draft ? (
+            <div className="h-56 animate-pulse rounded-lg bg-muted" />
+          ) : (
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              rows={11}
+              className="w-full rounded-lg border border-input bg-background p-3 text-xs leading-relaxed text-foreground focus:border-primary focus:outline-none"
+            />
+          )}
+
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Đóng
+            </Button>
+            <Button type="button" onClick={handleCopy} disabled={!draft.trim()}>
+              <Copy className="mr-1.5 h-3.5 w-3.5" /> Sao chép gửi Zalo
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }

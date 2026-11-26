@@ -2,6 +2,7 @@ import { Router, Request, Response } from "express";
 import prisma from "../utils/prisma";
 import { authenticate } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
+import { notifyNotificationChanged } from "../services/notificationEvents";
 
 const router = Router();
 router.use(authenticate);
@@ -30,6 +31,17 @@ router.post("/", requireRole("admin", "teacher", "teaching_assistant"), async (r
     const students = await prisma.user.count({ where: { id: { in: studentIds }, role: "student", status: "active" } });
     if (students !== studentIds.length) return res.status(400).json({ error: "Danh sách học sinh không hợp lệ" });
     const assignment = await prisma.checklistAssignment.create({ data: { title, description: req.body.description?.trim() || null, createdById: req.user!.userId, items: { create: items.map((text: string, orderIndex: number) => ({ text, orderIndex })) }, students: { create: studentIds.map((studentId: string) => ({ studentId })) } }, include: { items: true, students: { include: { student: { select: { id: true, fullName: true, nickname: true } } } } } });
+    await prisma.notification.createMany({
+      data: studentIds.map((uid) => ({
+        userId: uid,
+        title: "Checklist mới",
+        message: `Bạn được giao checklist "${title}" (${items.length} mục). Vào mục "Checklist" để theo dõi.`,
+        type: "assignment",
+        relatedEntityType: "checklist",
+        relatedEntityId: assignment.id,
+      })),
+    }).catch(() => {});
+    for (const uid of studentIds) notifyNotificationChanged(uid);
     res.status(201).json(assignment);
   } catch { res.status(500).json({ error: "Failed to create checklist assignment" }); }
 });

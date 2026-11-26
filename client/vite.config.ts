@@ -16,12 +16,20 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id: string) {
-          if (!id.includes("node_modules")) return;
+          if (id.includes("vite/preload-helper") || id.includes("commonjsHelpers")) return "vendor-react";
+          if (id.startsWith("\0") || !id.includes("node_modules")) return;
           if (id.includes("framer-motion")) return "vendor-motion";
           if (id.includes("lucide-react")) return "vendor-icons";
           if (id.includes("@tanstack") || id.includes("axios") || id.includes("centrifuge")) return "vendor-data";
           if (id.includes("@monaco-editor") || id.includes("monaco-editor")) return "vendor-monaco";
           if (id.includes("katex")) return "vendor-katex";
+          if (
+            id.includes("react-syntax-highlighter") ||
+            id.includes("refractor") ||
+            id.includes("prismjs")
+          ) {
+            return "vendor-syntax";
+          }
           if (
             id.includes("react-markdown") ||
             id.includes("remark-") ||
@@ -29,10 +37,7 @@ export default defineConfig({
             id.includes("unified") ||
             id.includes("micromark") ||
             id.includes("mdast") ||
-            id.includes("hast") ||
-            id.includes("react-syntax-highlighter") ||
-            id.includes("refractor") ||
-            id.includes("prismjs")
+            id.includes("hast")
           ) {
             return "vendor-markdown";
           }

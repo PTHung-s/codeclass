@@ -113,8 +113,13 @@ function StudentDashboard() {
     title: string;
     problemId: string;
     problemTitle: string;
+    subtitle?: string;
+    itemCount?: number;
+    completedItems?: number;
+    linkPath?: string;
     difficulty: string;
     deadline: string | null;
+    strictDeadline?: boolean;
   }> = dashQ.data?.pendingAssignments || [];
   const activeExams: Array<{
     id: string;
@@ -260,16 +265,20 @@ function StudentDashboard() {
                   ))}
                   {pendingAssignments.slice(0, 4).map((asg) => {
                     const isOverdue = asg.deadline ? new Date(asg.deadline).getTime() < Date.now() : false;
+                    const target = asg.linkPath || (asg.problemId ? `/problems/${asg.problemId}` : "/my-assignments");
                     return (
                       <Link
                         key={`asg-${asg.id}`}
-                        to={`/problems/${asg.problemId}`}
+                        to={target}
                         className="flex items-center gap-2 rounded-lg border border-border bg-background/70 px-2.5 py-1.5 text-xs transition-colors hover:bg-muted/70"
                       >
                         <ListChecks className="size-3.5 shrink-0 text-primary" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate font-medium text-foreground">{asg.title}</p>
-                          <p className="truncate text-[10px] text-muted-foreground">{asg.problemTitle}</p>
+                          <p className="truncate text-[10px] text-muted-foreground">
+                            {asg.subtitle || asg.problemTitle}
+                            {asg.itemCount && asg.itemCount > 1 ? ` · ${asg.completedItems ?? 0}/${asg.itemCount}` : ""}
+                          </p>
                         </div>
                         {asg.deadline ? (
                           <span

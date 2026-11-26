@@ -307,7 +307,21 @@ expireExpiredAttendanceSessions().catch(() => {});
 
 // Retry object-store deletes left behind by transient R2/network failures.
 runStorageCleanup();
-setInterval(() => { void runStorageCleanup(); }, 5 * 60_000);
+setInterval(() => { void runStorageCleanup(); }, 5 * 60_000).unref();
+
+// Assignment 24h pre-deadline reminder sweep (every 15 minutes + 30s after startup).
+import("./services/assignmentService")
+  .then(({ sendDueSoonAssignmentReminders }) => {
+    const t = setTimeout(() => { void sendDueSoonAssignmentReminders().catch(() => {}); }, 30_000);
+    t.unref();
+    setInterval(() => { void sendDueSoonAssignmentReminders().catch(() => {}); }, 15 * 60_000).unref();
+  })
+  .catch(() => {});
+
+// Rotating daily SQLite VACUUM INTO backups (keeps last 7 backups).
+import("./services/dbBackupService")
+  .then(({ scheduleDailyDatabaseBackups }) => scheduleDailyDatabaseBackups())
+  .catch(() => {});
 
 server.listen(PORT, () => {
   console.log(`CodeClass API running on http://localhost:${PORT}`);

@@ -69,6 +69,10 @@ router.post("/register", async (req: Request, res: Response) => {
 
     const token = generateToken({ userId: user.id, email: user.email, role: user.role });
 
+    import("../services/assignmentService")
+      .then(({ syncAutoAssignmentsForStudent }) => syncAutoAssignmentsForStudent(user.id))
+      .catch(() => {});
+
     res.status(201).json({ user, token });
   } catch (err) {
     res.status(500).json({ error: "Registration failed" });

@@ -105,7 +105,7 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
         ? prisma.assignment.findMany({
             where: {
               status: "published",
-              submissionType: "problem",
+              submissionType: { in: ["problem", "quiz", "lesson", "mixed"] },
               assignedStudents: { some: { studentId: userId } },
               title: { contains: search },
             },
@@ -116,7 +116,7 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
         : prisma.assignment.findMany({
             where: {
               status: { not: "archived" },
-              submissionType: "problem",
+              submissionType: { in: ["problem", "quiz", "lesson", "mixed"] },
               title: { contains: search },
             },
             select: { id: true, title: true, problemId: true, deadline: true },

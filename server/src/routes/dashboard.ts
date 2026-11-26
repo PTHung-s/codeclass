@@ -2,6 +2,13 @@ import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
 import prisma from "../utils/prisma";
 import { vnStartOfWeek } from "../utils/vnTime";
+import {
+  ACTIVE_SUBMISSION_TYPES,
+  assignmentItemInclude,
+  evaluateAssignmentsForStudents,
+  normalizeAssignmentItems,
+  summarizeItemsText,
+} from "../services/assignmentService";
 
 const router = Router();
 
@@ -290,17 +297,11 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
         prisma.assignmentStudent.findMany({
           where: {
             studentId: userId,
-            assignment: { status: "published", submissionType: "problem", problemId: { not: null } },
+            assignment: { status: "published", submissionType: { in: [...ACTIVE_SUBMISSION_TYPES] } },
           },
           include: {
             assignment: {
-              select: {
-                id: true,
-                title: true,
-                deadline: true,
-                problemId: true,
-                problem: { select: { id: true, title: true, difficulty: true } },
-              },
+              include: assignmentItemInclude,
             },
           },
         }),
@@ -320,28 +321,33 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
         }),
       ]);
 
-      const assignedProblemIds = [...new Set(assignedRows.map((r) => r.assignment.problemId).filter((id): id is string => !!id))];
-      const passedProblemIds = assignedProblemIds.length
-        ? new Set(
-            (
-              await prisma.problemSubmission.findMany({
-                where: { studentId: userId, passed: true, problemId: { in: assignedProblemIds } },
-                select: { problemId: true },
-              })
-            ).map((s) => s.problemId),
-          )
-        : new Set<string>();
+      const assignedModels = assignedRows.map((r) => r.assignment);
+      const progressMap = await evaluateAssignmentsForStudents(assignedModels, [userId]);
 
       const pendingAssignments = assignedRows
-        .filter((r) => r.assignment.problemId && !passedProblemIds.has(r.assignment.problemId))
-        .map((r) => ({
-          id: r.assignment.id,
-          title: r.assignment.title,
-          problemId: r.assignment.problemId!,
-          problemTitle: r.assignment.problem?.title || r.assignment.title,
-          difficulty: r.assignment.problem?.difficulty || "medium",
-          deadline: r.assignment.deadline,
-        }))
+        .map((r) => {
+          const a = r.assignment;
+          const prog = progressMap.get(`${a.id}:${userId}`);
+          if (!prog || prog.status === "passed") return null;
+          const items = prog.items.length ? prog.items : normalizeAssignmentItems(a);
+          const nextPendingItem = prog.items.find((it) => !it.passed) ?? items[0];
+          const linkPath = items.length === 1 && nextPendingItem ? nextPendingItem.linkPath : "/my-assignments";
+          const subtitle = summarizeItemsText(items) || a.problem?.title || a.title;
+          return {
+            id: a.id,
+            title: a.title,
+            problemId: a.problemId ?? nextPendingItem?.problemId ?? "",
+            problemTitle: subtitle,
+            subtitle,
+            itemCount: items.length,
+            completedItems: prog.completedItems,
+            linkPath,
+            difficulty: a.problem?.difficulty || nextPendingItem?.difficulty || "medium",
+            deadline: a.deadline,
+            strictDeadline: a.strictDeadline,
+          };
+        })
+        .filter((x): x is NonNullable<typeof x> => !!x)
         .sort((a, b) => {
           if (a.deadline && b.deadline) return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
           if (a.deadline) return -1;

@@ -9,6 +9,8 @@ const testFiles = [
   "src/utils/__tests__/skillGraph.test.ts",
   "src/services/__tests__/skillMastery.test.ts",
   "src/services/__tests__/crossFeatureLogic.test.ts",
+  "src/services/__tests__/assignmentService.test.ts",
+  "src/services/__tests__/dbBackupAndReport.test.ts",
 ];
 
 let failedSuites = 0;

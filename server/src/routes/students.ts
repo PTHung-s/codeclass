@@ -7,6 +7,12 @@ import { redactAnswerKey } from "../utils/quizReview";
 import { safeOptionOrder, toDisplayFrame } from "../utils/quizOptionOrder";
 import { hashPassword } from "../utils/jwt";
 import crypto from "crypto";
+import {
+  ACTIVE_SUBMISSION_TYPES,
+  assignmentItemInclude,
+  evaluateAssignmentsForStudents,
+} from "../services/assignmentService";
+import { buildStudentWeeklyReport } from "../services/weeklyReportService";
 
 const router = Router();
 
@@ -513,5 +519,112 @@ router.get("/students/:studentId/exams", authenticate, async (req: Request, res:
     res.status(500).json({ error: "Failed to fetch student exams" });
   }
 });
+
+/* ── GET /students/:studentId/assignments ── */
+router.get("/students/:studentId/assignments", authenticate, async (req: Request, res: Response) => {
+  try {
+    const studentId = param(req, "studentId");
+    const { userId, role } = req.user!;
+    if (!(await canViewStudentProfile(userId, role, studentId))) {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    const links = await prisma.assignmentStudent.findMany({
+      where: {
+        studentId,
+        assignment: { status: "published", submissionType: { in: [...ACTIVE_SUBMISSION_TYPES] } },
+      },
+      include: {
+        assignment: {
+          include: {
+            ...assignmentItemInclude,
+            course: { select: { id: true, title: true } },
+          },
+        },
+      },
+    });
+
+    const assignments = links.map((l) => l.assignment);
+    const now = new Date();
+    const progressMap = await evaluateAssignmentsForStudents(assignments, [studentId], now);
+
+    const rows = links.map((l) => {
+      const a = l.assignment;
+      const prog = progressMap.get(`${a.id}:${studentId}`);
+      return {
+        id: a.id,
+        title: a.title,
+        deadline: a.deadline,
+        strictDeadline: a.strictDeadline,
+        course: a.course,
+        status: prog?.status ?? "not_started",
+        completedItems: prog?.completedItems ?? 0,
+        totalItems: prog?.totalItems ?? (prog?.items.length || 0),
+        attempts: prog?.attempts ?? 0,
+        isLate: prog?.isLate ?? false,
+        overdue: prog?.overdue ?? false,
+        locked: prog?.locked ?? false,
+        completedAt: prog?.completedAt ?? l.completedAt ?? null,
+        rewardedAt: l.rewardedAt,
+      };
+    });
+
+    const rank = (r: (typeof rows)[number]) => (r.status === "passed" ? 2 : r.overdue ? 0 : 1);
+    rows.sort((x, y) => {
+      if (rank(x) !== rank(y)) return rank(x) - rank(y);
+      const dx = x.deadline ? new Date(x.deadline).getTime() : Infinity;
+      const dy = y.deadline ? new Date(y.deadline).getTime() : Infinity;
+      return dx - dy;
+    });
+
+    const total = rows.length;
+    const passed = rows.filter((r) => r.status === "passed").length;
+    const attempting = rows.filter((r) => r.status === "attempting").length;
+    const notStarted = total - passed - attempting;
+    const late = rows.filter((r) => r.isLate && r.status !== "not_started").length;
+    const overdue = rows.filter((r) => r.overdue).length;
+    const locked = rows.filter((r) => r.locked).length;
+
+    res.json({
+      summary: {
+        total,
+        passed,
+        attempting,
+        notStarted,
+        late,
+        overdue,
+        locked,
+        completionRate: total > 0 ? Math.round((passed / total) * 100) : 0,
+      },
+      assignments: rows,
+    });
+  } catch (err) {
+    console.error("student assignments error:", err);
+    res.status(500).json({ error: "Failed to fetch student assignments" });
+  }
+});
+
+/* ── GET /students/:studentId/weekly-report ── */
+router.get(
+  "/students/:studentId/weekly-report",
+  authenticate,
+  requireRole("admin", "teacher", "teaching_assistant"),
+  async (req: Request, res: Response) => {
+    try {
+      const studentId = param(req, "studentId");
+      const days = Math.min(30, Math.max(1, Number(req.query.days) || 7));
+      const report = await buildStudentWeeklyReport(studentId, days);
+      if (!report) {
+        res.status(404).json({ error: "Không tìm thấy học viên" });
+        return;
+      }
+      res.json(report);
+    } catch (err) {
+      console.error("weekly report error:", err);
+      res.status(500).json({ error: "Không tạo được báo cáo tuần" });
+    }
+  },
+);
 
 export default router;
