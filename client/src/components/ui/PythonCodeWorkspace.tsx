@@ -3,6 +3,8 @@ import Editor from "@monaco-editor/react";
 import { CheckCircle2, Code2, Loader2, Play, RotateCcw, Send, Terminal, XCircle } from "lucide-react";
 import { CodeRunResult, runCode, SupportedLanguage, CPP_STARTER } from "../../lib/codeRunner";
 import { useDarkMode } from "../../hooks/useDarkMode";
+import { clearLiveEditor, publishLiveEditor } from "../../lib/liveEditorBridge";
+import { reportRecordingRun } from "../../hooks/useSessionRecorder";
 
 interface PythonCodeWorkspaceProps {
   code: string;
@@ -22,6 +24,7 @@ interface PythonCodeWorkspaceProps {
   autosaveLabel?: string;
   showSubmit?: boolean;
   height?: number | string;
+  liveLabel?: string;
 }
 
 function normalizeText(value: string) {
@@ -64,6 +67,7 @@ export default function PythonCodeWorkspace({
   autosaveLabel = "Tự lưu",
   showSubmit = true,
   height = 420,
+  liveLabel,
 }: PythonCodeWorkspaceProps) {
   const { dark } = useDarkMode();
   const [internalLanguage, setInternalLanguage] = useState<SupportedLanguage>("python");
@@ -73,6 +77,21 @@ export default function PythonCodeWorkspace({
   const [stdin, setStdin] = useState(sampleInput || "");
   const [runResult, setRunResult] = useState<CodeRunResult | null>(null);
   const [running, setRunning] = useState(false);
+
+  useEffect(() => {
+    if (code.trim().length > 0) {
+      publishLiveEditor({
+        code,
+        language,
+        label: liveLabel || "Bài tập lập trình",
+        source: "workspace",
+      });
+    }
+  }, [code, language, liveLabel]);
+
+  useEffect(() => {
+    return () => clearLiveEditor("workspace");
+  }, []);
 
   const canRun = code.trim().length > 0;
   const samplePassed = runResult?.status === "success" && sampleOutput !== undefined
@@ -85,6 +104,14 @@ export default function PythonCodeWorkspace({
     const result = await runCode(language, code, input);
     setRunResult(result);
     setRunning(false);
+    const hasSample = typeof sampleOutput === "string" && sampleOutput.trim().length > 0;
+    const passed =
+      result.status === "success"
+        ? hasSample
+          ? normalizeText(result.stdout) === normalizeText(sampleOutput)
+          : null
+        : false;
+    reportRecordingRun(liveLabel || "Chạy thử bài tập", passed, code);
   };
 
   const handleRunRef = useRef(handleRun);

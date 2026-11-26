@@ -4,6 +4,7 @@ import { requireRole } from "../middleware/rbac";
 import prisma from "../utils/prisma";
 import { param } from "../utils/routeHelpers";
 import { getActiveRecording } from "../services/recordingService";
+import { getLiveRecordingCells, getPresenceSnapshot } from "../services/gameWebSocket";
 
 const router = Router();
 
@@ -13,11 +14,11 @@ const router = Router();
 // mounted after it, rejecting students with 403 on unrelated endpoints.
 router.use("/recordings", authenticate, requireRole("admin", "teacher", "teaching_assistant"));
 
-/** GET /api/recordings — session list, newest day first. */
+/** GET /api/recordings — session list, newest first (supports multiple sessions/day). */
 router.get("/recordings", async (_req: Request, res: Response) => {
   try {
     const sessions = await prisma.recordingSession.findMany({
-      orderBy: { sessionDate: "desc" },
+      orderBy: [{ startedAt: "desc" }],
       select: {
         id: true,
         title: true,
@@ -47,12 +48,22 @@ router.get("/recordings", async (_req: Request, res: Response) => {
   }
 });
 
-/** GET /api/recordings/active — the in-memory live session, if any. */
+/** GET /api/recordings/presence — current online students + live code snapshot (staff only). */
+router.get("/recordings/presence", async (_req: Request, res: Response) => {
+  try {
+    res.json({ students: getPresenceSnapshot() });
+  } catch (err) {
+    console.error("recording presence error:", err);
+    res.status(500).json({ error: "Failed to load online students" });
+  }
+});
+
+/** GET /api/recordings/active — the in-memory live session + latest code cells, if any. */
 router.get("/recordings/active", async (_req: Request, res: Response) => {
   try {
     const live = getActiveRecording();
     if (!live) {
-      res.json({ active: null });
+      res.json({ active: null, liveCells: [] });
       return;
     }
     const session = await prisma.recordingSession.findUnique({
@@ -67,6 +78,7 @@ router.get("/recordings/active", async (_req: Request, res: Response) => {
           select: {
             id: true,
             userId: true,
+            joinedAt: true,
             addedManually: true,
             tabOutCount: true,
             runCount: true,
@@ -75,7 +87,49 @@ router.get("/recordings/active", async (_req: Request, res: Response) => {
         },
       },
     });
-    res.json({ active: session ? { ...session, startedAtMs: live.startedAt } : null });
+    if (!session) {
+      res.json({ active: null, liveCells: [] });
+      return;
+    }
+
+    // Hydrate LiveGrid immediately after F5/tab switch using in-memory live cells,
+    // falling back to latest DB code event per participant if memory cell is missing.
+    const liveCells = getLiveRecordingCells();
+    const cellByUser = new Map(liveCells.map((c: any) => [c.userId, c]));
+    const missingParticipants = session.participants.filter((p) => !cellByUser.has(p.userId));
+    if (missingParticipants.length > 0) {
+      const latestEvents = await prisma.recordingEvent.findMany({
+        where: {
+          participantId: { in: missingParticipants.map((p) => p.id) },
+          type: { in: ["code_snapshot", "run"] },
+          code: { not: null },
+        },
+        orderBy: { at: "desc" },
+        select: { participantId: true, code: true, label: true, type: true, at: true },
+      });
+      const userByParticipant = new Map(missingParticipants.map((p) => [p.id, p]));
+      const seenPids = new Set<string>();
+      for (const ev of latestEvents) {
+        if (seenPids.has(ev.participantId)) continue;
+        seenPids.add(ev.participantId);
+        const part = userByParticipant.get(ev.participantId);
+        if (!part) continue;
+        cellByUser.set(part.userId, {
+          userId: part.userId,
+          code: ev.code,
+          label: ev.label,
+          tabOutCount: part.tabOutCount,
+          runCount: part.runCount,
+          lastEventAt: ev.at.getTime(),
+          lastEventType: ev.type,
+        });
+      }
+    }
+
+    res.json({
+      active: { ...session, startedAtMs: live.startedAt },
+      liveCells: [...cellByUser.values()],
+    });
   } catch (err) {
     console.error("recording active error:", err);
     res.status(500).json({ error: "Failed to load active recording" });

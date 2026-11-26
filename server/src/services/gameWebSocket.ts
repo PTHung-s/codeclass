@@ -17,6 +17,7 @@ import {
   addParticipant,
   endRecording,
   getActiveRecording,
+  isAutoEnrollEnabled,
   isParticipant,
   isRecording,
   recordEvent,
@@ -219,6 +220,10 @@ interface PresenceInfo {
   activityType: string;
   activityLabel: string;
   lastActiveAt: number;
+  code?: string | null;
+  codeLanguage?: string | null;
+  codeLabel?: string | null;
+  codeUpdatedAt?: number | null;
 }
 const presence = new Map<string, PresenceInfo>();
 const PRESENCE_TTL_MS = 90_000;
@@ -248,6 +253,10 @@ function presenceSnapshot(): PresenceInfo[] {
     if (p.role === "student") out.push(p);
   }
   return out.sort((a, b) => b.lastActiveAt - a.lastActiveAt);
+}
+
+export function getPresenceSnapshot(): PresenceInfo[] {
+  return presenceSnapshot();
 }
 
 let presenceFlushPending = false;
@@ -327,18 +336,26 @@ export function broadcastToStaff(message: WSMessage) {
 // Live updates are BATCHED and throttled: 30 students each pushing their own
 // message would mean ~30 socket writes/second on a 1-vCPU box. Instead we
 // coalesce every change into one message every RECORDING_FLUSH_MS.
-const RECORDING_FLUSH_MS = 5000;
+const RECORDING_FLUSH_MS = 2000;
 interface LiveCell {
   userId: string;
   code?: string | null;
   label?: string | null;
+  language?: string | null;
   passed?: boolean | null;
   tabbedOut?: boolean;
+  tabOutCount?: number;
+  runCount?: number;
   lastEventAt: number;
   lastEventType: string;
 }
 const recordingLive = new Map<string, LiveCell>();
+const recordingLatestCells = new Map<string, LiveCell>();
 let recordingFlushTimer: ReturnType<typeof setInterval> | null = null;
+
+export function getLiveRecordingCells(): LiveCell[] {
+  return [...recordingLatestCells.values()];
+}
 
 function flushRecordingLive() {
   if (recordingLive.size === 0) return;
@@ -365,21 +382,37 @@ function sendRecordingState(userId: string, recording: boolean) {
   sendToUser(userId, { type: "recording_state", payload: { recording } });
 }
 
-function queueLiveUpdate(userId: string, ev: { type: string; at: number; code?: string | null; label?: string | null; passed?: boolean | null }) {
-  const prev = recordingLive.get(userId);
+function queueLiveUpdate(
+  userId: string,
+  ev: {
+    type: string;
+    at: number;
+    code?: string | null;
+    label?: string | null;
+    language?: string | null;
+    passed?: boolean | null;
+    tabOutCount?: number;
+    runCount?: number;
+  },
+) {
+  const prev = recordingLive.get(userId) ?? recordingLatestCells.get(userId);
   const cell: LiveCell = {
     userId,
     code: ev.code ?? prev?.code ?? null,
     label: ev.label ?? prev?.label ?? null,
-    passed: ev.passed ?? prev?.passed ?? null,
+    language: ev.language ?? prev?.language ?? null,
+    passed: ev.passed !== undefined ? ev.passed : prev?.passed ?? null,
     tabbedOut: ev.type === "tab_out" ? true : ev.type === "tab_back" ? false : prev?.tabbedOut,
+    tabOutCount: ev.tabOutCount ?? prev?.tabOutCount,
+    runCount: ev.runCount ?? prev?.runCount,
     lastEventAt: ev.at,
     lastEventType: ev.type,
   };
   recordingLive.set(userId, cell);
+  recordingLatestCells.set(userId, cell);
 
   // Tab-outs are the whole point of the red marker — push them immediately
-  // instead of waiting up to 5s.
+  // instead of waiting for the next batch tick.
   if (ev.type === "tab_out" || ev.type === "tab_back") flushRecordingLive();
 }
 
@@ -983,12 +1016,32 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
         courseId: typeof msg.payload?.courseId === "string" ? msg.payload.courseId : null,
         title: typeof msg.payload?.title === "string" ? msg.payload.title.slice(0, 200) : null,
       });
+      if ("error" in started) {
+        send(ws, { type: "recording_error", payload: { message: started.error } });
+        return;
+      }
+      recordingLive.clear();
+      recordingLatestCells.clear();
+      // Seed initial live cells for students who already have live code in RAM
+      for (const uid of started.userIds) {
+        const p = presence.get(uid);
+        if (p?.code) {
+          queueLiveUpdate(uid, {
+            type: "code_snapshot",
+            at: p.codeUpdatedAt || Date.now(),
+            code: p.code,
+            label: p.codeLabel || p.activityLabel,
+            language: p.codeLanguage || "python",
+          });
+        }
+      }
       startRecordingFlush();
       for (const uid of started.userIds) sendRecordingState(uid, true);
       broadcastToStaff({
         type: "recording_started",
         payload: { sessionId: started.sessionId, userIds: started.userIds, startedAt: Date.now() },
       });
+      flushRecordingLive();
       break;
     }
 
@@ -996,10 +1049,20 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
       if (!["teacher", "admin", "teaching_assistant"].includes(user.role)) return;
       const uid = typeof msg.payload?.userId === "string" ? msg.payload.userId : "";
       if (!uid) return;
-      const result = await addParticipant(uid);
+      const result = await addParticipant(uid, true);
       if ("error" in result) {
         send(ws, { type: "recording_error", payload: { message: result.error } });
         return;
+      }
+      const p = presence.get(uid);
+      if (p?.code) {
+        queueLiveUpdate(uid, {
+          type: "code_snapshot",
+          at: p.codeUpdatedAt || Date.now(),
+          code: p.code,
+          label: p.codeLabel || p.activityLabel,
+          language: p.codeLanguage || "python",
+        });
       }
       sendRecordingState(uid, true);
       broadcastToStaff({ type: "recording_participant_added", payload: { userId: uid } });
@@ -1015,11 +1078,19 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
         return;
       }
       stopRecordingFlush();
+      recordingLatestCells.clear();
       for (const uid of activeBefore?.userIds || []) sendRecordingState(uid, false);
       broadcastToStaff({
         type: "recording_ended",
         payload: { sessionId: result.sessionId, purgedSessions: result.purgedSessions },
       });
+      break;
+    }
+
+    case "recording_state_request": {
+      if (user.role === "student") {
+        sendRecordingState(user.userId, isParticipant(user.userId));
+      }
       break;
     }
 
@@ -1036,7 +1107,82 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
         passed: msg.payload?.passed === true ? true : msg.payload?.passed === false ? false : null,
         meta: msg.payload?.meta && typeof msg.payload.meta === "object" ? msg.payload.meta : undefined,
       });
-      if (stored) queueLiveUpdate(user.userId, stored);
+      if (stored) {
+        queueLiveUpdate(user.userId, {
+          ...stored,
+          language: typeof msg.payload?.meta?.language === "string" ? msg.payload.meta.language : undefined,
+        });
+      }
+      break;
+    }
+
+    case "live_code_update": {
+      const profile = await resolveUserProfile(user.userId);
+      if (profile.role !== "student") break;
+      const rawCode = typeof msg.payload?.code === "string" ? msg.payload.code.slice(0, 20_000) : null;
+      const codeLanguage = typeof msg.payload?.language === "string" ? msg.payload.language.slice(0, 24) : null;
+      const codeLabel = typeof msg.payload?.label === "string" ? msg.payload.label.slice(0, 140) : null;
+      const now = Date.now();
+
+      const existing = presence.get(user.userId);
+      presence.set(user.userId, {
+        userId: user.userId,
+        fullName: existing?.fullName || profile.realName,
+        nickname: existing?.nickname ?? profile.nickname,
+        role: profile.role,
+        avatarUrl: existing?.avatarUrl ?? profile.avatarUrl,
+        status: existing?.status || "online",
+        activityType: existing?.activityType || (msg.payload?.source === "code_lab" ? "code_lab" : "problem"),
+        activityLabel: existing?.activityLabel || codeLabel || "Đang viết code",
+        lastActiveAt: now,
+        code: rawCode,
+        codeLanguage,
+        codeLabel,
+        codeUpdatedAt: rawCode ? now : null,
+      });
+      ensurePresenceFlush();
+      markPresenceDirty();
+
+      if (rawCode && isParticipant(user.userId)) {
+        queueLiveUpdate(user.userId, {
+          type: "code_snapshot",
+          at: now,
+          code: rawCode,
+          label: codeLabel,
+          language: codeLanguage,
+        });
+        void recordEvent(
+          user.userId,
+          {
+            type: "code_snapshot",
+            code: rawCode,
+            label: codeLabel || undefined,
+            meta: {
+              lines: rawCode.split("\n").length,
+              chars: rawCode.length,
+              ...(codeLanguage ? { language: codeLanguage } : {}),
+            },
+          },
+          { minSnapshotIntervalMs: 8000 },
+        ).catch(() => {});
+      }
+      break;
+    }
+
+    case "presence_sync_request": {
+      if (!["teacher", "admin", "teaching_assistant"].includes(user.role)) return;
+      send(ws, { type: "presence_list", payload: { students: presenceSnapshot() } });
+      const activeRec = getActiveRecording();
+      if (activeRec) {
+        send(ws, {
+          type: "recording_started",
+          payload: { sessionId: activeRec.sessionId, userIds: activeRec.userIds, startedAt: activeRec.startedAt },
+        });
+        const liveCells = getLiveRecordingCells();
+        if (liveCells.length > 0) {
+          send(ws, { type: "recording_live", payload: { cells: liveCells } });
+        }
+      }
       break;
     }
 
@@ -1045,6 +1191,7 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
       const profile = await resolveUserProfile(user.userId);
       const hidden = !!msg.payload?.hidden;
       const idle = !!msg.payload?.idle;
+      const prev = presence.get(user.userId);
       presence.set(user.userId, {
         userId: user.userId,
         fullName: profile.realName,
@@ -1055,9 +1202,24 @@ async function handleMessage(user: JwtPayload, ws: WebSocket, raw: string) {
         activityType: String(msg.payload?.activityType || "browsing"),
         activityLabel: String(msg.payload?.activityLabel || "Đang duyệt web"),
         lastActiveAt: Date.now(),
+        code: prev?.code ?? null,
+        codeLanguage: prev?.codeLanguage ?? null,
+        codeLabel: prev?.codeLabel ?? null,
+        codeUpdatedAt: prev?.codeUpdatedAt ?? null,
       });
       ensurePresenceFlush();
       markPresenceDirty();
+
+      // Auto-enroll late online students when a recording session is active
+      if (profile.role === "student" && isRecording()) {
+        if (!isParticipant(user.userId) && isAutoEnrollEnabled()) {
+          const added = await addParticipant(user.userId, false);
+          if ("added" in added) {
+            sendRecordingState(user.userId, true);
+            broadcastToStaff({ type: "recording_participant_added", payload: { userId: user.userId } });
+          }
+        }
+      }
       break;
     }
   }

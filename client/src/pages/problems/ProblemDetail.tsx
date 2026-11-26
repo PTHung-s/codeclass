@@ -4,6 +4,8 @@ import { useParams, useNavigate } from"react-router-dom";
 import { useAuthContext } from"../../contexts/AuthContext";
 import { isStaff } from"../../lib/roles";
 import { openInCodeLab } from"../../lib/codeLabBridge";
+import { clearLiveEditor, publishLiveEditor } from"../../lib/liveEditorBridge";
+import { reportRecordingRun } from"../../hooks/useSessionRecorder";
 import type { SupportedLanguage } from"../../lib/codeRunner";
 import { getAvatarBgColor } from"../../lib/utils";
 import api from"../../lib/api";
@@ -258,6 +260,22 @@ export default function ProblemDetail() {
  return () => clearInterval(saveTimer.current);
  }, [problemId]);
 
+ useEffect(() => {
+ if (!isStudent) return;
+ if (code.trim().length > 0) {
+ publishLiveEditor({
+ code,
+ language,
+ label: problem?.title ? `Bài tập: ${problem.title}` : "Bài tập",
+ source: "problem",
+ });
+ }
+ }, [isStudent, code, language, problem?.title]);
+
+ useEffect(() => {
+ return () => clearLiveEditor("problem");
+ }, []);
+
  const clearDraft = useCallback(() => {
  localStorage.removeItem(draftKeyRef.current);
  }, []);
@@ -270,6 +288,13 @@ export default function ProblemDetail() {
  clearDraft();
  resetPracticeTracking(codeRef.current);
  setSubmitError("");
+ if (isStudent) {
+ reportRecordingRun(
+ problem?.title ? `Nộp bài: ${problem.title}` : "Nộp bài tập",
+ null,
+ codeRef.current,
+ );
+ }
  if (data.judging) {
  // Chấm chạy nền — học sinh không phải đợi, theo dõi ở tab Lịch sử.
  justSubmittedRef.current.add(data.submission?.id);

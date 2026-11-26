@@ -48,11 +48,12 @@ export default function AlertColumn({
         tone: "text-amber-600",
       });
     }
-    if (p.tabOutCount >= 10) {
+    const tabOutCount = cell?.tabOutCount ?? p.tabOutCount;
+    if (tabOutCount >= 10) {
       alerts.push({
         userId: p.userId,
         name: p.fullName,
-        text: `Đã rời tab ${p.tabOutCount} lần trong buổi`,
+        text: `Đã rời tab ${tabOutCount} lần trong buổi`,
         icon: AlertTriangle,
         tone: "text-red-600",
       });

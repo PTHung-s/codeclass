@@ -45,13 +45,16 @@ export interface RecParticipant {
   eventCount: number;
 }
 
-/** Live cell pushed over WebSocket (batched every 5s, tab-outs immediately). */
+/** Live cell pushed over WebSocket (batched every 2s, tab-outs immediately). */
 export interface LiveCell {
   userId: string;
   code?: string | null;
+  language?: string | null;
   label?: string | null;
   passed?: boolean | null;
   tabbedOut?: boolean;
+  tabOutCount?: number;
+  runCount?: number;
   lastEventAt: number;
   lastEventType: string;
 }

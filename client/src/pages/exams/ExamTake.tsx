@@ -3,6 +3,8 @@ import { useNavigate, useParams } from "react-router-dom";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Editor from "@monaco-editor/react";
 import api from "../../lib/api";
+import { clearLiveEditor, publishLiveEditor } from "../../lib/liveEditorBridge";
+import { reportRecordingRun } from "../../hooks/useSessionRecorder";
 import { Button } from "../../components/ui/button";
 import { useAntiCheat } from "../../hooks/useAntiCheat";
 import { useConfirmContext } from "../../hooks/useConfirm";
@@ -296,6 +298,19 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
     onSuccess: (data) => {
       setRunResult(data);
       applyServerTime(data?.serverTime);
+      if (!preview && q) {
+        const allPassed =
+          Array.isArray(data?.results) && data.results.length > 0
+            ? data.results.every((r: any) => r?.passed === true)
+            : typeof data?.passed === "boolean"
+              ? data.passed
+              : null;
+        reportRecordingRun(
+          `Bài thi: ${exam?.title || "Đề thi"} · Câu ${idx + 1}`,
+          allPassed,
+          drafts[q.id]?.codeAnswer || "",
+        );
+      }
     },
   });
 
@@ -336,6 +351,23 @@ export default function ExamTake({ preview = false }: { preview?: boolean }) {
       navigate(`/exams/${examId}/result`, { replace: true });
     }
   }, [attempt?.status, attempt?.id, examId, navigate]);
+
+  const currentCodeAnswer = q?.loai === "thuc_hanh" ? drafts[q.id]?.codeAnswer || "" : "";
+  useEffect(() => {
+    if (preview || !q || q.loai !== "thuc_hanh") return;
+    if (currentCodeAnswer.trim().length > 0) {
+      publishLiveEditor({
+        code: currentCodeAnswer,
+        language: q.ngon_ngu === "cpp" ? "cpp" : "python",
+        label: `Bài thi: ${exam?.title || "Đề thi"} · Câu ${idx + 1}`,
+        source: "exam",
+      });
+    }
+  }, [preview, q?.id, q?.loai, q?.ngon_ngu, currentCodeAnswer, exam?.title, idx]);
+
+  useEffect(() => {
+    return () => clearLiveEditor("exam");
+  }, []);
 
   if (examQ.isLoading || attemptQ.isLoading) {
     return <div className="flex min-h-[50vh] items-center justify-center text-muted-foreground">Đang tải phòng thi…</div>;

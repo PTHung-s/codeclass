@@ -2,26 +2,35 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { socketSendIfOpen, socketSubscribe } from "../lib/socket";
 import { subscribe } from "../lib/activityMonitor";
+import { getLiveEditorSnapshot } from "../lib/liveEditorBridge";
 
 /**
  * Collects lesson-recording events while a teacher has a recording running.
  *
- * Deliberately passive: it reads the code that PythonRunner ALREADY persists to
- * localStorage (`lesson_code_<saveKey>`), so no component needs new props and
- * the widget used across three lesson pages stays untouched.
- *
- * Dormant until the server pushes `recording_state: {recording: true}`.
+ * Reads from the universal Live Editor Bridge (covering ProblemDetail, CodeLab,
+ * PythonRunner, etc.) with fallback to legacy `lesson_code_` localStorage keys.
+ * Syncs recording state on mount & reconnect so refreshing mid-session over
+ * Centrifugo never drops the rest of the student's timeline.
  */
 
-const SNAPSHOT_INTERVAL = 30_000;
+const SNAPSHOT_INTERVAL = 5_000;
 const IDLE_THRESHOLD = 5 * 60_000; // 5 min of no typing and no tab-out = stuck
 const PASTE_THRESHOLD = 200; // chars pasted in one go that look copy-pasted
 const CODE_PREFIX = "lesson_code_";
 const MAX_CODE = 20_000;
 
-/** Collect the code the student is currently working on, largest buffer first. */
-function collectCurrentCode(pathname: string): { code: string; key: string } | null {
-  // Lesson id from /lessons/:id — used to prefer buffers for the current lesson.
+/** Collect the code the student is currently working on: active editor bridge first, localStorage fallback. */
+function collectCurrentCode(pathname: string): { code: string; key: string; language?: string } | null {
+  const live = getLiveEditorSnapshot();
+  if (live && live.code.trim()) {
+    return {
+      code: live.code.slice(0, MAX_CODE),
+      key: live.label,
+      language: live.language,
+    };
+  }
+
+  // Fallback for legacy lesson pages that only persist to localStorage
   const lessonMatch = pathname.match(/\/lessons\/([^/]+)/);
   const lessonId = lessonMatch?.[1] || null;
 
@@ -38,23 +47,13 @@ function collectCurrentCode(pathname: string): { code: string; key: string } | n
       }
     }
   } catch {
-    return null; // localStorage can throw in private mode
+    return null;
   }
   return best;
 }
 
-/**
- * Module-level flag mirroring the hook's state, so reportRecordingRun() (called
- * from PythonRunner, outside this hook) can cheaply skip work.
- */
 let recordingActive = false;
 
-/**
- * Events are sent with socketSendIfOpen, never socketSend: socketSend QUEUES
- * when the socket is down and flushes on reconnect, which would stamp an old
- * event onto the timeline at the wrong time. A dropped event is better than a
- * misplaced one.
- */
 function emitEvent(payload: Record<string, unknown>) {
   if (!recordingActive) return;
   socketSendIfOpen("recording_event", payload);
@@ -69,19 +68,24 @@ export function useSessionRecorder() {
   const lastCodeRef = useRef<string>("");
   const lastInputRef = useRef(Date.now());
   const idleReportedRef = useRef(false);
-  const outRef = useRef(false); // dedupe: tab is already marked "out"
+  const outRef = useRef(false);
 
   const emit = useCallback((type: string, payload: Record<string, unknown> = {}) => {
     emitEvent({ type, ...payload });
   }, []);
 
-  // Server decides when collection is on.
+  // Server decides when collection is on — explicitly request state on mount & reconnect
+  // so Centrifugo refreshes resume recording immediately.
   useEffect(() => {
+    socketSendIfOpen("recording_state_request", {});
     const unsub = socketSubscribe((msg) => {
       if (msg.type === "recording_state") {
         const on = !!msg.payload?.recording;
         recordingActive = on;
+        if (!on) lastCodeRef.current = "";
         setRecording(on);
+      } else if (msg.type === "__socket_open") {
+        socketSendIfOpen("recording_state_request", {});
       }
     });
     return () => {
@@ -90,27 +94,29 @@ export function useSessionRecorder() {
     };
   }, []);
 
-  // Periodic code snapshot. The server drops unchanged code, but comparing here
-  // too avoids sending it over the wire at all.
+  // Immediate initial snapshot + frequent change snapshots (every 5s if changed).
   useEffect(() => {
     if (!recording) return;
-    const timer = setInterval(() => {
+    const capture = () => {
       const found = collectCurrentCode(pathRef.current);
       if (!found || found.code === lastCodeRef.current) return;
       lastCodeRef.current = found.code;
       emit("code_snapshot", {
         code: found.code,
         label: found.key,
-        meta: { lines: found.code.split("\n").length, chars: found.code.length },
+        meta: {
+          lines: found.code.split("\n").length,
+          chars: found.code.length,
+          ...(found.language ? { language: found.language } : {}),
+        },
       });
-    }, SNAPSHOT_INTERVAL);
+    };
+    capture();
+    const timer = setInterval(capture, SNAPSHOT_INTERVAL);
     return () => clearInterval(timer);
   }, [recording, emit]);
 
-  // Tab-out / tab-back — sent immediately; these are the red markers. The tab is
-  // "away" when it is hidden OR the window loses focus (e.g. another window
-  // covering the page). Dedup so blur + visibility firing together (alt-tab)
-  // only produces a single tab_out / tab_back pair.
+  // Tab-out / tab-back
   useEffect(() => {
     if (!recording) return;
     return subscribe((e) => {
@@ -137,7 +143,7 @@ export function useSessionRecorder() {
     });
   }, [recording, emit]);
 
-  // Large paste — a strong signal the code came from somewhere else.
+  // Large paste detection
   useEffect(() => {
     if (!recording) return;
     const onPaste = (e: ClipboardEvent) => {
@@ -152,8 +158,7 @@ export function useSessionRecorder() {
     return () => document.removeEventListener("paste", onPaste);
   }, [recording, emit]);
 
-  // Idle detection — a long silence usually means the student is stuck. Input
-  // activity now comes from the shared monitor's single input listener.
+  // Idle detection
   useEffect(() => {
     if (!recording) return;
     const unsub = subscribe((e) => {
@@ -175,7 +180,7 @@ export function useSessionRecorder() {
     };
   }, [recording, emit]);
 
-  // Final snapshot on unload so the last edits aren't lost.
+  // Final snapshot on pagehide
   useEffect(() => {
     if (!recording) return;
     const onHide = () => {
@@ -192,9 +197,19 @@ export function useSessionRecorder() {
 }
 
 /**
- * Called by PythonRunner on every Run. No-op unless a recording is active, so
- * normal self-study never touches the socket.
+ * Called by PythonRunner, PythonCodeWorkspace, ProblemDetail, and CodeLab on
+ * every Run/Submit. No-op unless a recording is active.
  */
-export function reportRecordingRun(label: string | undefined, passed: boolean | null) {
-  emitEvent({ type: "run", label: label || "Chạy code", passed });
+export function reportRecordingRun(
+  label: string | undefined,
+  passed: boolean | null,
+  codeOverride?: string,
+) {
+  const snapCode = typeof codeOverride === "string" ? codeOverride : getLiveEditorSnapshot()?.code;
+  emitEvent({
+    type: "run",
+    label: label || "Chạy code",
+    passed,
+    ...(snapCode && snapCode.trim() ? { code: snapCode.slice(0, MAX_CODE) } : {}),
+  });
 }

@@ -77,7 +77,9 @@ export default function SessionReplay({
  <StudentName fullName={p.fullName} nickname={p.nickname} primaryClassName="text-xs font-semibold" />
  <span className="block text-[10px] text-muted-foreground">
  {formatDuration(p.activeSeconds)}
- {p.tabOutCount > 0 && <span className=""> · rời tab {p.tabOutCount}</span>}
+ {p.tabOutCount > 0 && (
+ <span className="font-medium text-rose-600 dark:text-rose-400"> · rời tab {p.tabOutCount}</span>
+ )}
  </span>
  </span>
  {p.eventCount === 0 && (
@@ -92,7 +94,7 @@ export default function SessionReplay({
 
  <div>
  {selected ? (
- <StudentTimeline recordingId={recordingId} userId={selected} />
+ <StudentTimeline recordingId={recordingId} userId={selected} isLive={data.status ==="recording"} />
  ) : (
  <p className="py-12 text-center text-sm text-muted-foreground">Chọn một học sinh để xem lại.</p>
  )}

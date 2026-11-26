@@ -3,10 +3,10 @@ import prisma from "../utils/prisma";
 /**
  * Teacher-controlled lesson recording.
  *
- * A teacher presses Start, which snapshots everyone currently online; students
- * then stream timestamped events (code snapshots, tab-outs, runs) until the
- * teacher presses End. Re-recording on the same calendar day overwrites that
- * day's session, while earlier days survive.
+ * A teacher presses Start, which snapshots everyone currently online (and can
+ * auto-enroll late joiners); students then stream timestamped events (code
+ * snapshots, tab-outs, runs, pastes) until the teacher presses End. Multiple
+ * sessions on the same calendar day are preserved.
  *
  * All logic lives here rather than in gameWebSocket.ts, which is `@ts-nocheck`
  * and therefore unprotected by the type checker.
@@ -45,10 +45,13 @@ export function vnDateKey(d: Date = new Date()): Date {
 interface ActiveState {
   sessionId: string;
   startedAt: number;
+  autoEnroll: boolean;
   /** userId → participant row id */
   participants: Map<string, string>;
   /** userId → hash of last code snapshot, to skip unchanged snapshots */
   lastCodeHash: Map<string, string>;
+  /** userId → timestamp of last stored code_snapshot */
+  lastSnapshotAt: Map<string, number>;
   /** participantId → number of events stored */
   eventCounts: Map<string, number>;
 }
@@ -78,6 +81,10 @@ export function isParticipant(userId: string) {
   return !!active?.participants.has(userId);
 }
 
+export function isAutoEnrollEnabled() {
+  return !!active?.autoEnroll;
+}
+
 /** Cheap non-cryptographic hash — only used to detect "code changed". */
 function hashCode(s: string): string {
   let h = 0;
@@ -90,23 +97,19 @@ function hashCode(s: string): string {
 
 /**
  * Start a recording for the given students.
- *
- * Overwrites any existing session for today (cascade removes its participants
- * and events); other days are untouched.
+ * Multiple recordings on the same calendar day are preserved.
  */
 export async function startRecording(opts: {
   startedById: string;
   userIds: string[];
   courseId?: string | null;
   title?: string | null;
+  autoEnroll?: boolean;
 }) {
   if (active || starting) return { error: "Đã có buổi ghi đang chạy" as const };
   starting = true;
   try {
     const sessionDate = vnDateKey();
-
-    // Same-day overwrite. Cascade clears participants + events.
-    await prisma.recordingSession.deleteMany({ where: { sessionDate } });
 
     // Only real students get recorded, never staff.
     const students = await prisma.user.findMany({
@@ -131,8 +134,10 @@ export async function startRecording(opts: {
     active = {
       sessionId: session.id,
       startedAt: session.startedAt.getTime(),
+      autoEnroll: opts.autoEnroll !== false,
       participants: new Map(session.participants.map((p) => [p.userId, p.id])),
       lastCodeHash: new Map(),
+      lastSnapshotAt: new Map(),
       eventCounts: new Map(),
     };
 
@@ -143,7 +148,7 @@ export async function startRecording(opts: {
 }
 
 /** Add a student who joined after Start. Idempotent. */
-export async function addParticipant(userId: string) {
+export async function addParticipant(userId: string, addedManually = true) {
   if (!active) return { error: "Không có buổi ghi nào đang chạy" as const };
   if (active.participants.has(userId)) return { alreadyIn: true as const };
 
@@ -152,7 +157,7 @@ export async function addParticipant(userId: string) {
 
   const participant = await prisma.recordingParticipant.upsert({
     where: { sessionId_userId: { sessionId: active.sessionId, userId } },
-    create: { sessionId: active.sessionId, userId, addedManually: true },
+    create: { sessionId: active.sessionId, userId, addedManually },
     update: {},
     select: { id: true },
   });
@@ -164,9 +169,13 @@ export async function addParticipant(userId: string) {
 /**
  * Store one event from a student. Returns a compact summary for the live grid,
  * or null when the event is ignored (not recording / not a participant / code
- * unchanged).
+ * unchanged / throttled).
  */
-export async function recordEvent(userId: string, ev: IncomingEvent) {
+export async function recordEvent(
+  userId: string,
+  ev: IncomingEvent,
+  opts?: { minSnapshotIntervalMs?: number },
+) {
   if (!active) return null;
   const participantId = active.participants.get(userId);
   if (!participantId) return null;
@@ -174,12 +183,16 @@ export async function recordEvent(userId: string, ev: IncomingEvent) {
   const at = new Date();
   const code = typeof ev.code === "string" ? ev.code.slice(0, 20_000) : null;
 
-  // Skip snapshots that didn't change anything — the single biggest disk saver.
+  // Skip snapshots that didn't change anything or arrive faster than the throttle window.
   if (ev.type === "code_snapshot") {
     if (!code) return null;
     const h = hashCode(code);
     if (active.lastCodeHash.get(userId) === h) return null;
+    const minMs = opts?.minSnapshotIntervalMs ?? 0;
+    const prevAt = active.lastSnapshotAt.get(userId) ?? 0;
+    if (minMs > 0 && at.getTime() - prevAt < minMs) return null;
     active.lastCodeHash.set(userId, h);
+    active.lastSnapshotAt.set(userId, at.getTime());
   }
 
   await prisma.recordingEvent.create({
@@ -194,22 +207,39 @@ export async function recordEvent(userId: string, ev: IncomingEvent) {
     },
   });
 
-  // Roll-up counters, incremented atomically.
+  // Roll-up counters, incremented atomically and returned for real-time LiveGrid badges.
+  let tabOutCount: number | undefined;
+  let runCount: number | undefined;
   if (ev.type === "tab_out") {
-    await prisma.recordingParticipant.update({
+    const updated = await prisma.recordingParticipant.update({
       where: { id: participantId },
       data: { tabOutCount: { increment: 1 } },
+      select: { tabOutCount: true, runCount: true },
     });
+    tabOutCount = updated.tabOutCount;
+    runCount = updated.runCount;
   } else if (ev.type === "run") {
-    await prisma.recordingParticipant.update({
+    const updated = await prisma.recordingParticipant.update({
       where: { id: participantId },
       data: { runCount: { increment: 1 } },
+      select: { tabOutCount: true, runCount: true },
     });
+    tabOutCount = updated.tabOutCount;
+    runCount = updated.runCount;
   }
 
   await enforceEventCap(participantId);
 
-  return { userId, type: ev.type, at: at.getTime(), code, label: ev.label ?? null, passed: ev.passed ?? null };
+  return {
+    userId,
+    type: ev.type,
+    at: at.getTime(),
+    code,
+    label: ev.label ?? null,
+    passed: ev.passed ?? null,
+    tabOutCount,
+    runCount,
+  };
 }
 
 /**
@@ -264,7 +294,11 @@ export async function endRecording() {
       select: { id: true, joinedAt: true },
     }),
     prisma.recordingEvent.findMany({
-      where: { participantId: { in: participantIds }, type: "code_snapshot" },
+      where: {
+        participantId: { in: participantIds },
+        type: { in: ["code_snapshot", "run"] },
+        code: { not: null },
+      },
       orderBy: { at: "desc" },
       select: { participantId: true, code: true },
     }),

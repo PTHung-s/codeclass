@@ -6,6 +6,7 @@ import { runCode as executeCode, type SupportedLanguage } from "../../lib/codeRu
 import { openInCodeLab } from "../../lib/codeLabBridge";
 import { useDarkMode } from "../../hooks/useDarkMode";
 import api from "../../lib/api";
+import { clearLiveEditor, publishLiveEditor } from "../../lib/liveEditorBridge";
 import { reportRecordingRun } from "../../hooks/useSessionRecorder";
 
 /**
@@ -120,6 +121,12 @@ export default function PythonRunner({
     const v = value || "";
     setCode(v);
     setResult(null);
+    publishLiveEditor({
+      code: v,
+      language: runLanguage,
+      label: title || recordTitle || saveKey || "Code bài học",
+      source: "lesson",
+    });
     if (codeNeedsInput(v, runLanguage) && !showInput) setShowInput(true);
     if (saveKey) {
       clearTimeout(saveTimer.current);
@@ -127,7 +134,11 @@ export default function PythonRunner({
         localStorage.setItem(`lesson_code_${saveKey}`, v);
       }, 500);
     }
-  }, [saveKey, showInput, runLanguage, codeNeedsInput]);
+  }, [saveKey, showInput, runLanguage, codeNeedsInput, title, recordTitle]);
+
+  useEffect(() => {
+    return () => clearLiveEditor("lesson");
+  }, []);
 
   const runCode = useCallback(async () => {
     if (!code.trim()) return;
@@ -167,7 +178,7 @@ export default function PythonRunner({
 
     // Put the Run on the teacher's session timeline. No-op unless a recording
     // is active — the server ignores events from non-participants.
-    reportRecordingRun(title || recordTitle, graded);
+    reportRecordingRun(title || recordTitle, graded, code.trim());
 
     setRunning(false);
   }, [

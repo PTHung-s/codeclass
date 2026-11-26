@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import api from "../../lib/api";
 import { consumeCodeLabHandoff } from "../../lib/codeLabBridge";
+import { clearLiveEditor, publishLiveEditor } from "../../lib/liveEditorBridge";
+import { reportRecordingRun } from "../../hooks/useSessionRecorder";
 import { useDarkMode } from "../../hooks/useDarkMode";
 import {
   CPP_STARTER,
@@ -319,6 +321,21 @@ export default function CodeLab() {
   const code = activeTab.code;
   const fileName = activeTab.name;
 
+  useEffect(() => {
+    if (code.trim().length > 0) {
+      publishLiveEditor({
+        code,
+        language,
+        label: `Code Lab: ${fileName}`,
+        source: "code_lab",
+      });
+    }
+  }, [code, language, fileName]);
+
+  useEffect(() => {
+    return () => clearLiveEditor("code_lab");
+  }, []);
+
   const setCode = useCallback(
     (nextCode: string) => {
       setTabsByLang((prev) => ({
@@ -532,6 +549,7 @@ export default function CodeLab() {
       try {
         const res = await runCode(language, code, fileInput);
         setFileRunResult(res);
+        reportRecordingRun(`Code Lab: ${fileName}`, res.status === "success", code);
 
         if (res.status === "success") {
           const outText = res.stdout || "";
@@ -594,6 +612,8 @@ export default function CodeLab() {
     const started = terminal.start(language, code);
     if (!started) {
       appendLines([{ kind: "stderr", text: "Không khởi chạy được phiên Terminal. Kiểm tra kết nối mạng.\n" }]);
+    } else {
+      reportRecordingRun(`Code Lab: ${fileName}`, null, code);
     }
   }, [appendLines, busy, clearDiagnostics, code, executeFileMode, fileName, language, terminal]);
 

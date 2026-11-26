@@ -13,6 +13,7 @@ const testFiles = [
   "src/services/__tests__/dbBackupAndReport.test.ts",
   "src/services/__tests__/examAndGameLogic.test.ts",
   "src/services/__tests__/meetingIntegration.test.ts",
+  "src/services/__tests__/recordingService.test.ts",
 ];
 
 let failedSuites = 0;
