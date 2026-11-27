@@ -707,4 +707,82 @@ router.get(
   },
 );
 
+/* ── Unified Parent Portal Token Management (Staff) ── */
+router.get(
+  "/students/:studentId/parent-link",
+  authenticate,
+  requireRole("admin", "teacher", "teaching_assistant"),
+  async (req: Request, res: Response) => {
+    try {
+      const studentId = param(req, "studentId");
+      const student = await prisma.user.findUnique({
+        where: { id: studentId },
+        select: { id: true, role: true, parentPortalToken: true },
+      });
+      if (!student || student.role !== "student") {
+        res.status(404).json({ error: "Không tìm thấy học viên" });
+        return;
+      }
+      res.json({
+        token: student.parentPortalToken || null,
+        urlPath: student.parentPortalToken ? `/public/parent/${student.parentPortalToken}` : null,
+      });
+    } catch {
+      res.status(500).json({ error: "Không thể lấy liên kết phụ huynh" });
+    }
+  },
+);
+
+router.post(
+  "/students/:studentId/parent-link",
+  authenticate,
+  requireRole("admin", "teacher", "teaching_assistant"),
+  async (req: Request, res: Response) => {
+    try {
+      const studentId = param(req, "studentId");
+      const rotate = Boolean(req.body?.rotate);
+      const student = await prisma.user.findUnique({
+        where: { id: studentId },
+        select: { id: true, role: true, parentPortalToken: true },
+      });
+      if (!student || student.role !== "student") {
+        res.status(404).json({ error: "Không tìm thấy học viên" });
+        return;
+      }
+
+      const token =
+        !rotate && student.parentPortalToken
+          ? student.parentPortalToken
+          : crypto.randomBytes(18).toString("base64url");
+
+      await prisma.user.update({
+        where: { id: studentId },
+        data: { parentPortalToken: token },
+      });
+
+      res.json({ token, urlPath: `/public/parent/${token}` });
+    } catch {
+      res.status(500).json({ error: "Không tạo được liên kết phụ huynh" });
+    }
+  },
+);
+
+router.delete(
+  "/students/:studentId/parent-link",
+  authenticate,
+  requireRole("admin", "teacher", "teaching_assistant"),
+  async (req: Request, res: Response) => {
+    try {
+      const studentId = param(req, "studentId");
+      await prisma.user.update({
+        where: { id: studentId },
+        data: { parentPortalToken: null },
+      });
+      res.json({ ok: true });
+    } catch {
+      res.status(500).json({ error: "Không thu hồi được liên kết phụ huynh" });
+    }
+  },
+);
+
 export default router;

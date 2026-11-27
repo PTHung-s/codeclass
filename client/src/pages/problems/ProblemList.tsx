@@ -4,7 +4,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { isStaff } from "../../lib/roles";
 import api from "../../lib/api";
-import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, ChevronDown, Clock, CheckCircle2, PackagePlus } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, ChevronDown, Clock, CheckCircle2, PackagePlus, Compass } from "lucide-react";
 import ProblemPackImportDialog from "../../components/ui/ProblemPackImportDialog";
 import { useConfirmContext } from "../../hooks/useConfirm";
 import { SkeletonTable } from "../../components/ui/skeletons";
@@ -160,16 +160,21 @@ export default function ProblemList() {
       <PageHeader
         title="Thư viện đề bài"
         actions={
-          isTeacher ? (
-            <div className="flex items-center gap-2">
-              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
-                <PackagePlus className="size-3.5" /> Import kho đề CP
-              </Button>
-              <Button size="sm" onClick={() => navigate("/problems/new")}>
-                <Plus className="size-3.5" /> Tạo đề mới
-              </Button>
-            </div>
-          ) : undefined
+          <div className="flex flex-wrap items-center gap-2">
+            <Button size="sm" variant="outline" onClick={() => navigate("/problems/roadmap")}>
+              <Compass className="size-3.5 text-primary" /> Lộ trình CP 4 Tầng
+            </Button>
+            {isTeacher && (
+              <>
+                <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                  <PackagePlus className="size-3.5" /> Import kho đề CP
+                </Button>
+                <Button size="sm" onClick={() => navigate("/problems/new")}>
+                  <Plus className="size-3.5" /> Tạo đề mới
+                </Button>
+              </>
+            )}
+          </div>
         }
       />
 

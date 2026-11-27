@@ -4,8 +4,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "../../lib/api";
 import { Button } from "../../components/ui/button";
 import QuestionPaperView, { buildDisplayPaper } from "../../components/exams/QuestionPaperView";
+import PlagiarismDialog from "../../components/ui/PlagiarismDialog";
 import {
-  ArrowLeft, ChevronDown, ChevronUp, Download, Play, Save, Sparkles, Trophy,
+  ArrowLeft, ChevronDown, ChevronUp, Download, Play, Save, ShieldAlert, Sparkles, Trophy,
 } from "lucide-react";
 
 const STYLE_KEY = "cc-exam-ai-style";
@@ -24,6 +25,7 @@ export default function ExamGrading() {
   const [suggestingKey, setSuggestingKey] = useState<string | null>(null);
   const [qIdx, setQIdx] = useState(0);
   const [filterNeedsReview, setFilterNeedsReview] = useState(false);
+  const [plagiarismOpen, setPlagiarismOpen] = useState(false);
   const [msg, setMsg] = useState("");
 
   const statusQ = useQuery({
@@ -148,6 +150,9 @@ export default function ExamGrading() {
           </p>
         </div>
         <div className="flex flex-wrap gap-1.5">
+          <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => setPlagiarismOpen(true)}>
+            <ShieldAlert className="h-3.5 w-3.5 text-amber-500" /> Quét đạo văn code
+          </Button>
           <Button variant="outline" size="sm" className="h-8 text-xs" onClick={() => navigate(`/exams/${examId}/ranking`)}>
             <Trophy className="h-3.5 w-3.5" /> Bảng xếp hạng
           </Button>
@@ -159,6 +164,15 @@ export default function ExamGrading() {
           </Button>
         </div>
       </div>
+
+      {examId && (
+        <PlagiarismDialog
+          open={plagiarismOpen}
+          onClose={() => setPlagiarismOpen(false)}
+          endpoint={`/exams/${examId}/plagiarism`}
+          title="Quét tương đồng code bài thi (Winnowing)"
+        />
+      )}
 
       <label className="mb-2.5 flex items-center gap-2 text-xs text-muted-foreground">
         <input type="checkbox" checked={filterNeedsReview} onChange={(e) => setFilterNeedsReview(e.target.checked)} />

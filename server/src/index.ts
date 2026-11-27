@@ -58,6 +58,7 @@ import examRoutes from "./routes/exams";
 import assignmentRoutes from "./routes/assignments";
 import codeLabSnippetsRoutes from "./routes/codeLabSnippets";
 import meetingRoutes from "./routes/meetings";
+import publicParentRoutes from "./routes/publicParent";
 import { initWebSocketServer } from "./services/gameWebSocket";
 import { runStorageCleanup } from "./services/storageCleanup";
 import { countRequest } from "./utils/metrics";
@@ -178,6 +179,7 @@ app.use("/api/exams", examRoutes);
 app.use("/api/assignments", assignmentRoutes);
 app.use("/api/code-lab", codeLabSnippetsRoutes);
 app.use("/api/meetings", meetingRoutes);
+app.use("/api/public/parent", publicParentRoutes);
 
 app.get("/api/health", (_req, res) => {
   res.json({ status: "ok", timestamp: new Date().toISOString() });

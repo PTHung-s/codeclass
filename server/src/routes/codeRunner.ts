@@ -1,11 +1,17 @@
 import { Router, Request, Response } from "express";
 import { authenticate } from "../middleware/auth";
+import { requireRole } from "../middleware/rbac";
 import { judgePythonCode, parseTestCases, runPythonCode, pythonQueuePosition } from "../utils/pythonRunner";
 import { cppQueuePosition, judgeCppCode, runCppCode } from "../utils/cppRunner";
+import { getSandboxStatus } from "../utils/codeSandbox";
 
 const router = Router();
 const MAX_CODE_LENGTH = 50_000;
 const MAX_STDIN_LENGTH = 8_000_000;
+
+router.get("/sandbox-status", authenticate, requireRole("admin", "teacher", "teaching_assistant"), (_req: Request, res: Response) => {
+  res.json(getSandboxStatus());
+});
 
 router.post("/run/python", authenticate, async (req: Request, res: Response): Promise<void> => {
   const code = typeof req.body.code === "string" ? req.body.code : "";

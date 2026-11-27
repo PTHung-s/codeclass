@@ -22,7 +22,15 @@ function showQueueToast(position: number): void {
 export type SupportedLanguage = "python" | "cpp";
 
 export interface CodeRunResult {
-  status: "success" | "runtime_error" | "time_limit" | "blocked" | "compile_error";
+  status:
+    | "success"
+    | "runtime_error"
+    | "time_limit"
+    | "memory_limit"
+    | "output_limit"
+    | "blocked"
+    | "compile_error"
+    | "skipped";
   stdout: string;
   stderr: string;
   output: string;

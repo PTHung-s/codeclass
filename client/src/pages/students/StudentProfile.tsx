@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import api from "../../lib/api";
-import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck, FileText, Target, ListChecks, Lock, Video } from "lucide-react";
+import { BookOpen, AlertTriangle, Code, Keyboard, Timer, TrendingUp, TrendingDown, Minus, CheckCircle2, XCircle, Zap, ChevronDown, CalendarCheck, Radar, Copy, KeyRound, ClipboardCheck, FileText, Target, ListChecks, Lock, Video, Share2, RefreshCw, Trash2, ExternalLink } from "lucide-react";
 import { SkeletonCard } from "../../components/ui/skeletons";
 import { DifficultyBadge } from "../../components/ui/Badges";
 import { useAuthContext } from "../../contexts/AuthContext";
@@ -50,6 +50,7 @@ export default function StudentProfile() {
   const isAdmin = user?.role === "admin";
   const [temporaryPassword, setTemporaryPassword] = useState<string | null>(null);
   const [reportOpen, setReportOpen] = useState(false);
+  const [parentLinkOpen, setParentLinkOpen] = useState(false);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["student", studentId],
@@ -220,6 +221,9 @@ export default function StudentProfile() {
             )}
             {isStaff && studentId && (
               <div className="flex flex-wrap justify-end gap-2">
+                <Button size="sm" variant="outline" onClick={() => setParentLinkOpen(true)}>
+                  <Share2 className="mr-1.5 h-3.5 w-3.5" /> Cổng phụ huynh
+                </Button>
                 <Button size="sm" variant="outline" onClick={() => setReportOpen(true)}>
                   <FileText className="mr-1.5 h-3.5 w-3.5" /> Báo cáo tuần (Zalo)
                 </Button>
@@ -233,7 +237,10 @@ export default function StudentProfile() {
       </div>
 
       {isStaff && studentId && (
-        <WeeklyReportDialog open={reportOpen} studentId={studentId} onClose={() => setReportOpen(false)} />
+        <>
+          <WeeklyReportDialog open={reportOpen} studentId={studentId} onClose={() => setReportOpen(false)} />
+          <ParentPortalLinkDialog open={parentLinkOpen} studentId={studentId} onClose={() => setParentLinkOpen(false)} />
+        </>
       )}
 
       {isAdmin && (
@@ -1457,6 +1464,120 @@ function WeeklyReportDialog({
             </Button>
             <Button type="button" onClick={handleCopy} disabled={!draft.trim()}>
               <Copy className="mr-1.5 h-3.5 w-3.5" /> Sao chép gửi Zalo
+            </Button>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function ParentPortalLinkDialog({
+  open,
+  studentId,
+  onClose,
+}: {
+  open: boolean;
+  studentId: string;
+  onClose: () => void;
+}) {
+  const toast = useToast();
+  const linkQ = useQuery<{ token: string | null; urlPath: string | null }>({
+    queryKey: ["student-parent-link", studentId],
+    queryFn: () => api.get(`/students/${studentId}/parent-link`).then((r) => r.data),
+    enabled: open && !!studentId,
+  });
+
+  const createMut = useMutation({
+    mutationFn: (rotate: boolean) =>
+      api.post(`/students/${studentId}/parent-link`, { rotate }).then((r) => r.data),
+    onSuccess: () => void linkQ.refetch(),
+  });
+
+  const revokeMut = useMutation({
+    mutationFn: () => api.delete(`/students/${studentId}/parent-link`).then((r) => r.data),
+    onSuccess: () => {
+      toast.success({ title: "Đã thu hồi liên kết phụ huynh" });
+      void linkQ.refetch();
+    },
+  });
+
+  const urlPath = linkQ.data?.urlPath;
+  const fullUrl = urlPath ? `${window.location.origin}${urlPath}` : "";
+
+  const handleCopy = async () => {
+    if (!fullUrl) return;
+    try {
+      await navigator.clipboard.writeText(fullUrl);
+      toast.success({ title: "Đã sao chép link Cổng Phụ huynh", message: "Gửi thẳng cho phụ huynh xem tiến độ, điểm thi, điểm danh & học phí." });
+    } catch {
+      toast.error({ title: "Không sao chép được" });
+    }
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => !v && onClose()}>
+      <DialogContent className="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Cổng thông tin Phụ huynh (Link riêng bảo mật)</DialogTitle>
+        </DialogHeader>
+        <div className="space-y-3 text-xs">
+          <p className="text-muted-foreground">
+            Phụ huynh không cần đăng nhập vẫn xem được bảng chuyên cần, bài tập, điểm thi, kỹ năng nổi bật/cần ôn và học phí của con trên giao diện tối ưu cho điện thoại.
+          </p>
+
+          {linkQ.isLoading ? (
+            <div className="h-12 animate-pulse rounded-lg bg-muted" />
+          ) : urlPath ? (
+            <div className="space-y-2.5">
+              <div className="flex items-center gap-2 rounded-lg border border-border bg-muted/40 p-2">
+                <code className="min-w-0 flex-1 truncate text-[11px] text-foreground">{fullUrl}</code>
+                <Button type="button" size="xs" onClick={handleCopy}>
+                  <Copy className="mr-1 h-3 w-3" /> Chép
+                </Button>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  onClick={() => window.open(fullUrl, "_blank", "noopener,noreferrer")}
+                >
+                  <ExternalLink className="mr-1 h-3 w-3" /> Mở xem thử
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="outline"
+                  disabled={createMut.isPending}
+                  onClick={() => createMut.mutate(true)}
+                >
+                  <RefreshCw className="mr-1 h-3 w-3" /> Đổi token mới
+                </Button>
+                <Button
+                  type="button"
+                  size="xs"
+                  variant="ghost"
+                  className="text-rose-600 hover:text-rose-700"
+                  disabled={revokeMut.isPending}
+                  onClick={() => revokeMut.mutate()}
+                >
+                  <Trash2 className="mr-1 h-3 w-3" /> Thu hồi link
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-border p-4 text-center">
+              <p className="mb-3 text-muted-foreground">Học sinh này chưa có liên kết cổng phụ huynh.</p>
+              <Button type="button" size="sm" disabled={createMut.isPending} onClick={() => createMut.mutate(false)}>
+                <Share2 className="mr-1.5 h-3.5 w-3.5" /> Tạo link Cổng phụ huynh
+              </Button>
+            </div>
+          )}
+
+          <div className="flex justify-end border-t pt-2">
+            <Button type="button" variant="outline" size="sm" onClick={onClose}>
+              Đóng
             </Button>
           </div>
         </div>

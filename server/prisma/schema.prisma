@@ -44,6 +44,7 @@ model User {
   unlockedStickers                             String                @default("[]") @map("unlocked_stickers")
   gachaPity                                    Int                   @default(0) @map("gacha_pity")
   gemBalance                                   Int                   @default(0) @map("gem_balance")
+  parentPortalToken                            String?               @unique @map("parent_portal_token")
   adaptiveTests                                 AdaptiveTestAttempt[]
   aiLogs                                        AILog[]
   announcements                                 Announcement[]
@@ -427,6 +428,9 @@ model Problem {
   testCases          String?             @map("test_cases")
   hints              String?
   teacherSolution    String?             @map("teacher_solution")
+  timeLimitMs        Int                 @default(2000) @map("time_limit_ms")
+  memoryLimitMb      Int                 @default(256) @map("memory_limit_mb")
+  checkerType        String              @default("exact") @map("checker_type")
   status             String              @default("draft")
   createdById        String              @map("created_by")
   createdAt          DateTime            @default(now()) @map("created_at")

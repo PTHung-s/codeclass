@@ -6,6 +6,8 @@ import { judgeCppCode } from "../utils/cppRunner";
 import { param } from "../utils/routeHelpers";
 import { recordSkillEvidenceBatch, fromProblemSubmission } from "../services/skillEvidence";
 import { detectLanguage } from "../utils/codeLanguage";
+import { normalizeCheckerType } from "../utils/judgeChecker";
+import { detectPlagiarismPairs } from "../services/plagiarismService";
 
 const router = Router();
 
@@ -583,9 +585,15 @@ async function runJudgeInBackground(params: {
   code: string;
   language: "python" | "cpp";
   testCases: ReturnType<typeof parseTestCases>;
+  timeLimitMs: number;
+  memoryLimitMb: number;
+  checkerType: ReturnType<typeof normalizeCheckerType>;
   studentNote: string;
 }) {
-  const { submissionId, problemId, problemTitle, difficulty, skillId, skillTagStatus, studentId, isStudent, code, language, testCases, studentNote } = params;
+  const {
+    submissionId, problemId, problemTitle, difficulty, skillId, skillTagStatus,
+    studentId, isStudent, code, language, testCases, timeLimitMs, memoryLimitMb, checkerType, studentNote,
+  } = params;
   await acquireJudgeSlot();
   try {
     await prisma.problemSubmission.update({
@@ -601,9 +609,10 @@ async function runJudgeInBackground(params: {
         .catch(() => {});
     };
 
+    const effectiveTimeLimit = language === "python" ? Math.min(10_000, timeLimitMs * 2) : timeLimitMs;
     const judge = language === "cpp"
-      ? await judgeCppCode(code, testCases, onProgress)
-      : await judgePythonCode(code, testCases, onProgress);
+      ? await judgeCppCode(code, testCases, onProgress, { timeLimitMs: effectiveTimeLimit, memoryLimitMb, checkerType })
+      : await judgePythonCode(code, testCases, onProgress, { timeLimitMs: effectiveTimeLimit, memoryLimitMb, checkerType });
 
     const allPassed = judge.status === "all_passed";
     await prisma.problemSubmission.update({
@@ -744,6 +753,9 @@ router.post("/problems/:problemId/submissions", authenticate, async (req: Reques
         code,
         language,
         testCases,
+        timeLimitMs: problem.timeLimitMs ?? 2000,
+        memoryLimitMb: problem.memoryLimitMb ?? 256,
+        checkerType: normalizeCheckerType(problem.checkerType),
         studentNote: note,
       }).catch(() => {});
     } else if (role === "student") {
@@ -763,6 +775,55 @@ router.post("/problems/:problemId/submissions", authenticate, async (req: Reques
     }
   } catch {
     res.status(500).json({ error: "Failed to submit" });
+  }
+});
+
+router.get("/problems/:problemId/plagiarism", authenticate, async (req: Request, res: Response) => {
+  try {
+    const { role } = req.user!;
+    if (role !== "teacher" && role !== "admin" && role !== "teaching_assistant") {
+      res.status(403).json({ error: "Access denied" });
+      return;
+    }
+
+    const problemId = param(req, "problemId");
+    const thresholdRaw = Number(req.query.threshold);
+    const threshold = Number.isFinite(thresholdRaw)
+      ? Math.max(0.4, Math.min(0.99, thresholdRaw > 1 ? thresholdRaw / 100 : thresholdRaw))
+      : 0.72;
+
+    const subs = await prisma.problemSubmission.findMany({
+      where: { problemId, code: { not: null } },
+      include: {
+        student: { select: { id: true, fullName: true, nickname: true, email: true } },
+      },
+      orderBy: [{ passed: "desc" }, { createdAt: "desc" }],
+    });
+
+    // Keep best/latest code per student
+    const byStudent = new Map<string, (typeof subs)[number]>();
+    for (const s of subs) {
+      if (!s.code || s.code.trim().length < 20) continue;
+      if (!byStudent.has(s.studentId)) byStudent.set(s.studentId, s);
+    }
+
+    const items = Array.from(byStudent.values()).map((s) => ({
+      submissionId: s.id,
+      studentId: s.studentId,
+      studentName: s.student.fullName,
+      nickname: s.student.nickname,
+      email: s.student.email,
+      language: (s.language === "cpp" ? "cpp" : detectLanguage(s.code || "")) as "python" | "cpp",
+      code: s.code || "",
+      score: s.passed ? 10 : 0,
+      submittedAt: s.createdAt,
+    }));
+
+    const pairs = detectPlagiarismPairs(items, { threshold });
+    res.json({ scannedStudents: items.length, threshold, pairs });
+  } catch (err) {
+    console.error("problem plagiarism check error:", err);
+    res.status(500).json({ error: "Không thể kiểm tra tương đồng code" });
   }
 });
 

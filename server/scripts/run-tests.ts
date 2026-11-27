@@ -15,6 +15,7 @@ const testFiles = [
   "src/services/__tests__/meetingIntegration.test.ts",
   "src/services/__tests__/recordingService.test.ts",
   "src/services/__tests__/problemPackService.test.ts",
+  "src/utils/__tests__/sandboxAndFeatures.test.ts",
 ];
 
 let failedSuites = 0;

@@ -20,6 +20,7 @@ import { useMascot, msgSolved } from"../../components/mascot";
 import { fireACConfetti } from"../../lib/confetti";
 import StudentChecklistModal from"../../components/ui/StudentChecklistModal";
 import ProblemTestManager from"../../components/ui/ProblemTestManager";
+import PlagiarismDialog from"../../components/ui/PlagiarismDialog";
 import { DifficultyBadge } from"../../components/ui/Badges";
 import { Button } from"../../components/ui/button";
 import { SkeletonProblemDetail } from"../../components/ui/skeletons/SkeletonProblemDetail";
@@ -89,6 +90,7 @@ export default function ProblemDetail() {
  const [hackError, setHackError] = useState("");
  const [rejectTarget, setRejectTarget] = useState<{ hackTestId: string } | null>(null);
  const [rejectReason, setRejectReason] = useState("");
+ const [plagiarismOpen, setPlagiarismOpen] = useState(false);
  const draftKeyRef = useRef(`problem_draft_${problemId}`);
  const restoredDraftRef = useRef(false);
  const trackingRef = useRef<PracticeTrackingState>({
@@ -613,6 +615,11 @@ export default function ProblemDetail() {
  <div className="py-8 text-center text-sm text-muted-foreground">Đang tải danh sách học sinh...</div>
  ) : (
  <>
+ <div className="flex justify-end">
+ <Button type="button" variant="outline" size="sm" onClick={() => setPlagiarismOpen(true)}>
+ <ShieldCheck className="mr-1.5 h-3.5 w-3.5 text-amber-500" /> Quét đạo văn code
+ </Button>
+ </div>
  {/* Summary cards */}
  <div className="grid grid-cols-3 gap-3">
  <div className="rounded-xl border border-border bg-card p-3.5 text-center shadow-sm">
@@ -1081,6 +1088,15 @@ export default function ProblemDetail() {
  studentName={checklistStudent.fullName}
  studentNickname={checklistStudent.nickname}
  studentEmail={checklistStudent.email}
+ />
+ )}
+
+ {isTeacher && problemId && (
+ <PlagiarismDialog
+ open={plagiarismOpen}
+ onClose={() => setPlagiarismOpen(false)}
+ endpoint={`/problems/${problemId}/plagiarism`}
+ title={`Quét tương đồng code — ${problem?.title || "Bài tập"}`}
  />
  )}
  </div>

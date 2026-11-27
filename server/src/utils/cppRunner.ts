@@ -3,39 +3,48 @@ import { randomUUID } from "crypto";
 import fs from "fs/promises";
 import os from "os";
 import path from "path";
+import {
+  acquireSandboxSlot,
+  buildSafeEnv,
+  releaseSandboxSlot,
+  runSandboxedProcess,
+  sandboxQueuePosition,
+  wrapCommandForSandbox,
+} from "./codeSandbox";
+import {
+  CheckerType,
+  compareOutputs,
+  computeJudgeScore,
+  SubtaskScoreSummary,
+} from "./judgeChecker";
 
-const TIMEOUT_MS = 10000;
-const MAX_OUTPUT_LENGTH = 4_000_000;
-const MAX_CONCURRENT_EXECUTIONS = 10;
+const DEFAULT_TIMEOUT_MS = 2000;
+const COMPILE_TIMEOUT_MS = 15_000;
+const MAX_OUTPUT_LENGTH = 2_000_000;
+const DEFAULT_MEMORY_MB = 256;
 
-// Global concurrency control
-let activeExecutions = 0;
-
-/** 0 = run immediately. 1+ = position in the wait queue. */
 export function cppQueuePosition(): number {
-  return Math.max(0, activeExecutions - MAX_CONCURRENT_EXECUTIONS + 1);
+  return sandboxQueuePosition();
 }
 
-async function waitForSlot(): Promise<void> {
-  while (activeExecutions >= MAX_CONCURRENT_EXECUTIONS) {
-    await new Promise(resolve => setTimeout(resolve, 100));
-  }
-  activeExecutions++;
-}
-
-function releaseSlot(): void {
-  activeExecutions--;
-}
-
-// Re-export same interfaces as pythonRunner for consistency
 export interface TestCase {
   input: string;
   output: string;
   hidden?: boolean;
+  subtask?: number;
+  points?: number;
 }
 
 export interface CppRunResult {
-  status: "success" | "runtime_error" | "time_limit" | "blocked" | "compile_error";
+  status:
+    | "success"
+    | "runtime_error"
+    | "time_limit"
+    | "memory_limit"
+    | "output_limit"
+    | "blocked"
+    | "compile_error"
+    | "skipped";
   stdout: string;
   stderr: string;
   output: string;
@@ -54,6 +63,7 @@ export interface CppTestResult {
   stderr?: string;
   status: CppRunResult["status"];
   durationMs: number;
+  subtask?: number;
 }
 
 export interface CppJudgeResult {
@@ -62,15 +72,12 @@ export interface CppJudgeResult {
   score: number;
   results: CppTestResult[];
   status: "all_passed" | "partial" | "no_tests";
+  subtasks?: SubtaskScoreSummary[];
 }
 
 function trimOutput(value: string, max = MAX_OUTPUT_LENGTH) {
   if (value.length <= max) return value;
   return `${value.slice(0, max)}\n... output truncated ...`;
-}
-
-function normalizeOutput(value: string) {
-  return value.trim().replace(/\r\n/g, "\n");
 }
 
 function validateCppCode(code: string): string | null {
@@ -79,10 +86,12 @@ function validateCppCode(code: string): string | null {
     /\b#include\s*<\s*filesystem\s*>/,
     /\b#include\s*<\s*socket\s*>/,
     /\b#include\s*<\s*net\s*>/,
+    /\b#include\s*["<][^">]*(?:\.\.|\/etc\/|\/proc\/|dev\.db)/i,
     /\bsystem\s*\(/,
     /\bpopen\s*\(/,
     /\bfork\s*\(/,
     /\bexec[lvpe]*\s*\(/,
+    /\b(?:asm|__asm__|__asm)\b/,
   ];
 
   if (blockedPatterns.some((pattern) => pattern.test(code))) {
@@ -92,7 +101,6 @@ function validateCppCode(code: string): string | null {
   return null;
 }
 
-/** Ensure batch stdin ends with a newline so cin never hangs on last line. */
 function normalizeStdin(stdin: string): string {
   if (!stdin) return "";
   return stdin.endsWith("\n") ? stdin : `${stdin}\n`;
@@ -109,13 +117,12 @@ function filterCompilerErrors(rawError: string): string {
   for (const line of lines) {
     if (errorCount >= MAX_ERRORS) break;
 
-    // Strip temp file paths: /tmp/codeclass-xxxxxx.cpp → your code
     const clean = line
-      .replace(/\/tmp\/codeclass-[a-f0-9-]+\.cpp/g, "your code")
+      .replace(/\/tmp\/codeclass-[^\s:]+\.cpp/g, "your code")
       .replace(/\/tmp\/\S+\.cpp/g, "your code")
+      .replace(/codeclass-[^\s:\\/]+[/\\]main\.cpp/g, "your code")
       .trim();
 
-    // Skip noisy lines
     if (!clean) continue;
     if (clean.startsWith("In file included from")) continue;
     if (clean.startsWith("In member function")) continue;
@@ -123,7 +130,6 @@ function filterCompilerErrors(rawError: string): string {
     if (clean.includes("note: ")) continue;
     if (clean.startsWith("compilation terminated")) continue;
 
-    // Count actual error lines
     if (clean.includes(": error:") || clean.includes(": fatal error:")) {
       errorCount++;
     }
@@ -135,30 +141,63 @@ function filterCompilerErrors(rawError: string): string {
   return filtered.join("\n");
 }
 
-async function compileCpp(sourcePath: string, binaryPath: string): Promise<{ ok: boolean; error: string }> {
+async function compileCpp(
+  sourcePath: string,
+  binaryPath: string,
+  workDir: string,
+): Promise<{ ok: boolean; error: string }> {
+  const compileArgs = [
+    "-std=c++17",
+    "-O2",
+    "-Wall",
+    "-fmax-errors=5",
+    "-o",
+    binaryPath,
+    sourcePath,
+  ];
+  const wrapped = await wrapCommandForSandbox("g++", compileArgs, {
+    workDir,
+    timeLimitMs: COMPILE_TIMEOUT_MS,
+    memoryLimitMb: 512,
+    maxFileBytes: 32_000_000,
+    maxProcs: 16,
+  });
+
   return new Promise((resolve) => {
-    const child = spawn("g++", [
-      "-std=c++17",
-      "-O2",
-      "-Wall",
-      "-fmax-errors=5",
-      "-o", binaryPath,
-      sourcePath,
-    ], { windowsHide: true });
+    const child = spawn(wrapped.command, wrapped.args, {
+      cwd: workDir,
+      env: buildSafeEnv(workDir),
+      windowsHide: true,
+    });
 
     let stderr = "";
+    let timedOut = false;
+    const timer = setTimeout(() => {
+      timedOut = true;
+      try {
+        if (process.platform === "win32" && child.pid) {
+          spawn("taskkill", ["/pid", child.pid.toString(), "/f", "/t"], { windowsHide: true });
+        } else {
+          child.kill("SIGKILL");
+        }
+      } catch { /* ignore */ }
+    }, COMPILE_TIMEOUT_MS);
 
     child.stderr.setEncoding("utf-8");
     child.stderr.on("data", (chunk: string) => {
-      stderr += chunk;
+      if (stderr.length < 32_000) stderr += chunk;
     });
 
     child.on("error", (err) => {
+      clearTimeout(timer);
       resolve({ ok: false, error: err.message });
     });
 
     child.on("close", (code) => {
-      if (code === 0) {
+      clearTimeout(timer);
+      if (timedOut) {
+        resolve({ ok: false, error: "Quá thời gian biên dịch (Compile Time Limit)" });
+      } else if (code === 0) {
         resolve({ ok: true, error: "" });
       } else {
         const clean = filterCompilerErrors(stderr);
@@ -184,9 +223,16 @@ async function hasCompiler(): Promise<boolean> {
   return compilerAvailable;
 }
 
-export async function runCppCode(code: string, stdin = "", opts?: { maxOutputLength?: number }): Promise<CppRunResult> {
+export async function runCppCode(
+  code: string,
+  stdin = "",
+  opts?: { maxOutputLength?: number; timeLimitMs?: number; memoryLimitMb?: number },
+): Promise<CppRunResult> {
   const maxOut = Math.max(1024, opts?.maxOutputLength ?? MAX_OUTPUT_LENGTH);
+  const timeLimitMs = Math.max(250, Math.min(12_000, opts?.timeLimitMs ?? DEFAULT_TIMEOUT_MS));
+  const memoryLimitMb = Math.max(64, Math.min(512, opts?.memoryLimitMb ?? DEFAULT_MEMORY_MB));
   const trim = (value: string) => trimOutput(value, maxOut);
+
   const blockedReason = validateCppCode(code);
   if (blockedReason) {
     return {
@@ -212,10 +258,7 @@ export async function runCppCode(code: string, stdin = "", opts?: { maxOutputLen
     };
   }
 
-  // Wait for execution slot
-  await waitForSlot();
-
-  // Dedicated sandbox dir so freopen("input.txt") / ofstream("output.txt") match Code Lab UI labels.
+  await acquireSandboxSlot();
   const workDir = path.join(os.tmpdir(), `codeclass-cpp-${randomUUID()}`);
   const sourcePath = path.join(workDir, "main.cpp");
   const binaryPath = path.join(workDir, process.platform === "win32" ? "main.exe" : "main");
@@ -227,246 +270,249 @@ export async function runCppCode(code: string, stdin = "", opts?: { maxOutputLen
     await fs.mkdir(workDir, { recursive: true });
     await fs.writeFile(sourcePath, code, "utf-8");
     await fs.writeFile(inputPath, normalizedStdin, "utf-8");
+
+    const compileStart = Date.now();
+    const compile = await compileCpp(sourcePath, binaryPath, workDir);
+    if (!compile.ok) {
+      return {
+        status: "compile_error",
+        stdout: "",
+        stderr: compile.error,
+        output: compile.error,
+        exitCode: 1,
+        durationMs: Date.now() - compileStart,
+        timedOut: false,
+      };
+    }
+
+    const wrapped = await wrapCommandForSandbox(binaryPath, [], {
+      workDir,
+      timeLimitMs,
+      memoryLimitMb,
+      isNativeBinary: true,
+    });
+
+    const exec = await runSandboxedProcess({
+      command: wrapped.command,
+      args: wrapped.args,
+      cwd: wrapped.cwd,
+      env: buildSafeEnv(workDir),
+      stdin: normalizedStdin,
+      timeLimitMs,
+      maxOutputBytes: maxOut,
+      outputFilePath: outputPath,
+    });
+
+    const output =
+      exec.status === "time_limit" || exec.status === "memory_limit" || exec.status === "output_limit"
+        ? exec.stderr
+        : [exec.stdout, exec.stderr].filter(Boolean).join("\n").trim() || "(không có output)";
+
+    return {
+      status: exec.status,
+      stdout: trim(exec.stdout),
+      stderr: trim(exec.stderr),
+      output: trim(output),
+      exitCode: exec.exitCode,
+      durationMs: exec.durationMs,
+      timedOut: exec.timedOut,
+    };
   } catch (err: any) {
-    releaseSlot();
+    const msg = err?.message || "Không tạo được sandbox C++.";
     return {
       status: "runtime_error",
       stdout: "",
-      stderr: err?.message || "Không tạo được thư mục chạy tạm.",
-      output: err?.message || "Không tạo được thư mục chạy tạm.",
+      stderr: msg,
+      output: msg,
       exitCode: null,
       durationMs: 0,
       timedOut: false,
     };
-  }
-
-  // Compile
-  const compileStart = Date.now();
-  const compile = await compileCpp(sourcePath, binaryPath);
-
-  if (!compile.ok) {
-    releaseSlot();
+  } finally {
+    releaseSandboxSlot();
     void fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
-    return {
-      status: "compile_error",
-      stdout: "",
-      stderr: compile.error,
-      output: compile.error,
-      exitCode: 1,
-      durationMs: Date.now() - compileStart,
-      timedOut: false,
-    };
   }
-
-  // Execute
-  return new Promise<CppRunResult>((resolve) => {
-    const startedAt = Date.now();
-    const child = spawn(binaryPath, [], { cwd: workDir, windowsHide: true });
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-
-    const cleanup = () => {
-      clearTimeout(timer);
-      releaseSlot();
-      void fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
-    };
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      if (process.platform === "win32" && child.pid) {
-        spawn("taskkill", ["/pid", child.pid.toString(), "/f", "/t"], { windowsHide: true });
-      } else {
-        child.kill("SIGKILL");
-      }
-    }, TIMEOUT_MS);
-
-    child.stdout.setEncoding("utf-8");
-    child.stderr.setEncoding("utf-8");
-
-    child.stdout.on("data", (chunk: string) => {
-      stdout = trim(stdout + chunk);
-    });
-
-    child.stderr.on("data", (chunk: string) => {
-      stderr = trim(stderr + chunk);
-    });
-
-    // Handle stdin errors (EPIPE when process dies before stdin.end())
-    child.stdin.on("error", () => {
-      // Ignore EPIPE errors - process already dead
-    });
-
-    child.on("error", (error) => {
-      cleanup();
-      resolve({
-        status: "runtime_error",
-        stdout: "",
-        stderr: error.message,
-        output: error.message,
-        exitCode: null,
-        durationMs: Date.now() - startedAt,
-        timedOut: false,
-      });
-    });
-
-    child.on("close", (exitCode) => {
-      const durationMs = Date.now() - startedAt;
-      const finish = async () => {
-        let fileOut = "";
-        try {
-          fileOut = await fs.readFile(outputPath, "utf-8");
-        } catch {
-          /* no output.txt */
-        }
-        cleanup();
-        const status: CppRunResult["status"] = timedOut
-          ? "time_limit"
-          : exitCode === 0
-            ? "success"
-            : "runtime_error";
-        const effectiveStdout = fileOut.trim().length > 0 ? fileOut : stdout;
-        const output = timedOut
-          ? "Time limit exceeded"
-          : [effectiveStdout, stderr].filter(Boolean).join("\n").trim() || "(không có output)";
-
-        resolve({
-          status,
-          stdout: trim(effectiveStdout),
-          stderr: timedOut ? "Time limit exceeded" : trim(stderr),
-          output: trim(output),
-          exitCode,
-          durationMs,
-          timedOut,
-        });
-      };
-      void finish();
-    });
-
-    // Also feed stdin so cin works without freopen("input.txt").
-    if (normalizedStdin && child.stdin.writable) {
-      child.stdin.end(normalizedStdin);
-    } else if (child.stdin.writable) {
-      child.stdin.end();
-    }
-  });
 }
 
-export async function judgeCppCode(code: string, testCases: TestCase[], onTestResult?: (r: CppTestResult) => void): Promise<CppJudgeResult> {
+export async function judgeCppCode(
+  code: string,
+  testCases: TestCase[],
+  onTestResult?: (r: CppTestResult) => void,
+  opts?: {
+    timeLimitMs?: number;
+    memoryLimitMb?: number;
+    checkerType?: CheckerType;
+    maxConsecutiveHeavyFails?: number;
+  },
+): Promise<CppJudgeResult> {
   if (testCases.length === 0) {
     return { passedCount: 0, totalTests: 0, score: 0, results: [], status: "no_tests" };
   }
 
-  // Compile once, then run the binary for each test case. Before this change,
-  // every test case called runCppCode which spawned g++ again — so a 20-test
-  // problem compiled 20 times, held 20 slot acquisitions, and every student in
-  // the same classroom waited behind each g++ invocation. Now it's 1 compile.
+  const timeLimitMs = Math.max(250, Math.min(12_000, opts?.timeLimitMs ?? DEFAULT_TIMEOUT_MS));
+  const memoryLimitMb = Math.max(64, Math.min(512, opts?.memoryLimitMb ?? DEFAULT_MEMORY_MB));
+  const checkerType: CheckerType = opts?.checkerType ?? "exact";
+  const maxHeavyFails = opts?.maxConsecutiveHeavyFails ?? 3;
 
   const blockedReason = validateCppCode(code);
   if (blockedReason) {
-    const result: CppTestResult = { testNum: 1, passed: false, hidden: false, status: "blocked", durationMs: 0, stderr: blockedReason };
-    return { passedCount: 0, totalTests: testCases.length, score: 0, results: testCases.map((_, i) => ({ ...result, testNum: i + 1 })), status: "partial" };
-  }
-
-  if (!(await hasCompiler())) {
-    const result: CppTestResult = { testNum: 1, passed: false, hidden: false, status: "runtime_error", durationMs: 0, stderr: "Không tìm thấy trình biên dịch g++ trên máy chủ." };
-    return { passedCount: 0, totalTests: testCases.length, score: 0, results: testCases.map((_, i) => ({ ...result, testNum: i + 1 })), status: "partial" };
-  }
-
-  await waitForSlot();
-
-  const tmpDir = os.tmpdir();
-  const baseName = `codeclass-${randomUUID()}`;
-  const sourcePath = path.join(tmpDir, `${baseName}.cpp`);
-  const binaryPath = path.join(tmpDir, baseName);
-
-  await fs.writeFile(sourcePath, code, "utf-8");
-
-  const compileStart = Date.now();
-  const compile = await compileCpp(sourcePath, binaryPath);
-
-  if (!compile.ok) {
-    releaseSlot();
-    void fs.unlink(sourcePath).catch(() => {});
-    const ceResult: CppTestResult = {
-      testNum: 1, passed: false, hidden: false, status: "compile_error",
-      durationMs: Date.now() - compileStart, stderr: compile.error,
+    const result: CppTestResult = {
+      testNum: 1,
+      passed: false,
+      hidden: false,
+      status: "blocked",
+      durationMs: 0,
+      stderr: blockedReason,
     };
     return {
-      passedCount: 0, totalTests: testCases.length, score: 0,
-      results: testCases.map((_, i) => ({ ...ceResult, testNum: i + 1 })),
+      passedCount: 0,
+      totalTests: testCases.length,
+      score: 0,
+      results: testCases.map((tc, i) => ({ ...result, testNum: i + 1, hidden: Boolean(tc.hidden), subtask: tc.subtask })),
       status: "partial",
     };
   }
 
-  // Run the same binary against each test case sequentially.
-  const results: CppTestResult[] = [];
-  for (let i = 0; i < testCases.length; i += 1) {
-    const tc = testCases[i];
-    const run = await new Promise<CppRunResult>((resolve) => {
-      const startedAt = Date.now();
-      const child = spawn(binaryPath, [], { windowsHide: true });
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-
-      const timer = setTimeout(() => {
-        timedOut = true;
-        if (process.platform === "win32" && child.pid) {
-          spawn("taskkill", ["/pid", child.pid.toString(), "/f", "/t"], { windowsHide: true });
-        } else {
-          child.kill("SIGKILL");
-        }
-      }, TIMEOUT_MS);
-
-      child.stdout.setEncoding("utf-8");
-      child.stderr.setEncoding("utf-8");
-      child.stdout.on("data", (chunk: string) => {
-        stdout = trimOutput(stdout + chunk);
-      });
-      child.stderr.on("data", (chunk: string) => {
-        stderr = trimOutput(stderr + chunk);
-      });
-      child.stdin.on("error", () => {});
-      child.on("error", (error) => {
-        clearTimeout(timer);
-        resolve({ status: "runtime_error", stdout: "", stderr: error.message, output: error.message, exitCode: null, durationMs: Date.now() - startedAt, timedOut: false });
-      });
-      child.on("close", (exitCode) => {
-        clearTimeout(timer);
-        const durationMs = Date.now() - startedAt;
-        const status: CppRunResult["status"] = timedOut ? "time_limit" : exitCode === 0 ? "success" : "runtime_error";
-        const output = timedOut ? "Time limit exceeded" : [stdout, stderr].filter(Boolean).join("\n").trim() || "(không có output)";
-        resolve({ status, stdout: trimOutput(stdout), stderr: timedOut ? "Time limit exceeded" : trimOutput(stderr), output: trimOutput(output), exitCode, durationMs, timedOut });
-      });
-
-      const input = normalizeStdin(tc.input || "");
-      if (input && child.stdin.writable) child.stdin.end(input);
-      else if (child.stdin.writable) child.stdin.end();
-    });
-
-    const passed = run.status === "success" && normalizeOutput(run.stdout) === normalizeOutput(tc.output || "");
-    const hidden = Boolean(tc.hidden);
+  if (!(await hasCompiler())) {
     const result: CppTestResult = {
-      testNum: i + 1, passed, hidden,
-      input: hidden ? undefined : tc.input,
-      expected: hidden ? undefined : tc.output,
-      stdout: hidden && !passed ? undefined : run.stdout,
-      stderr: run.stderr, status: run.status, durationMs: run.durationMs,
+      testNum: 1,
+      passed: false,
+      hidden: false,
+      status: "runtime_error",
+      durationMs: 0,
+      stderr: "Không tìm thấy trình biên dịch g++ trên máy chủ.",
     };
-    results.push(result);
-    if (onTestResult) { try { onTestResult(result); } catch { /* non-fatal */ } }
+    return {
+      passedCount: 0,
+      totalTests: testCases.length,
+      score: 0,
+      results: testCases.map((tc, i) => ({ ...result, testNum: i + 1, hidden: Boolean(tc.hidden), subtask: tc.subtask })),
+      status: "partial",
+    };
   }
 
-  releaseSlot();
-  void fs.unlink(sourcePath).catch(() => {});
-  void fs.unlink(binaryPath).catch(() => {});
+  await acquireSandboxSlot();
+  const workDir = path.join(os.tmpdir(), `codeclass-cppj-${randomUUID()}`);
+  const sourcePath = path.join(workDir, "main.cpp");
+  const binaryPath = path.join(workDir, process.platform === "win32" ? "main.exe" : "main");
+  const inputPath = path.join(workDir, "input.txt");
+  const outputPath = path.join(workDir, "output.txt");
+  const results: CppTestResult[] = [];
+
+  try {
+    await fs.mkdir(workDir, { recursive: true });
+    await fs.writeFile(sourcePath, code, "utf-8");
+
+    const compileStart = Date.now();
+    const compile = await compileCpp(sourcePath, binaryPath, workDir);
+    if (!compile.ok) {
+      const ceResult: CppTestResult = {
+        testNum: 1,
+        passed: false,
+        hidden: false,
+        status: "compile_error",
+        durationMs: Date.now() - compileStart,
+        stderr: compile.error,
+      };
+      return {
+        passedCount: 0,
+        totalTests: testCases.length,
+        score: 0,
+        results: testCases.map((tc, i) => ({ ...ceResult, testNum: i + 1, hidden: Boolean(tc.hidden), subtask: tc.subtask })),
+        status: "partial",
+      };
+    }
+
+    const wrapped = await wrapCommandForSandbox(binaryPath, [], {
+      workDir,
+      timeLimitMs,
+      memoryLimitMb,
+      isNativeBinary: true,
+    });
+    const safeEnv = buildSafeEnv(workDir);
+    let consecutiveHeavyFails = 0;
+
+    for (let i = 0; i < testCases.length; i += 1) {
+      const tc = testCases[i];
+      const hidden = Boolean(tc.hidden);
+
+      if (consecutiveHeavyFails >= maxHeavyFails && hidden) {
+        const skippedResult: CppTestResult = {
+          testNum: i + 1,
+          passed: false,
+          hidden,
+          status: "skipped",
+          stderr: "Bỏ qua do quá thời gian/bộ nhớ liên tiếp",
+          durationMs: 0,
+          subtask: tc.subtask,
+        };
+        results.push(skippedResult);
+        if (onTestResult) {
+          try { onTestResult(skippedResult); } catch { /* non-fatal */ }
+        }
+        continue;
+      }
+
+      const normIn = normalizeStdin(tc.input || "");
+      await fs.writeFile(inputPath, normIn, "utf-8");
+      await fs.rm(outputPath, { force: true }).catch(() => {});
+
+      const exec = await runSandboxedProcess({
+        command: wrapped.command,
+        args: wrapped.args,
+        cwd: wrapped.cwd,
+        env: safeEnv,
+        stdin: normIn,
+        timeLimitMs,
+        maxOutputBytes: MAX_OUTPUT_LENGTH,
+        outputFilePath: outputPath,
+      });
+
+      if (
+        exec.status === "time_limit" ||
+        exec.status === "memory_limit" ||
+        exec.status === "output_limit"
+      ) {
+        consecutiveHeavyFails += 1;
+      } else {
+        consecutiveHeavyFails = 0;
+      }
+
+      const passed =
+        exec.status === "success" &&
+        compareOutputs(exec.stdout, tc.output || "", checkerType);
+
+      const result: CppTestResult = {
+        testNum: i + 1,
+        passed,
+        hidden,
+        input: hidden ? undefined : tc.input,
+        expected: hidden ? undefined : tc.output,
+        stdout: hidden && !passed ? undefined : trimOutput(exec.stdout),
+        stderr: trimOutput(exec.stderr, 16_000),
+        status: exec.status,
+        durationMs: exec.durationMs,
+        subtask: tc.subtask,
+      };
+      results.push(result);
+      if (onTestResult) {
+        try { onTestResult(result); } catch { /* non-fatal */ }
+      }
+    }
+  } finally {
+    releaseSandboxSlot();
+    void fs.rm(workDir, { recursive: true, force: true }).catch(() => {});
+  }
 
   const passedCount = results.filter((result) => result.passed).length;
-  const score = Math.round((passedCount / testCases.length) * 100) / 10;
+  const scoring = computeJudgeScore(testCases, results);
 
   return {
-    passedCount, totalTests: testCases.length, score, results,
+    passedCount,
+    totalTests: testCases.length,
+    score: scoring.score,
+    results,
     status: passedCount === testCases.length ? "all_passed" : "partial",
+    ...(scoring.subtasks ? { subtasks: scoring.subtasks } : {}),
   };
 }

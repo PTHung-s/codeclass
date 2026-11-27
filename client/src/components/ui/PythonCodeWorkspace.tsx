@@ -36,6 +36,8 @@ function StatusPill({ status }: { status: CodeRunResult["status"] }) {
     success: "bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/40 dark:text-emerald-300 dark:border-emerald-800",
     runtime_error: "bg-red-100 text-red-700 border-red-200",
     time_limit: "bg-amber-100 text-amber-700 border-amber-200",
+    memory_limit: "bg-purple-100 text-purple-700 border-purple-200",
+    output_limit: "bg-orange-100 text-orange-700 border-orange-200",
     blocked: "bg-orange-100 text-orange-700 border-orange-200",
     compile_error: "bg-blue-100 text-blue-700 border-border",
   };
@@ -44,6 +46,8 @@ function StatusPill({ status }: { status: CodeRunResult["status"] }) {
     success: "Chạy xong",
     runtime_error: "Lỗi chạy code",
     time_limit: "Quá thời gian",
+    memory_limit: "Quá bộ nhớ",
+    output_limit: "Quá giới hạn xuất",
     blocked: "Bị chặn",
     compile_error: "Lỗi biên dịch",
   };

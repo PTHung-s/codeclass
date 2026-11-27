@@ -75,7 +75,9 @@ const CourseForm = lazyRetry(() => import("./pages/courses/CourseForm"));
 const CourseCurriculum = lazyRetry(() => import("./pages/courses/CourseCurriculum"));
 const CourseTrackingTab = lazyRetry(() => import("./pages/courses/tracking/CourseTrackingTab"));
 const ProblemList = lazyRetry(() => import("./pages/problems/ProblemList"));
+const CpRoadmapPage = lazyRetry(() => import("./pages/problems/CpRoadmapPage"));
 const ProblemDetail = lazyRetry(() => import("./pages/problems/ProblemDetail"));
+const PublicParentPortal = lazyRetry(() => import("./pages/public/PublicParentPortal"));
 const ProblemForm = lazyRetry(() => import("./pages/problems/ProblemForm"));
 const ArenaGame = lazyRetry(() => import("./pages/arena/ArenaGame"));
 const QuizArenaGame = lazyRetry(() => import("./pages/arena/QuizArenaGame"));
@@ -141,6 +143,7 @@ export default function App() {
         <Route path="/tuition" element={<ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}><TuitionManagement /></ProtectedRoute>} />
         <Route path="/public/attendance" element={<PublicAttendance />} />
         <Route path="/public/tuition" element={<PublicTuition />} />
+        <Route path="/public/parent/:token" element={<PublicParentPortal />} />
         <Route path="/*" element={<ProtectedRoute><Layout /></ProtectedRoute>}>
           <Route index element={<Navigate to="/dashboard" />} />
           <Route path="dashboard" element={<Dashboard />} />
@@ -187,6 +190,7 @@ export default function App() {
             </ProtectedRoute>
           } />
           <Route path="problems" element={<ProblemList />} />
+          <Route path="problems/roadmap" element={<CpRoadmapPage />} />
           <Route path="problems/new" element={
             <ProtectedRoute roles={["admin", "teacher", "teaching_assistant"]}>
               <ProblemForm />

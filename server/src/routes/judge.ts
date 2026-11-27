@@ -4,6 +4,7 @@ import { authenticate } from "../middleware/auth";
 import prisma from "../utils/prisma";
 import { formatJudgeFeedback, judgePythonCode, parseTestCases } from "../utils/pythonRunner";
 import { judgeCppCode } from "../utils/cppRunner";
+import { normalizeCheckerType } from "../utils/judgeChecker";
 import { notifyNotificationChanged } from "../services/notificationEvents";
 import { detectLanguage } from "../utils/codeLanguage";
 
@@ -51,9 +52,16 @@ router.post("/submissions/:id/judge", judgeLimiter, authenticate, async (req: Re
     }
 
     const language = detectLanguage(code);
+    const problemMeta = sub.assignment.problem;
+    const baseTimeMs = problemMeta?.timeLimitMs ?? 2000;
+    const judgeOpts = {
+      timeLimitMs: language === "python" ? Math.min(10_000, baseTimeMs * 2) : baseTimeMs,
+      memoryLimitMb: problemMeta?.memoryLimitMb ?? 256,
+      checkerType: normalizeCheckerType(problemMeta?.checkerType),
+    };
     const result: any = language === "cpp"
-      ? await judgeCppCode(code, testCases)
-      : await judgePythonCode(code, testCases);
+      ? await judgeCppCode(code, testCases, undefined, judgeOpts)
+      : await judgePythonCode(code, testCases, undefined, judgeOpts);
     const feedback = formatJudgeFeedback(result);
 
     await prisma.review.upsert({

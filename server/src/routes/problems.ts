@@ -4,6 +4,8 @@ import { requireRole } from "../middleware/rbac";
 import prisma from "../utils/prisma";
 import { param, query, paginate, publicTestCases, sanitizeProblemForStudent, formatProblemPreview } from "../utils/routeHelpers";
 import { importProblemPack, listBuiltInPacks, loadBuiltInPack } from "../services/problemPackService";
+import { buildCpRoadmap } from "../services/cpRoadmapService";
+import { normalizeCheckerType } from "../utils/judgeChecker";
 
 const router = Router();
 
@@ -86,12 +88,20 @@ router.post("/", authenticate, requireRole("admin", "teacher"), async (req: Requ
       title, shortDescription, statement, difficulty, estimatedTime,
       starterCode, sampleInput, sampleOutput, requirementsText, rubric,
       hints, teacherSolution, tags, status,
+      timeLimitMs, memoryLimitMb, checkerType,
     } = req.body;
 
     if (!title) {
       res.status(400).json({ error: "Title is required" });
       return;
     }
+
+    const safeTimeLimit = Number.isFinite(Number(timeLimitMs))
+      ? Math.max(500, Math.min(10_000, Math.round(Number(timeLimitMs))))
+      : 2000;
+    const safeMemoryLimit = Number.isFinite(Number(memoryLimitMb))
+      ? Math.max(64, Math.min(512, Math.round(Number(memoryLimitMb))))
+      : 256;
 
     const problem = await prisma.problem.create({
       data: {
@@ -107,6 +117,9 @@ router.post("/", authenticate, requireRole("admin", "teacher"), async (req: Requ
         rubric,
         hints,
         teacherSolution,
+        timeLimitMs: safeTimeLimit,
+        memoryLimitMb: safeMemoryLimit,
+        checkerType: normalizeCheckerType(checkerType),
         status: status || "draft",
         createdById: req.user!.userId,
         tags: tags && Array.isArray(tags)
@@ -119,6 +132,17 @@ router.post("/", authenticate, requireRole("admin", "teacher"), async (req: Requ
     res.status(201).json(problem);
   } catch {
     res.status(500).json({ error: "Failed to create problem" });
+  }
+});
+
+// ─── CP Roadmap (4 Tiers across 190+ problems) ───
+router.get("/roadmap", authenticate, async (req: Request, res: Response) => {
+  try {
+    const roadmap = await buildCpRoadmap(req.user!.userId, req.user!.role);
+    res.json(roadmap);
+  } catch (err) {
+    console.error("cp roadmap error:", err);
+    res.status(500).json({ error: "Không thể tải lộ trình CP" });
   }
 });
 
@@ -222,6 +246,12 @@ router.put("/:id/tests", authenticate, requireRole("admin", "teacher"), async (r
         input: t.input.replace(/\r\n/g, "\n"),
         output: String(t.output).replace(/\r\n/g, "\n").replace(/\n+$/, "") ,
         hidden: Boolean(t.hidden),
+        ...(typeof t.subtask === "number" && Number.isFinite(t.subtask) && t.subtask > 0
+          ? { subtask: Math.floor(t.subtask) }
+          : {}),
+        ...(typeof t.points === "number" && Number.isFinite(t.points) && t.points > 0
+          ? { points: t.points }
+          : {}),
       });
     }
 
@@ -287,6 +317,7 @@ router.patch("/:id", authenticate, requireRole("admin", "teacher"), async (req: 
       title, shortDescription, statement, difficulty, estimatedTime,
       starterCode, sampleInput, sampleOutput, requirementsText, rubric,
       hints, teacherSolution, tags, status,
+      timeLimitMs, memoryLimitMb, checkerType,
     } = req.body;
 
     if (tags !== undefined) {
@@ -308,6 +339,13 @@ router.patch("/:id", authenticate, requireRole("admin", "teacher"), async (req: 
         ...(rubric !== undefined && { rubric }),
         ...(hints !== undefined && { hints }),
         ...(teacherSolution !== undefined && { teacherSolution }),
+        ...(timeLimitMs !== undefined && Number.isFinite(Number(timeLimitMs)) && {
+          timeLimitMs: Math.max(500, Math.min(10_000, Math.round(Number(timeLimitMs)))),
+        }),
+        ...(memoryLimitMb !== undefined && Number.isFinite(Number(memoryLimitMb)) && {
+          memoryLimitMb: Math.max(64, Math.min(512, Math.round(Number(memoryLimitMb)))),
+        }),
+        ...(checkerType !== undefined && { checkerType: normalizeCheckerType(checkerType) }),
         ...(status !== undefined && { status }),
         ...(tags !== undefined && {
           tags: { create: tags.map((t: string) => ({ tag: t })) },

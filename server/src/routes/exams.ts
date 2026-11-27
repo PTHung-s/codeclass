@@ -22,6 +22,8 @@ import {
 } from "../services/examTestcaseGen";
 import { startExamGradeJob, applyTeacherShortGrade, suggestShortComment } from "../services/examGrading";
 import { generateExamDraft } from "../services/examAiGenerator";
+import { detectPlagiarismPairs } from "../services/plagiarismService";
+import { detectLanguage } from "../utils/codeLanguage";
 import {
   assertExamReadAccess,
   assertExamStartAccess,
@@ -1679,6 +1681,79 @@ router.post("/:id/grades/:attemptId/accept-llm-short", authenticate, requireRole
     res.json({ accepted: n });
   } catch (err: any) {
     res.status(400).json({ error: err?.message || ExamMsg.gradePatchFailed });
+  }
+});
+
+// Scan practice coding answers across exam attempts for structural code similarity
+router.get("/:id/plagiarism", authenticate, requireRole(...STAFF), async (req: Request, res: Response) => {
+  try {
+    const examId = paramId(req.params.id);
+    const thresholdRaw = Number(req.query.threshold);
+    const threshold = Number.isFinite(thresholdRaw)
+      ? Math.max(0.4, Math.min(0.99, thresholdRaw > 1 ? thresholdRaw / 100 : thresholdRaw))
+      : 0.72;
+
+    const answers = await prisma.examAnswer.findMany({
+      where: {
+        attempt: { examId, status: { in: ["submitted", "expired", "graded"] } },
+        question: { type: "thuc_hanh" },
+        codeAnswer: { not: null },
+      },
+      include: {
+        question: { select: { id: true, orderIndex: true, stem: true, language: true } },
+        attempt: {
+          include: {
+            student: { select: { id: true, fullName: true, nickname: true, email: true } },
+          },
+        },
+      },
+      orderBy: { question: { orderIndex: "asc" } },
+    });
+
+    const byQuestion = new Map<string, { label: string; items: any[] }>();
+    const uniqueStudents = new Set<string>();
+    for (const a of answers) {
+      const code = (a.codeAnswer || "").trim();
+      if (code.length < 20) continue;
+      uniqueStudents.add(a.attempt.studentId);
+      let grp = byQuestion.get(a.questionId);
+      if (!grp) {
+        const stemLine = a.question.stem.split("\n")[0].replace(/[#*`]/g, "").trim().slice(0, 60);
+        grp = { label: `Câu ${a.question.orderIndex + 1}: ${stemLine}`, items: [] };
+        byQuestion.set(a.questionId, grp);
+      }
+      grp.items.push({
+        submissionId: a.id,
+        studentId: a.attempt.studentId,
+        studentName: a.attempt.student.fullName,
+        nickname: a.attempt.student.nickname,
+        email: a.attempt.student.email,
+        language: (a.codeLanguage === "cpp" || a.question.language === "cpp"
+          ? "cpp"
+          : detectLanguage(code)) as "python" | "cpp",
+        code,
+        score: a.finalScore ?? a.autoScore ?? null,
+      });
+    }
+
+    const allPairs: any[] = [];
+    for (const [questionId, grp] of byQuestion.entries()) {
+      const pairs = detectPlagiarismPairs(grp.items, { threshold });
+      for (const p of pairs) {
+        allPairs.push({ ...p, questionId, questionLabel: grp.label });
+      }
+    }
+    allPairs.sort((a, b) => b.similarity - a.similarity || b.sharedFingerprints - a.sharedFingerprints);
+
+    res.json({
+      scannedStudents: uniqueStudents.size,
+      scannedQuestions: byQuestion.size,
+      threshold,
+      pairs: allPairs.slice(0, 80),
+    });
+  } catch (err) {
+    console.error("[exams/plagiarism]", err);
+    res.status(500).json({ error: "Không thể quét tương đồng code bài thi" });
   }
 });
 

@@ -38,6 +38,9 @@ export default function ProblemForm() {
   const [rubric, setRubric] = useState("");
   const [tagsInput, setTagsInput] = useState("");
   const [teacherSolution, setTeacherSolution] = useState("");
+  const [timeLimitMs, setTimeLimitMs] = useState("2000");
+  const [memoryLimitMb, setMemoryLimitMb] = useState("256");
+  const [checkerType, setCheckerType] = useState("exact");
   const [hints, setHints] = useState<string[]>([""]);
   const [error, setError] = useState("");
 
@@ -55,6 +58,9 @@ export default function ProblemForm() {
       setRubric(existing.rubric || "");
       setTagsInput(existing.tags?.map((t: any) => t.tag).join(", ") || "");
       setTeacherSolution(existing.teacherSolution || "");
+      setTimeLimitMs(String(existing.timeLimitMs ?? 2000));
+      setMemoryLimitMb(String(existing.memoryLimitMb ?? 256));
+      setCheckerType(existing.checkerType || "exact");
       if (isEdit && problemId) {
         api
           .get(`/problems/${problemId}/hints`)
@@ -105,6 +111,9 @@ export default function ProblemForm() {
       rubric,
       tags,
       teacherSolution,
+      timeLimitMs: timeLimitMs ? parseInt(timeLimitMs, 10) : 2000,
+      memoryLimitMb: memoryLimitMb ? parseInt(memoryLimitMb, 10) : 256,
+      checkerType,
       status: isEdit ? undefined : "draft",
     });
   };
@@ -197,6 +206,54 @@ export default function ProblemForm() {
                   onChange={(e) => setTagsInput(e.target.value)}
                   placeholder="vòng lặp, toán học"
                 />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <div>
+                <label htmlFor="problem-tl" className={fieldLabel}>
+                  Time Limit (ms)
+                </label>
+                <Input
+                  id="problem-tl"
+                  type="number"
+                  min={500}
+                  max={10000}
+                  step={100}
+                  value={timeLimitMs}
+                  onChange={(e) => setTimeLimitMs(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="problem-ml" className={fieldLabel}>
+                  Memory Limit (MB)
+                </label>
+                <Input
+                  id="problem-ml"
+                  type="number"
+                  min={64}
+                  max={512}
+                  step={32}
+                  value={memoryLimitMb}
+                  onChange={(e) => setMemoryLimitMb(e.target.value)}
+                />
+              </div>
+              <div>
+                <label htmlFor="problem-checker" className={fieldLabel}>
+                  Chế độ chấm (Checker)
+                </label>
+                <select
+                  id="problem-checker"
+                  value={checkerType}
+                  onChange={(e) => setCheckerType(e.target.value)}
+                  className={selectClass}
+                >
+                  <option value="exact">Chính xác văn bản (Exact)</option>
+                  <option value="tokens">So khớp từng token (bỏ khoảng trắng thừa)</option>
+                  <option value="float_1e6">Số thực sai số ≤ 1e-6</option>
+                  <option value="float_1e4">Số thực sai số ≤ 1e-4</option>
+                  <option value="ignore_case">Không phân biệt hoa/thường</option>
+                </select>
               </div>
             </div>
 
