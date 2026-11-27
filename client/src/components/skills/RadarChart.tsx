@@ -48,6 +48,16 @@ const SHORT_NAMES: Record<string, string> = {
   "Thuật toán: Hai con trỏ và cửa sổ trượt": "2 Con trỏ",
   "Thuật toán: Đệ quy cơ bản": "Đệ quy",
   "Thuật toán: Luyện đề và chiến thuật thi": "Chiến thuật thi",
+  "Thuật toán: Tham lam và Chia để trị": "Tham lam & CĐT",
+  "Thuật toán: Stack, Queue và Heap": "Stack/Deque/Heap",
+  "Thuật toán: Quay lui và Nhánh cận": "Quay lui",
+  "Thuật toán: Quy hoạch động (DP)": "Quy hoạch động",
+  "Thuật toán: Đồ thị và Cây": "Đồ thị & Cây",
+  "Thuật toán: Bitmask và Tư duy Ad-hoc": "Bit & Ad-hoc",
+  "Thuật toán: Tổ hợp và Ma trận": "Tổ hợp & Ma trận",
+  "Thuật toán: Cấu trúc dữ liệu truy vấn đoạn": "BIT & SegTree",
+  "Thuật toán: Cây, Đồ thị và Xâu nâng cao": "Cây/Xâu/DP NC",
+  "Thuật toán: Hình học và Lý thuyết trò chơi": "Hình học & Game",
 };
 
 /** Programming language / domain of a skill, from its canonical skill-id prefix. */

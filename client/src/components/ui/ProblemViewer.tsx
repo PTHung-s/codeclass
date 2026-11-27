@@ -59,6 +59,20 @@ function detectCodeLang(code: string): "python" | "cpp" {
     : "python";
 }
 
+const DUAL_SOLUTION_MARKER = "/* === CODECLASS_PYTHON_SOLUTION === */";
+
+function splitDualSolution(raw?: string | null): { cpp: string | null; python: string | null } {
+  if (!raw) return { cpp: null, python: null };
+  const idx = raw.indexOf(DUAL_SOLUTION_MARKER);
+  if (idx === -1) {
+    const lang = detectCodeLang(raw);
+    return lang === "cpp" ? { cpp: raw, python: null } : { cpp: null, python: raw };
+  }
+  const cpp = raw.slice(0, idx).trim() || null;
+  const python = raw.slice(idx + DUAL_SOLUTION_MARKER.length).trim() || null;
+  return { cpp, python };
+}
+
 function editorHeight(code: string, min = 96, max = 360): number {
   const lines = code ? code.replace(/\r\n/g, "\n").split("\n").length : 4;
   return Math.min(Math.max(lines * 20 + 24, min), max);
@@ -178,6 +192,15 @@ function stripRedundantTrailingExamples(statement: string): string {
 
 export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
   const { dark } = useDarkMode();
+  const [solutionLang, setSolutionLang] = useState<"cpp" | "python">("cpp");
+  const dualSol = splitDualSolution(problem.teacherSolution);
+  const activeSolLang: "cpp" | "python" =
+    dualSol.cpp && dualSol.python
+      ? solutionLang
+      : dualSol.cpp
+        ? "cpp"
+        : "python";
+  const activeSolCode = (activeSolLang === "cpp" ? dualSol.cpp : dualSol.python) || problem.teacherSolution || "";
   const visibleTests = parseVisibleTests(problem.testCases);
   const fallbackInput = clean(problem.sampleInput);
   const fallbackOutput = clean(problem.sampleOutput);
@@ -296,17 +319,51 @@ export default function ProblemViewer({ problem, showTeacherSolution }: Props) {
       {/* Lời giải giáo viên */}
       {showTeacherSolution && problem.teacherSolution && (
         <section>
-          <SectionHeading icon={KeyRound}>
-            Lời giải
-            <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-700 dark:text-amber-300">
-              Chỉ giáo viên
-            </span>
-          </SectionHeading>
+          <div className="mb-2.5 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              <KeyRound className="h-3.5 w-3.5" />
+              Lời giải
+              <span className="ml-1 rounded bg-amber-500/15 px-1.5 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-amber-700 dark:text-amber-300">
+                Chỉ giáo viên
+              </span>
+            </h3>
+            <div className="flex items-center gap-1.5">
+              {dualSol.cpp && dualSol.python && (
+                <div className="flex items-center rounded-md border border-border bg-muted/50 p-0.5">
+                  <button
+                    type="button"
+                    onClick={() => setSolutionLang("cpp")}
+                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                      activeSolLang === "cpp"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    C++17
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setSolutionLang("python")}
+                    className={`rounded px-2 py-0.5 text-[11px] font-medium transition-colors ${
+                      activeSolLang === "python"
+                        ? "bg-primary text-primary-foreground shadow-sm"
+                        : "text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    Python 3
+                  </button>
+                </div>
+              )}
+              <div className="rounded-md bg-slate-900/90 px-1 py-0.5">
+                <CopyButton value={activeSolCode} />
+              </div>
+            </div>
+          </div>
           <div className="overflow-hidden rounded-xl border border-border">
             <Editor
-              height={`${editorHeight(problem.teacherSolution, 120, 480)}px`}
-              language={detectCodeLang(problem.teacherSolution)}
-              value={problem.teacherSolution}
+              height={`${editorHeight(activeSolCode, 140, 500)}px`}
+              language={activeSolLang}
+              value={activeSolCode}
               theme={dark ? "vs-dark" : "vs"}
               options={{ readOnly: true, minimap: { enabled: false }, fontSize: 13, scrollBeyondLastLine: false, padding: { top: 12 } }}
             />

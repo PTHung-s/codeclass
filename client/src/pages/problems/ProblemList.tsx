@@ -4,7 +4,8 @@ import { useNavigate } from "react-router-dom";
 import { useAuthContext } from "../../contexts/AuthContext";
 import { isStaff } from "../../lib/roles";
 import api from "../../lib/api";
-import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, ChevronDown, Clock, CheckCircle2 } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Code, X, ChevronLeft, ChevronRight, ChevronDown, Clock, CheckCircle2, PackagePlus } from "lucide-react";
+import ProblemPackImportDialog from "../../components/ui/ProblemPackImportDialog";
 import { useConfirmContext } from "../../hooks/useConfirm";
 import { SkeletonTable } from "../../components/ui/skeletons";
 import { ErrorState, EmptyState } from "../../components/ui/StateViews";
@@ -62,6 +63,7 @@ export default function ProblemList() {
   const [sortBy, setSortBy] = useState("default");
   const [solvedFilter, setSolvedFilter] = useState<"all" | "solved" | "unsolved">("all");
   const [page, setPage] = useState(1);
+  const [importOpen, setImportOpen] = useState(false);
   const PAGE_SIZE = 40;
 
   // Reset to first page when search changes so results stay in sync with the query.
@@ -159,12 +161,21 @@ export default function ProblemList() {
         title="Thư viện đề bài"
         actions={
           isTeacher ? (
-            <Button size="sm" onClick={() => navigate("/problems/new")}>
-              <Plus className="size-3.5" /> Tạo đề mới
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => setImportOpen(true)}>
+                <PackagePlus className="size-3.5" /> Import kho đề CP
+              </Button>
+              <Button size="sm" onClick={() => navigate("/problems/new")}>
+                <Plus className="size-3.5" /> Tạo đề mới
+              </Button>
+            </div>
           ) : undefined
         }
       />
+
+      {isTeacher && (
+        <ProblemPackImportDialog open={importOpen} onClose={() => setImportOpen(false)} />
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
         <div className="relative min-w-[200px] max-w-xs flex-1" role="search">

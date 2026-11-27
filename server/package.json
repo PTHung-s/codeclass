@@ -10,7 +10,8 @@
     "prisma:migrate": "prisma migrate dev",
     "prisma:push": "prisma db push",
     "test": "tsx scripts/run-tests.ts",
-    "seed:cpp-course": "tsx src/scripts/seedCppCourse.ts"
+    "seed:cpp-course": "tsx src/scripts/seedCppCourse.ts",
+    "import:problems": "tsx src/scripts/importProblemPack.ts"
   },
   "dependencies": {
     "@prisma/client": "^6.2.1",

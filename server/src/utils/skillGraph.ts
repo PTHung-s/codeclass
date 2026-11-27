@@ -688,6 +688,324 @@ export const SKILL_SEEDS: SkillSeed[] = [
       "Phân loại bài theo dạng; ăn điểm nhanh trước; khi nào brute force đủ dùng; tự tạo test và chữa đề mẫu.",
     orderIndex: 70,
   },
+  // ══ Lập trình thi đấu (Tầng 2–3: Tham lam, CTDL, Quay lui, DP, Đồ thị) ══
+  // ── Topic: Tham lam và Chia để trị ──
+  {
+    skillId: "algo.greedy_basics",
+    topicId: "t26_algo_greedy",
+    topicName: "Thuật toán: Tham lam và Chia để trị",
+    name: "Tham lam cơ bản và chứng minh trao đổi",
+    description:
+      "Chọn phương án cục bộ tối ưu; sắp xếp theo tiêu chí thích hợp; chứng minh đúng bằng lập luận trao đổi (exchange argument).",
+    orderIndex: 71,
+  },
+  {
+    skillId: "algo.greedy_scheduling",
+    topicId: "t26_algo_greedy",
+    topicName: "Thuật toán: Tham lam và Chia để trị",
+    name: "Lập lịch, khoảng thời gian và tối ưu bước nhảy",
+    description:
+      "Chọn nhiều khoảng không giao nhau, số phòng tối thiểu, lập lịch có hạn chót và nhảy xa ít bước nhất.",
+    orderIndex: 72,
+  },
+  {
+    skillId: "algo.binary_search_answer",
+    topicId: "t26_algo_greedy",
+    topicName: "Thuật toán: Tham lam và Chia để trị",
+    name: "Tìm kiếm nhị phân trên đáp án",
+    description:
+      "Nhận diện tính đơn điệu của hàm kiểm tra; tìm giá trị lớn nhất/nhỏ nhất thỏa điều kiện (min-max / max-min).",
+    orderIndex: 73,
+  },
+  {
+    skillId: "algo.divide_conquer_mod",
+    topicId: "t26_algo_greedy",
+    topicName: "Thuật toán: Tham lam và Chia để trị",
+    name: "Chia để trị, lũy thừa nhị phân và số học Modulo",
+    description:
+      "Lũy thừa nhanh O(log n), định lý Fermat nhỏ, nghịch đảo modulo, đếm nghịch thế bằng Merge Sort.",
+    orderIndex: 74,
+  },
+  // ── Topic: Stack, Queue và Heap ──
+  {
+    skillId: "algo.stack_queue",
+    topicId: "t27_algo_ds_linear",
+    topicName: "Thuật toán: Stack, Queue và Heap",
+    name: "Ngăn xếp, hàng đợi và biểu thức ngoặc",
+    description:
+      "Ứng dụng LIFO/FIFO; kiểm tra ngoặc hợp lệ, biểu thức hậu tố RPN, dãy ngoặc đúng dài nhất.",
+    orderIndex: 75,
+  },
+  {
+    skillId: "algo.monotonic_stack_deque",
+    topicId: "t27_algo_ds_linear",
+    topicName: "Thuật toán: Stack, Queue và Heap",
+    name: "Ngăn xếp đơn điệu và Deque cửa sổ trượt",
+    description:
+      "Next Greater Element, sliding window max/min O(n), hình chữ nhật lớn nhất trong histogram.",
+    orderIndex: 76,
+  },
+  {
+    skillId: "algo.heap_priority_queue",
+    topicId: "t27_algo_ds_linear",
+    topicName: "Thuật toán: Stack, Queue và Heap",
+    name: "Hàng đợi ưu tiên (Heap) và cực trị động",
+    description:
+      "Dùng min-heap/max-heap nối dây Huffman, duy trì trung vị động 2 heap, chọn dự án tối ưu vốn.",
+    orderIndex: 77,
+  },
+  // ── Topic: Quay lui và Nhánh cận ──
+  {
+    skillId: "algo.backtracking_generation",
+    topicId: "t28_algo_backtracking",
+    topicName: "Thuật toán: Quay lui và Nhánh cận",
+    name: "Quay lui sinh cấu hình (tổ hợp, hoán vị, tập con)",
+    description:
+      "Cây tìm kiếm quay lui; sinh xâu nhị phân, tổ hợp, dãy ngoặc hợp lệ và tổ hợp tổng bằng S.",
+    orderIndex: 78,
+  },
+  {
+    skillId: "algo.backtracking_pruning",
+    topicId: "t28_algo_backtracking",
+    topicName: "Thuật toán: Quay lui và Nhánh cận",
+    name: "Quay lui cắt nhánh và Meet-in-the-Middle",
+    description:
+      "Cắt nhánh sớm (pruning), N-Queens, Sudoku, chia K tập bằng nhau và chia đôi tập Meet-in-the-Middle.",
+    orderIndex: 79,
+  },
+  // ── Topic: Quy hoạch động (DP) ──
+  {
+    skillId: "algo.dp_linear",
+    topicId: "t29_algo_dp",
+    topicName: "Thuật toán: Quy hoạch động (DP)",
+    name: "Quy hoạch động tuyến tính 1 chiều",
+    description:
+      "Xác định trạng thái, công thức chuyển và bài toán cơ sở trên dãy 1D (cầu thang, Kadane, House Robber).",
+    orderIndex: 80,
+  },
+  {
+    skillId: "algo.dp_knapsack",
+    topicId: "t29_algo_dp",
+    topicName: "Thuật toán: Quy hoạch động (DP)",
+    name: "Quy hoạch động Ba lô và Đổi tiền",
+    description:
+      "Knapsack 0/1, Knapsack không giới hạn, đếm số cách và số đồng xu ít nhất, tối ưu bộ nhớ 1 chiều.",
+    orderIndex: 81,
+  },
+  {
+    skillId: "algo.dp_lis_lcs",
+    topicId: "t29_algo_dp",
+    topicName: "Thuật toán: Quy hoạch động (DP)",
+    name: "Dãy con tăng dài nhất (LIS) và Xâu con chung (LCS)",
+    description:
+      "LIS O(n log n) kết hợp tìm kiếm nhị phân; LCS và Edit Distance trên hai xâu.",
+    orderIndex: 82,
+  },
+  {
+    skillId: "algo.dp_grid",
+    topicId: "t29_algo_dp",
+    topicName: "Thuật toán: Quy hoạch động (DP)",
+    name: "Quy hoạch động trên lưới 2 chiều",
+    description:
+      "Đường đi tối ưu và đếm số đường đi trên ma trận có vật cản hoặc trọng số ô.",
+    orderIndex: 83,
+  },
+  {
+    skillId: "algo.dp_interval_bitmask",
+    topicId: "t29_algo_dp",
+    topicName: "Thuật toán: Quy hoạch động (DP)",
+    name: "DP trên đoạn, DP Bitmask và DP trên cây",
+    description:
+      "Interval DP gộp đoạn, Bitmask DP trạng thái tập con (TSP), và Tree DP tổng hợp từ cây con.",
+    orderIndex: 84,
+  },
+  // ── Topic: Đồ thị và Cây ──
+  {
+    skillId: "algo.graph_traversal",
+    topicId: "t30_algo_graph",
+    topicName: "Thuật toán: Đồ thị và Cây",
+    name: "Biểu diễn đồ thị, BFS/DFS và duyệt cây",
+    description:
+      "Danh sách kề; đếm thành phần liên thông, khoảng cách BFS không trọng số và đường kính cây.",
+    orderIndex: 85,
+  },
+  {
+    skillId: "algo.graph_grid_bipartite",
+    topicId: "t30_algo_graph",
+    topicName: "Thuật toán: Đồ thị và Cây",
+    name: "BFS/DFS trên lưới và đồ thị hai phía",
+    description:
+      "Tìm đường ngắn nhất trong mê cung lưới, loang BFS/DFS nhiều nguồn và tô màu kiểm tra đồ thị 2 phía.",
+    orderIndex: 86,
+  },
+  {
+    skillId: "algo.graph_topo_dag",
+    topicId: "t30_algo_graph",
+    topicName: "Thuật toán: Đồ thị và Cây",
+    name: "Sắp xếp Topo và DP trên đồ thị DAG",
+    description:
+      "Thuật toán Kahn, phát hiện chu trình đồ thị có hướng và tìm đường đi dài nhất trên DAG.",
+    orderIndex: 87,
+  },
+  {
+    skillId: "algo.graph_shortest_path",
+    topicId: "t30_algo_graph",
+    topicName: "Thuật toán: Đồ thị và Cây",
+    name: "Đường đi ngắn nhất (Dijkstra & đồ thị trạng thái)",
+    description:
+      "Thuật toán Dijkstra với Priority Queue, Floyd-Warshall và mở rộng trạng thái (Layered Graph).",
+    orderIndex: 88,
+  },
+  {
+    skillId: "algo.graph_dsu_mst",
+    topicId: "t30_algo_graph",
+    topicName: "Thuật toán: Đồ thị và Cây",
+    name: "DSU (Disjoint Set Union) và Cây khung nhỏ nhất (MST)",
+    description:
+      "DSU nén đường + gộp theo hạng, thuật toán Kruskal tìm MST và xử lý truy vấn offline đảo ngược.",
+    orderIndex: 89,
+  },
+  // ══ Lập trình thi đấu nâng cao (Tầng 4: Bit/Ad-hoc, Tổ hợp, BIT/SegTree, Cây/Xâu nâng cao, Hình học/Game) ══
+  // ── Topic: Bitmask và Tư duy Ad-hoc ──
+  {
+    skillId: "algo.bit_manipulation",
+    topicId: "t31_algo_bit_adhoc",
+    topicName: "Thuật toán: Bitmask và Tư duy Ad-hoc",
+    name: "Thao tác bit, XOR và tập con bitmask",
+    description:
+      "Phép toán AND/OR/XOR/Shift, đếm bit 1, tính chất tự triệt tiêu của XOR và duyệt tập con bitmask.",
+    orderIndex: 90,
+  },
+  {
+    skillId: "algo.adhoc_invariant",
+    topicId: "t31_algo_bit_adhoc",
+    topicName: "Thuật toán: Bitmask và Tư duy Ad-hoc",
+    name: "Tư duy Ad-hoc, bất biến (Invariant) và chẵn lẻ",
+    description:
+      "Tìm đại lượng bất biến, phân tích tính chẵn lẻ, đối xứng, mô phỏng thực tế và xây dựng nghiệm (constructive).",
+    orderIndex: 91,
+  },
+  // ── Topic: Tổ hợp và Ma trận ──
+  {
+    skillId: "algo.combinatorics_mod",
+    topicId: "t32_algo_combinatorics",
+    topicName: "Thuật toán: Tổ hợp và Ma trận",
+    name: "Tổ hợp nCr Modulo, nghịch đảo và số Catalan",
+    description:
+      "Tiền xử lý giai thừa & nghịch đảo modulo nguyên tố, chia kẹo Euler (Stars & Bars), dãy Catalan và hoán vị mất thứ tự.",
+    orderIndex: 92,
+  },
+  {
+    skillId: "algo.inclusion_exclusion",
+    topicId: "t32_algo_combinatorics",
+    topicName: "Thuật toán: Tổ hợp và Ma trận",
+    name: "Nguyên lý Bao hàm – Loại trừ và đếm nâng cao",
+    description:
+      "Đếm hợp nhiều tập hợp bằng bao hàm – loại trừ, số nguyên tố cùng nhau trong đoạn và tổng tổ hợp có ràng buộc.",
+    orderIndex: 93,
+  },
+  {
+    skillId: "algo.matrix_exponentiation",
+    topicId: "t32_algo_combinatorics",
+    topicName: "Thuật toán: Tổ hợp và Ma trận",
+    name: "Nhân ma trận và truy hồi tuyến tính O(K³ log N)",
+    description:
+      "Chuyển công thức truy hồi sang dạng ma trận, tính lũy thừa ma trận nhị phân và đếm đường đi độ dài K trên đồ thị.",
+    orderIndex: 94,
+  },
+  // ── Topic: Cấu trúc dữ liệu truy vấn đoạn ──
+  {
+    skillId: "algo.fenwick_bit",
+    topicId: "t33_algo_range_queries",
+    topicName: "Thuật toán: Cấu trúc dữ liệu truy vấn đoạn",
+    name: "Fenwick Tree (BIT) và truy vấn cộng dồn động",
+    description:
+      "Cập nhật điểm và truy vấn tổng tiền tố O(log N), nén tọa độ kết hợp BIT, tìm phần tử thứ K trên BIT.",
+    orderIndex: 95,
+  },
+  {
+    skillId: "algo.sparse_table_rmq",
+    topicId: "t33_algo_range_queries",
+    topicName: "Thuật toán: Cấu trúc dữ liệu truy vấn đoạn",
+    name: "Sparse Table và truy vấn RMQ tĩnh O(1)",
+    description:
+      "Tiền xử lý O(N log N) trả lời truy vấn Min/Max/GCD trên đoạn tĩnh trong O(1).",
+    orderIndex: 96,
+  },
+  {
+    skillId: "algo.segment_tree",
+    topicId: "t33_algo_range_queries",
+    topicName: "Thuật toán: Cấu trúc dữ liệu truy vấn đoạn",
+    name: "Segment Tree: truy vấn đoạn và Lazy Propagation",
+    description:
+      "Cây phân đoạn cho Min/Max/Sum, tổng đoạn con lớn nhất trên đoạn, cập nhật đoạn với Lazy Propagation.",
+    orderIndex: 97,
+  },
+  // ── Topic: Cây, Đồ thị, Xâu và DP nâng cao ──
+  {
+    skillId: "algo.tree_lca_euler",
+    topicId: "t34_algo_tree_string_adv",
+    topicName: "Thuật toán: Cây, Đồ thị và Xâu nâng cao",
+    name: "Euler Tour, Binary Lifting, LCA và Rerooting DP",
+    description:
+      "Trải phẳng cây (Euler Tour + BIT), tổ tiên thứ K, LCA O(log N), khoảng cách hai đỉnh và đổi gốc Rerooting DP.",
+    orderIndex: 98,
+  },
+  {
+    skillId: "algo.graph_advanced",
+    topicId: "t34_algo_tree_string_adv",
+    topicName: "Thuật toán: Cây, Đồ thị và Xâu nâng cao",
+    name: "Đồ thị nâng cao: 0-1 BFS, Floyd, Bellman-Ford, Khớp/Cầu & SCC",
+    description:
+      "0-1 BFS bằng Deque, BFS đa nguồn, Floyd-Warshall, Bellman-Ford phát hiện chu trình âm, Tarjan tìm khớp/cầu và SCC.",
+    orderIndex: 99,
+  },
+  {
+    skillId: "algo.string_trie_z",
+    topicId: "t34_algo_tree_string_adv",
+    topicName: "Thuật toán: Cây, Đồ thị và Xâu nâng cao",
+    name: "Trie, Binary Trie Max-XOR, Z-Function và Manacher",
+    description:
+      "Cây tiền tố Trie, Binary Trie tìm cặp XOR lớn nhất, hàm Z tuyến tính và Manacher tìm xâu đối xứng O(N).",
+    orderIndex: 100,
+  },
+  {
+    skillId: "algo.dp_advanced",
+    topicId: "t34_algo_tree_string_adv",
+    topicName: "Thuật toán: Cây, Đồ thị và Xâu nâng cao",
+    name: "DP nâng cao: Digit DP, Bounded Knapsack và DP tối ưu",
+    description:
+      "Quy hoạch động chữ số (Digit DP), ba lô hữu hạn tách nhị phân, DP tối ưu bằng prefix sum/deque và DP xác suất.",
+    orderIndex: 101,
+  },
+  // ── Topic: Hình học tính toán và Lý thuyết trò chơi ──
+  {
+    skillId: "algo.geometry_basics",
+    topicId: "t35_algo_geometry_game",
+    topicName: "Thuật toán: Hình học và Lý thuyết trò chơi",
+    name: "Hình học tính toán: Vector, tích có hướng CCW và giao đoạn thẳng",
+    description:
+      "Tích vô hướng, tích có hướng (CCW), kiểm tra thẳng hàng/quay trái phải, giao hai đoạn thẳng và diện tích đa giác.",
+    orderIndex: 102,
+  },
+  {
+    skillId: "algo.convex_hull",
+    topicId: "t35_algo_geometry_game",
+    topicName: "Thuật toán: Hình học và Lý thuyết trò chơi",
+    name: "Bao lồi (Convex Hull) và bài toán đa giác",
+    description:
+      "Thuật toán Monotone Chain tìm bao lồi O(N log N), đếm điểm trên biên/bên trong (định lý Pick) và kiểm tra điểm trong đa giác.",
+    orderIndex: 103,
+  },
+  {
+    skillId: "algo.game_theory",
+    topicId: "t35_algo_geometry_game",
+    topicName: "Thuật toán: Hình học và Lý thuyết trò chơi",
+    name: "Lý thuyết trò chơi: Nim, Sprague-Grundy và trạng thái thắng/thua",
+    description:
+      "Phân tích trạng thái P/N (thắng/thua), trò chơi bốc sỏi Nim (XOR-sum), định lý Sprague-Grundy và hàm mex.",
+    orderIndex: 104,
+  },
 ];
 
 export const TOPICS: TopicInfo[] = [
@@ -719,6 +1037,16 @@ export const TOPICS: TopicInfo[] = [
   { topicId: "t23_algo_two_pointers", topicName: "Thuật toán: Hai con trỏ và cửa sổ trượt", sequenceNo: 26, skillIds: ["algo.two_pointers", "algo.sliding_window"] },
   { topicId: "t24_algo_recursion", topicName: "Thuật toán: Đệ quy cơ bản", sequenceNo: 27, skillIds: ["algo.recursion_basics", "algo.recursion_classic"] },
   { topicId: "t25_algo_contest", topicName: "Thuật toán: Luyện đề và chiến thuật thi", sequenceNo: 28, skillIds: ["algo.contest_strategy"] },
+  { topicId: "t26_algo_greedy", topicName: "Thuật toán: Tham lam và Chia để trị", sequenceNo: 29, skillIds: ["algo.greedy_basics", "algo.greedy_scheduling", "algo.binary_search_answer", "algo.divide_conquer_mod"] },
+  { topicId: "t27_algo_ds_linear", topicName: "Thuật toán: Stack, Queue và Heap", sequenceNo: 30, skillIds: ["algo.stack_queue", "algo.monotonic_stack_deque", "algo.heap_priority_queue"] },
+  { topicId: "t28_algo_backtracking", topicName: "Thuật toán: Quay lui và Nhánh cận", sequenceNo: 31, skillIds: ["algo.backtracking_generation", "algo.backtracking_pruning"] },
+  { topicId: "t29_algo_dp", topicName: "Thuật toán: Quy hoạch động (DP)", sequenceNo: 32, skillIds: ["algo.dp_linear", "algo.dp_knapsack", "algo.dp_lis_lcs", "algo.dp_grid", "algo.dp_interval_bitmask"] },
+  { topicId: "t30_algo_graph", topicName: "Thuật toán: Đồ thị và Cây", sequenceNo: 33, skillIds: ["algo.graph_traversal", "algo.graph_grid_bipartite", "algo.graph_topo_dag", "algo.graph_shortest_path", "algo.graph_dsu_mst"] },
+  { topicId: "t31_algo_bit_adhoc", topicName: "Thuật toán: Bitmask và Tư duy Ad-hoc", sequenceNo: 34, skillIds: ["algo.bit_manipulation", "algo.adhoc_invariant"] },
+  { topicId: "t32_algo_combinatorics", topicName: "Thuật toán: Tổ hợp và Ma trận", sequenceNo: 35, skillIds: ["algo.combinatorics_mod", "algo.inclusion_exclusion", "algo.matrix_exponentiation"] },
+  { topicId: "t33_algo_range_queries", topicName: "Thuật toán: Cấu trúc dữ liệu truy vấn đoạn", sequenceNo: 36, skillIds: ["algo.fenwick_bit", "algo.sparse_table_rmq", "algo.segment_tree"] },
+  { topicId: "t34_algo_tree_string_adv", topicName: "Thuật toán: Cây, Đồ thị và Xâu nâng cao", sequenceNo: 37, skillIds: ["algo.tree_lca_euler", "algo.graph_advanced", "algo.string_trie_z", "algo.dp_advanced"] },
+  { topicId: "t35_algo_geometry_game", topicName: "Thuật toán: Hình học và Lý thuyết trò chơi", sequenceNo: 38, skillIds: ["algo.geometry_basics", "algo.convex_hull", "algo.game_theory"] },
 ];
 
 /** Acyclic prerequisite DAG mapping skillId → direct prerequisite skillIds (strictly lower orderIndex). */
@@ -799,6 +1127,40 @@ export const SKILL_PREREQUISITES: Record<string, string[]> = {
   "algo.recursion_basics": ["algo.pseudocode_planning"],
   "algo.recursion_classic": ["algo.recursion_basics"],
   "algo.contest_strategy": ["algo.complexity_estimate", "algo.small_test_debug"],
+  "algo.greedy_basics": ["algo.sorting_basics", "algo.complexity_estimate"],
+  "algo.greedy_scheduling": ["algo.greedy_basics"],
+  "algo.binary_search_answer": ["algo.binary_search"],
+  "algo.divide_conquer_mod": ["algo.recursion_classic", "algo.sorting_basics"],
+  "algo.stack_queue": ["algo.array_scan"],
+  "algo.monotonic_stack_deque": ["algo.stack_queue", "algo.sliding_window"],
+  "algo.heap_priority_queue": ["algo.sorting_basics", "algo.top_k_selection"],
+  "algo.backtracking_generation": ["algo.recursion_classic"],
+  "algo.backtracking_pruning": ["algo.backtracking_generation", "algo.complexity_estimate"],
+  "algo.dp_linear": ["algo.recursion_classic", "algo.prefix_sum"],
+  "algo.dp_knapsack": ["algo.dp_linear"],
+  "algo.dp_lis_lcs": ["algo.dp_linear", "algo.binary_search"],
+  "algo.dp_grid": ["algo.dp_linear"],
+  "algo.dp_interval_bitmask": ["algo.dp_knapsack", "algo.dp_grid"],
+  "algo.graph_traversal": ["algo.stack_queue", "algo.recursion_basics"],
+  "algo.graph_grid_bipartite": ["algo.graph_traversal"],
+  "algo.graph_topo_dag": ["algo.graph_traversal", "algo.dp_linear"],
+  "algo.graph_shortest_path": ["algo.graph_traversal", "algo.heap_priority_queue"],
+  "algo.graph_dsu_mst": ["algo.graph_traversal", "algo.greedy_basics"],
+  "algo.bit_manipulation": ["algo.marking_arrays", "algo.complexity_estimate"],
+  "algo.adhoc_invariant": ["algo.problem_analysis", "algo.greedy_basics"],
+  "algo.combinatorics_mod": ["algo.divide_conquer_mod"],
+  "algo.inclusion_exclusion": ["algo.combinatorics_mod", "algo.bit_manipulation"],
+  "algo.matrix_exponentiation": ["algo.divide_conquer_mod", "algo.dp_linear"],
+  "algo.fenwick_bit": ["algo.prefix_sum", "algo.bit_manipulation"],
+  "algo.sparse_table_rmq": ["algo.prefix_sum", "algo.bit_manipulation"],
+  "algo.segment_tree": ["algo.fenwick_bit", "algo.divide_conquer_mod"],
+  "algo.tree_lca_euler": ["algo.graph_traversal", "algo.dp_interval_bitmask"],
+  "algo.graph_advanced": ["algo.graph_shortest_path", "algo.graph_topo_dag"],
+  "algo.string_trie_z": ["algo.string_processing", "algo.bit_manipulation"],
+  "algo.dp_advanced": ["algo.dp_knapsack", "algo.dp_lis_lcs"],
+  "algo.geometry_basics": ["algo.problem_analysis", "algo.sorting_basics"],
+  "algo.convex_hull": ["algo.geometry_basics"],
+  "algo.game_theory": ["algo.bit_manipulation", "algo.dp_linear"],
 };
 
 /** Map of skillId → SkillSeed for fast lookup + reverse dependent adjacency */

@@ -1,0 +1,1026 @@
+{
+  "schemaVersion": 1,
+  "packId": "07-recursion-backtracking",
+  "title": "Tầng 2: Đệ quy, Quay lui & Nhánh cận",
+  "tier": "Tầng 2 — Kỹ thuật lõi",
+  "description": "10 bài đệ quy, quay lui sinh cấu hình, cắt nhánh (N-Queens, Sudoku, chia K tập bằng nhau) và kỹ thuật Meet-in-the-Middle.",
+  "problemCount": 10,
+  "problems": [
+    {
+      "slug": "cp07-hanoi-kth-move",
+      "title": "Bước thứ K trong Tháp Hà Nội",
+      "shortDescription": "Tìm đĩa được di chuyển cùng cột xuất phát và cột đích ở bước thứ K trong bài toán Tháp Hà Nội N đĩa.",
+      "statement": "Trong bài toán **Tháp Hà Nội** kinh điển, có $3$ cột được đánh số `1`, `2`, `3` và $N$ chiếc đĩa có kích thước đôi một khác nhau được đánh số từ $1$ (đĩa nhỏ nhất) đến $N$ (đĩa lớn nhất). Ban đầu, cả $N$ đĩa được xếp chồng trên cột `1` theo thứ tự nhỏ dần từ dưới lên trên (đĩa $1$ ở trên cùng, đĩa $N$ ở dưới cùng).\n\nTa cần chuyển toàn bộ $N$ đĩa sang cột `3` (dùng cột `2` làm cột trung gian) theo hai quy tắc:\n1. Mỗi bước chỉ được di chuyển duy nhất $1$ đĩa ở trên cùng của một cột sang trên cùng của một cột khác.\n2. Không bao giờ được đặt đĩa có số hiệu lớn hơn lên trên đĩa có số hiệu nhỏ hơn.\n\nChiến lược tối ưu duy nhất sử dụng đúng $2^N - 1$ bước di chuyển. Cho hai số nguyên dương $N$ và $K$, hãy xác định **bước di chuyển thứ $K$** (đánh số từ $1$): đĩa nào được di chuyển, từ cột nào sang cột nào.\n\n### Dữ liệu vào\n- Một dòng duy nhất chứa hai số nguyên dương $N$ và $K$.\n\n### Dữ liệu ra\n- In ra ba số nguyên `disk from to` cách nhau bởi một dấu cách, lần lượt là số hiệu đĩa được di chuyển, cột xuất phát và cột đích ở bước thứ $K$.\n\n### Ràng buộc\n- $1 \\le N \\le 60$\n- $1 \\le K \\le 2^N - 1$",
+      "difficulty": "easy",
+      "estimatedTime": 15,
+      "skillId": "algo.recursion_classic",
+      "tags": [
+        "đệ quy",
+        "chia để trị",
+        "tầng 2"
+      ],
+      "sampleInput": "3 4",
+      "sampleOutput": "3 1 3",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nLưu ý: Với $N \\le 60$, $K$ có thể lên tới $2^{60} - 1 \\approx 1.15 \\times 10^{18}$, cần dùng kiểu số nguyên 64-bit (`long long` trong C++).",
+      "hints": "### Gợi ý 1\nKhông thể mô phỏng toàn bộ $2^N - 1$ bước khi $N = 60$. Hãy nhìn vào cấu trúc đệ quy của lời giải tối ưu cho $N$ đĩa chuyển từ `src` sang `dst` qua `aux`.\n\n### Gợi ý 2\nLời giải tối ưu gồm đúng $3$ giai đoạn:\n- $2^{N-1} - 1$ bước đầu tiên: chuyển $N - 1$ đĩa nhỏ hơn từ `src` sang `aux` (dùng `dst` làm trung gian).\n- Bước chính giữa $M = 2^{N-1}$: chuyển đĩa lớn nhất $N$ từ `src` sang `dst`.\n- $2^{N-1} - 1$ bước cuối cùng: chuyển $N - 1$ đĩa từ `aux` sang `dst` (dùng `src` làm trung gian).\n\n### Gợi ý 3\nSo sánh $K$ với $M = 2^{N-1}$:\n- Nếu $K = M$: đáp án chính là `(N, src, dst)`.\n- Nếu $K < M$: gọi đệ quy cho `(N - 1, K, src, dst, aux)`.\n- Nếu $K > M$: gọi đệ quy cho `(N - 1, K - M, aux, src, dst)`.\n\nĐộ phức tạp chỉ là $O(N)$.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nvoid solve(int n, long long k, int src, int aux, int dst) {\n    long long mid = 1LL << (n - 1);\n    if (k == mid) {\n        cout << n << ' ' << src << ' ' << dst << '\\n';\n        return;\n    }\n    if (k < mid) {\n        solve(n - 1, k, src, dst, aux);\n    } else {\n        solve(n - 1, k - mid, aux, src, dst);\n    }\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n;\n    long long k;\n    if (cin >> n >> k) {\n        solve(n, k, 1, 2, 3);\n    }\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef solve(n, k, src, aux, dst):\n    while True:\n        mid = 1 << (n - 1)\n        if k == mid:\n            return n, src, dst\n        if k < mid:\n            n -= 1\n            aux, dst = dst, aux\n        else:\n            n -= 1\n            k -= mid\n            src, aux = aux, src\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    n = int(data[0])\n    k = int(data[1])\n    disk, frm, to = solve(n, k, 1, 2, 3)\n    print(f\"{disk} {frm} {to}\")\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "3 4\n",
+          "output": "3 1 3",
+          "hidden": false
+        },
+        {
+          "input": "3 6\n",
+          "output": "2 2 3",
+          "hidden": false
+        },
+        {
+          "input": "2 1\n",
+          "output": "1 1 2",
+          "hidden": false
+        },
+        {
+          "input": "1 1\n",
+          "output": "1 1 3",
+          "hidden": true
+        },
+        {
+          "input": "4 1\n",
+          "output": "1 1 2",
+          "hidden": true
+        },
+        {
+          "input": "5 31\n",
+          "output": "1 1 3",
+          "hidden": true
+        },
+        {
+          "input": "10 512\n",
+          "output": "10 1 3",
+          "hidden": true
+        },
+        {
+          "input": "12 4095\n",
+          "output": "1 2 3",
+          "hidden": true
+        },
+        {
+          "input": "14 9999\n",
+          "output": "1 2 3",
+          "hidden": true
+        },
+        {
+          "input": "20 524287\n",
+          "output": "1 1 2",
+          "hidden": true
+        },
+        {
+          "input": "30 700000000\n",
+          "output": "9 1 2",
+          "hidden": true
+        },
+        {
+          "input": "40 549755813888\n",
+          "output": "40 1 3",
+          "hidden": true
+        },
+        {
+          "input": "50 987654321012345\n",
+          "output": "1 2 3",
+          "hidden": true
+        },
+        {
+          "input": "60 1\n",
+          "output": "1 1 2",
+          "hidden": true
+        },
+        {
+          "input": "60 576460752303423488\n",
+          "output": "60 1 3",
+          "hidden": true
+        },
+        {
+          "input": "60 1152921504606846975\n",
+          "output": "1 2 3",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-binary-no-adjacent-ones",
+      "title": "Xâu nhị phân không có hai số 1 kề nhau",
+      "shortDescription": "Đếm số xâu nhị phân độ dài N không chứa hai chữ số 1 đứng cạnh nhau và tìm xâu thứ K theo thứ tự từ điển.",
+      "statement": "Xét tất cả các xâu nhị phân có độ dài đúng bằng $N$ (chỉ gồm hai ký tự `'0'` và `'1'`) sao cho **không tồn tại hai ký tự `'1'` đứng kề nhau** (tức là không chứa xâu con `\"11\"`).\n\nSắp xếp toàn bộ các xâu hợp lệ theo **thứ tự từ điển tăng dần** (với quy ước `'0' < '1'`). Cho hai số nguyên dương $N$ và $K$, hãy cho biết:\n1. Tổng số xâu hợp lệ độ dài $N$.\n2. Xâu hợp lệ đứng ở vị trí thứ $K$ (đánh số từ $1$). Nếu $K$ lớn hơn tổng số xâu hợp lệ thì in `-1`.\n\n### Dữ liệu vào\n- Một dòng duy nhất chứa hai số nguyên dương $N$ và $K$.\n\n### Dữ liệu ra\n- Dòng 1: một số nguyên là tổng số xâu nhị phân hợp lệ.\n- Dòng 2: xâu hợp lệ thứ $K$, hoặc `-1` nếu không tồn tại.\n\n### Ràng buộc\n- $1 \\le N \\le 18$\n- $1 \\le K \\le 10^5$",
+      "difficulty": "easy",
+      "estimatedTime": 15,
+      "skillId": "algo.backtracking_generation",
+      "tags": [
+        "quay lui",
+        "đệ quy",
+        "tầng 2"
+      ],
+      "sampleInput": "3 4",
+      "sampleOutput": "5\n100",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nSố lượng xâu hợp lệ độ dài $N$ là số Fibonacci $F_{N+2}$ (với $N = 18$, chỉ có đúng $6765$ xâu hợp lệ).",
+      "hints": "### Gợi ý 1\nHãy dùng thuật toán **quay lui** để điền từng vị trí `pos` từ `0` đến `N - 1`. Tại mỗi vị trí, ta chỉ cần biết ký tự ngay trước đó có phải là `'1'` hay không.\n\n### Gợi ý 2\nĐể các xâu sinh ra tự động theo đúng **thứ tự từ điển tăng dần**, tại mỗi vị trí hãy luôn thử điền `'0'` trước, rồi mới thử điền `'1'` (chỉ khi ký tự trước đó khác `'1'`).\n\n### Gợi ý 3\nMỗi khi điền đủ `pos == N`, tăng biến đếm `cnt` lên $1$; nếu `cnt == K` thì lưu lại xâu hiện tại. Cuối cùng in `cnt` và xâu đã lưu (hoặc `-1` nếu `cnt < K`).",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint n;\nlong long k, cnt = 0;\nstring cur, ans = \"-1\";\n\nvoid dfs(int pos, bool prevOne) {\n    if (pos == n) {\n        ++cnt;\n        if (cnt == k) ans = cur;\n        return;\n    }\n    cur[pos] = '0';\n    dfs(pos + 1, false);\n    if (!prevOne) {\n        cur[pos] = '1';\n        dfs(pos + 1, true);\n    }\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    if (cin >> n >> k) {\n        cur.assign(n, '0');\n        dfs(0, false);\n        cout << cnt << '\\n' << ans << '\\n';\n    }\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    n = int(data[0])\n    k = int(data[1])\n\n    cur = [\"0\"] * n\n    cnt = 0\n    ans = \"-1\"\n\n    def dfs(pos, prev_one):\n        nonlocal cnt, ans\n        if pos == n:\n            cnt += 1\n            if cnt == k:\n                ans = \"\".join(cur)\n            return\n        cur[pos] = \"0\"\n        dfs(pos + 1, False)\n        if not prev_one:\n            cur[pos] = \"1\"\n            dfs(pos + 1, True)\n\n    dfs(0, False)\n    print(cnt)\n    print(ans)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "3 4\n",
+          "output": "5\n100",
+          "hidden": false
+        },
+        {
+          "input": "2 5\n",
+          "output": "3\n-1",
+          "hidden": false
+        },
+        {
+          "input": "4 1\n",
+          "output": "8\n0000",
+          "hidden": false
+        },
+        {
+          "input": "1 1\n",
+          "output": "2\n0",
+          "hidden": true
+        },
+        {
+          "input": "1 2\n",
+          "output": "2\n1",
+          "hidden": true
+        },
+        {
+          "input": "1 3\n",
+          "output": "2\n-1",
+          "hidden": true
+        },
+        {
+          "input": "4 8\n",
+          "output": "8\n1010",
+          "hidden": true
+        },
+        {
+          "input": "5 13\n",
+          "output": "13\n10101",
+          "hidden": true
+        },
+        {
+          "input": "8 35\n",
+          "output": "55\n10000000",
+          "hidden": true
+        },
+        {
+          "input": "10 144\n",
+          "output": "144\n1010101010",
+          "hidden": true
+        },
+        {
+          "input": "10 145\n",
+          "output": "144\n-1",
+          "hidden": true
+        },
+        {
+          "input": "12 200\n",
+          "output": "377\n010100000000",
+          "hidden": true
+        },
+        {
+          "input": "15 1000\n",
+          "output": "1597\n100000000010101",
+          "hidden": true
+        },
+        {
+          "input": "18 3383\n",
+          "output": "6765\n010010010010010010",
+          "hidden": true
+        },
+        {
+          "input": "18 6765\n",
+          "output": "6765\n101010101010101010",
+          "hidden": true
+        },
+        {
+          "input": "18 100000\n",
+          "output": "6765\n-1",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-kth-combination",
+      "title": "Tổ hợp chập K thứ M",
+      "shortDescription": "Tìm tổ hợp chập K thứ M theo thứ tự từ điển tăng dần từ tập {1, 2, ..., N}.",
+      "statement": "Xét tất cả các tổ hợp chập $K$ của tập hợp $\\{1, 2, \\dots, N\\}$. Mỗi tổ hợp được viết dưới dạng dãy gồm $K$ số nguyên tăng dần $c_1 < c_2 < \\dots < c_K$.\n\nSắp xếp toàn bộ $\\binom{N}{K}$ tổ hợp này theo **thứ tự từ điển tăng dần**. Cho ba số nguyên dương $N, K, M$, hãy tìm và in ra tổ hợp đứng ở vị trí thứ $M$ (đánh số từ $1$).\n\n### Dữ liệu vào\n- Một dòng duy nhất chứa ba số nguyên dương $N, K, M$.\n\n### Dữ liệu ra\n- In ra $K$ số nguyên tăng dần cách nhau bởi một dấu cách là tổ hợp thứ $M$.\n\n### Ràng buộc\n- $1 \\le K \\le N \\le 25$\n- $1 \\le M \\le \\binom{N}{K}$",
+      "difficulty": "easy",
+      "estimatedTime": 20,
+      "skillId": "algo.backtracking_generation",
+      "tags": [
+        "quay lui",
+        "tổ hợp",
+        "tầng 2"
+      ],
+      "sampleInput": "4 2 5",
+      "sampleOutput": "2 4",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nLưu ý: Với $N = 25, K = 12$, có tới $\\binom{25}{12} = 5\\,200\\,300$ tổ hợp. Nên kết hợp đệ quy với công thức đếm tổ hợp $\\binom{n}{k}$ để đạt độ phức tạp $O(N)$.",
+      "hints": "### Gợi ý 1\nNếu quay lui sinh lần lượt tất cả các tổ hợp, khi $N = 25, K = 12$ số nhánh lên tới hơn $5.2 \\times 10^6$, có thể chạy chậm trên ngôn ngữ chậm như Python. Hãy nghĩ cách **nhảy cóc** qua cả một nhánh lớn của cây quay lui.\n\n### Gợi ý 2\nGiả sử ta đang xét phần tử $x$ (từ $1$ đến $N$) và vẫn cần chọn thêm `rem` phần tử nữa. Nếu chọn $x$, ta cần chọn tiếp `rem - 1` phần tử từ tập $\\{x + 1, \\dots, N\\}$, tức là có đúng $c = \\binom{N - x}{\\text{rem} - 1}$ tổ hợp bắt đầu bằng $x$ ở nhánh này.\n\n### Gợi ý 3\nTính trước bảng tam giác Pascal `C[i][j]` trong $O(N^2)$. Khi xét $x$:\n- Nếu $M \\le c$: chắc chắn $x$ thuộc tổ hợp cần tìm $\\rightarrow$ thêm $x$ vào kết quả và giảm `rem` đi $1$.\n- Nếu $M > c$: bỏ qua toàn bộ nhánh chọn $x$, cập nhật $M \\leftarrow M - c$ rồi xét tiếp $x + 1$.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n, k;\n    long long m;\n    if (!(cin >> n >> k >> m)) return 0;\n\n    long long C[30][30] = {};\n    for (int i = 0; i <= n; ++i) {\n        C[i][0] = C[i][i] = 1;\n        for (int j = 1; j < i; ++j) {\n            C[i][j] = C[i - 1][j - 1] + C[i - 1][j];\n        }\n    }\n\n    vector<int> ans;\n    ans.reserve(k);\n    int rem = k;\n    for (int x = 1; x <= n && rem > 0; ++x) {\n        long long cnt = C[n - x][rem - 1];\n        if (m <= cnt) {\n            ans.push_back(x);\n            --rem;\n        } else {\n            m -= cnt;\n        }\n    }\n\n    for (int i = 0; i < k; ++i) {\n        if (i) cout << ' ';\n        cout << ans[i];\n    }\n    cout << '\\n';\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    n = int(data[0])\n    k = int(data[1])\n    m = int(data[2])\n\n    C = [[0] * (n + 1) for _ in range(n + 1)]\n    for i in range(n + 1):\n        C[i][0] = C[i][i] = 1\n        for j in range(1, i):\n            C[i][j] = C[i - 1][j - 1] + C[i - 1][j]\n\n    ans = []\n    rem = k\n\n    def build(x, rem_left, m_left):\n        if rem_left == 0:\n            return\n        cnt = C[n - x][rem_left - 1]\n        if m_left <= cnt:\n            ans.append(x)\n            build(x + 1, rem_left - 1, m_left)\n        else:\n            build(x + 1, rem_left, m_left - cnt)\n\n    build(1, rem, m)\n    print(\" \".join(map(str, ans)))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "4 2 5\n",
+          "output": "2 4",
+          "hidden": false
+        },
+        {
+          "input": "5 3 1\n",
+          "output": "1 2 3",
+          "hidden": false
+        },
+        {
+          "input": "5 3 10\n",
+          "output": "3 4 5",
+          "hidden": false
+        },
+        {
+          "input": "1 1 1\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "25 1 25\n",
+          "output": "25",
+          "hidden": true
+        },
+        {
+          "input": "25 25 1\n",
+          "output": "1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25",
+          "hidden": true
+        },
+        {
+          "input": "10 1 7\n",
+          "output": "7",
+          "hidden": true
+        },
+        {
+          "input": "10 9 10\n",
+          "output": "2 3 4 5 6 7 8 9 10",
+          "hidden": true
+        },
+        {
+          "input": "8 4 35\n",
+          "output": "1 6 7 8",
+          "hidden": true
+        },
+        {
+          "input": "12 5 500\n",
+          "output": "2 5 8 10 12",
+          "hidden": true
+        },
+        {
+          "input": "15 7 3217\n",
+          "output": "2 3 4 7 8 10 14",
+          "hidden": true
+        },
+        {
+          "input": "20 10 92378\n",
+          "output": "1 12 13 14 15 16 17 18 19 20",
+          "hidden": true
+        },
+        {
+          "input": "25 12 1\n",
+          "output": "1 2 3 4 5 6 7 8 9 10 11 12",
+          "hidden": true
+        },
+        {
+          "input": "25 12 2600150\n",
+          "output": "2 3 4 5 9 10 12 13 16 19 22 23",
+          "hidden": true
+        },
+        {
+          "input": "25 12 5200300\n",
+          "output": "14 15 16 17 18 19 20 21 22 23 24 25",
+          "hidden": true
+        },
+        {
+          "input": "25 13 4123456\n",
+          "output": "3 4 5 6 8 13 14 18 19 20 22 23 24",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-generate-parentheses-kth",
+      "title": "Dãy ngoặc hợp lệ thứ K",
+      "shortDescription": "Đếm số dãy ngoặc tròn hợp lệ độ dài 2N và tìm dãy ngoặc đứng thứ K theo thứ tự từ điển.",
+      "statement": "Một dãy ngoặc tròn gồm $N$ dấu `'('` và $N$ dấu `')'` được gọi là **hợp lệ** nếu tại mọi tiền tố của dãy, số lượng dấu `'('` luôn lớn hơn hoặc bằng số lượng dấu `')'`.\n\nXét tất cả các dãy ngoặc hợp lệ độ dài $2N$ được sắp xếp theo **thứ tự từ điển tăng dần** với quy ước `'(' < ')'`. Cho hai số nguyên dương $N$ và $K$, hãy tìm:\n1. Tổng số dãy ngoặc hợp lệ độ dài $2N$ (chính là số Catalan $C_N$).\n2. Dãy ngoặc hợp lệ thứ $K$ (đánh số từ $1$).\n\n### Dữ liệu vào\n- Một dòng duy nhất chứa hai số nguyên dương $N$ và $K$.\n\n### Dữ liệu ra\n- Dòng 1: số nguyên $C_N$ là tổng số dãy ngoặc hợp lệ.\n- Dòng 2: dãy ngoặc hợp lệ thứ $K$ có độ dài $2N$.\n\n### Ràng buộc\n- $1 \\le N \\le 11$\n- $1 \\le K \\le C_N$ (với $N = 11$, $C_{11} = 58\\,786$)",
+      "difficulty": "medium",
+      "estimatedTime": 20,
+      "skillId": "algo.backtracking_generation",
+      "tags": [
+        "quay lui",
+        "đệ quy",
+        "xâu",
+        "tầng 2"
+      ],
+      "sampleInput": "3 3",
+      "sampleOutput": "5\n(())()",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nVới $N \\le 11$, số lượng cấu hình hợp lệ tối đa là $C_{11} = 58\\,786$, đủ nhỏ để sinh trực tiếp bằng quay lui theo đúng thứ tự từ điển.",
+      "hints": "### Gợi ý 1\nKhi xây dựng dãy ngoặc từ trái sang phải, hãy theo dõi hai biến: `opened` (số dấu `'('` đã đặt) và `closed` (số dấu `')'` đã đặt).\n\n### Gợi ý 2\nTại mỗi bước, ta có thể đặt `'('` nếu `opened < N`, và có thể đặt `')'` nếu `closed < opened`. Quy tắc này đảm bảo mọi dãy sinh ra đều hợp lệ và không bỏ sót dãy nào.\n\n### Gợi ý 3\nVì `'(' < ')'`, chỉ cần thử đặt `'('` trước rồi mới đặt `')'` trong hàm quay lui thì các dãy hoàn chỉnh (`pos == 2 * N`) sẽ được sinh ra theo đúng thứ tự từ điển tăng dần. Tăng biến đếm mỗi khi hoàn thành một dãy và lưu lại dãy thứ $K$.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint n;\nlong long k, cnt = 0;\nstring cur, ans;\n\nvoid dfs(int pos, int opened, int closed) {\n    if (pos == 2 * n) {\n        ++cnt;\n        if (cnt == k) ans = cur;\n        return;\n    }\n    if (opened < n) {\n        cur[pos] = '(';\n        dfs(pos + 1, opened + 1, closed);\n    }\n    if (closed < opened) {\n        cur[pos] = ')';\n        dfs(pos + 1, opened, closed + 1);\n    }\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    if (cin >> n >> k) {\n        cur.assign(2 * n, '(');\n        dfs(0, 0, 0);\n        cout << cnt << '\\n' << ans << '\\n';\n    }\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    n = int(data[0])\n    k = int(data[1])\n\n    cur = [\"(\"] * (2 * n)\n    cnt = 0\n    ans = \"\"\n\n    def dfs(pos, opened, closed):\n        nonlocal cnt, ans\n        if pos == 2 * n:\n            cnt += 1\n            if cnt == k:\n                ans = \"\".join(cur)\n            return\n        if opened < n:\n            cur[pos] = \"(\"\n            dfs(pos + 1, opened + 1, closed)\n        if closed < opened:\n            cur[pos] = \")\"\n            dfs(pos + 1, opened, closed + 1)\n\n    dfs(0, 0, 0)\n    print(cnt)\n    print(ans)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "3 3\n",
+          "output": "5\n(())()",
+          "hidden": false
+        },
+        {
+          "input": "2 1\n",
+          "output": "2\n(())",
+          "hidden": false
+        },
+        {
+          "input": "3 5\n",
+          "output": "5\n()()()",
+          "hidden": false
+        },
+        {
+          "input": "1 1\n",
+          "output": "1\n()",
+          "hidden": true
+        },
+        {
+          "input": "2 2\n",
+          "output": "2\n()()",
+          "hidden": true
+        },
+        {
+          "input": "4 1\n",
+          "output": "14\n(((())))",
+          "hidden": true
+        },
+        {
+          "input": "4 14\n",
+          "output": "14\n()()()()",
+          "hidden": true
+        },
+        {
+          "input": "5 21\n",
+          "output": "42\n(()()())()",
+          "hidden": true
+        },
+        {
+          "input": "6 77\n",
+          "output": "132\n(())(((())))",
+          "hidden": true
+        },
+        {
+          "input": "7 200\n",
+          "output": "429\n(()(())((())))",
+          "hidden": true
+        },
+        {
+          "input": "8 1430\n",
+          "output": "1430\n()()()()()()()()",
+          "hidden": true
+        },
+        {
+          "input": "9 2431\n",
+          "output": "4862\n(()(()()))((())())",
+          "hidden": true
+        },
+        {
+          "input": "10 10000\n",
+          "output": "16796\n(()()())(()(()()))()",
+          "hidden": true
+        },
+        {
+          "input": "11 1\n",
+          "output": "58786\n((((((((((()))))))))))",
+          "hidden": true
+        },
+        {
+          "input": "11 29393\n",
+          "output": "58786\n(()(()(()()(()))()()))",
+          "hidden": true
+        },
+        {
+          "input": "11 58786\n",
+          "output": "58786\n()()()()()()()()()()()",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-combination-sum-count",
+      "title": "Đếm số cách chọn tổ hợp có tổng bằng S",
+      "shortDescription": "Đếm số đa tập gồm các phần tử từ dãy N số đôi một phân biệt (chọn không giới hạn số lần) có tổng đúng bằng S.",
+      "statement": "Cho một tập gồm $N$ số nguyên dương đôi một phân biệt $a_1, a_2, \\dots, a_N$ và một số nguyên dương $S$.\n\nMỗi phần tử $a_i$ có thể được chọn **nhiều lần không giới hạn** (hoặc không chọn lần nào). Hãy đếm số cách chọn ra một đa tập các phần tử sao cho tổng giá trị của chúng bằng đúng $S$. Hai cách chọn chỉ khác nhau về thứ tự các phần tử được xem là **một cách duy nhất** (ví dụ `2 + 3 + 2` và `2 + 2 + 3` chỉ tính là $1$ cách).\n\n### Dữ liệu vào\n- Dòng 1: hai số nguyên dương $N$ và $S$.\n- Dòng 2: $N$ số nguyên dương đôi một phân biệt $a_1, a_2, \\dots, a_N$.\n\n### Dữ liệu ra\n- Một số nguyên duy nhất là số cách chọn thoả mãn.\n\n### Ràng buộc\n- $1 \\le N \\le 20$\n- $1 \\le a_i \\le 50$ ($a_i \\ne a_j$ với mọi $i \\ne j$)\n- $1 \\le S \\le 60$\n- Đảm bảo đáp án không vượt quá $10^9$.",
+      "difficulty": "medium",
+      "estimatedTime": 20,
+      "skillId": "algo.backtracking_generation",
+      "tags": [
+        "quay lui",
+        "đệ quy",
+        "tầng 2"
+      ],
+      "sampleInput": "3 7\n2 3 6",
+      "sampleOutput": "1",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nLưu ý: Thứ tự chọn không quan trọng (đếm tổ hợp có lặp). Nên sắp xếp dãy tăng dần để cắt nhánh và kết hợp nhớ trạng thái (memoization) để tránh lặp lại lời gọi đệ quy.",
+      "hints": "### Gợi ý 1\nĐể không đếm trùng các cách chỉ khác thứ tự, hãy duy trì chỉ số `idx` của phần tử đang xét: từ `idx` trở đi ta chỉ được chọn các phần tử có chỉ số $\\ge \\text{idx}$.\n\n### Gợi ý 2\nSắp xếp mảng $a$ tăng dần. Tại trạng thái `(idx, rem)` (đang xét từ phần tử `idx`, tổng còn thiếu là `rem`):\n- Nếu `rem == 0`: tìm được $1$ cách hợp lệ.\n- Nếu `idx == N` hoặc `a[idx] > rem`: không thể ghép thêm bất kỳ phần tử nào nữa $\\rightarrow$ trả về $0$ (cắt nhánh ngay lập tức!).\n- Ngược lại, có đúng $2$ nhánh: chọn thêm một lần `a[idx]` $\\rightarrow$ `(idx, rem - a[idx])`, hoặc bỏ hẳn `a[idx]` $\\rightarrow$ `(idx + 1, rem)`.\n\n### Gợi ý 3\nKhi `a = [1, 2, ..., 20]` và `S = 60`, cây quay lui có nhiều trạng thái `(idx, rem)` bị gọi lặp lại. Lưu kết quả vào bảng `memo[idx][rem]` sẽ giảm độ phức tạp xuống còn $O(N \\cdot S) \\le 1200$ phép tính.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint n, s;\nint a[25];\nlong long memo[25][65];\n\nlong long solve(int idx, int rem) {\n    if (rem == 0) return 1;\n    if (idx == n || a[idx] > rem) return 0;\n    long long &res = memo[idx][rem];\n    if (res != -1) return res;\n    res = solve(idx, rem - a[idx]) + solve(idx + 1, rem);\n    return res;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    if (!(cin >> n >> s)) return 0;\n    for (int i = 0; i < n; ++i) cin >> a[i];\n    sort(a, a + n);\n    memset(memo, -1, sizeof(memo));\n    cout << solve(0, s) << '\\n';\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    data = list(map(int, sys.stdin.read().split()))\n    if not data:\n        return\n    n, s = data[0], data[1]\n    a = sorted(data[2 : 2 + n])\n\n    memo = [[-1] * (s + 1) for _ in range(n + 1)]\n\n    def solve(idx, rem):\n        if rem == 0:\n            return 1\n        if idx == n or a[idx] > rem:\n            return 0\n        if memo[idx][rem] != -1:\n            return memo[idx][rem]\n        res = solve(idx, rem - a[idx]) + solve(idx + 1, rem)\n        memo[idx][rem] = res\n        return res\n\n    print(solve(0, s))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "3 7\n2 3 6\n",
+          "output": "1",
+          "hidden": false
+        },
+        {
+          "input": "3 8\n2 3 5\n",
+          "output": "3",
+          "hidden": false
+        },
+        {
+          "input": "2 5\n2 4\n",
+          "output": "0",
+          "hidden": false
+        },
+        {
+          "input": "1 1\n1\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "1 60\n7\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "1 60\n6\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "3 1\n2 3 5\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "5 10\n50 40 30 20 10\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "5 20\n1 2 3 5 7\n",
+          "output": "133",
+          "hidden": true
+        },
+        {
+          "input": "6 25\n2 3 5 7 11 13\n",
+          "output": "46",
+          "hidden": true
+        },
+        {
+          "input": "8 30\n15 1 12 3 9 4 8 6\n",
+          "output": "392",
+          "hidden": true
+        },
+        {
+          "input": "10 45\n14 9 8 10 25 27 16 22 1 26\n",
+          "output": "150",
+          "hidden": true
+        },
+        {
+          "input": "15 55\n23 26 35 17 3 42 36 1 28 41 12 38 32 34 16\n",
+          "output": "351",
+          "hidden": true
+        },
+        {
+          "input": "20 60\n1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20\n",
+          "output": "791131",
+          "hidden": true
+        },
+        {
+          "input": "20 60\n2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40\n",
+          "output": "5507",
+          "hidden": true
+        },
+        {
+          "input": "20 59\n2 4 6 8 10 12 14 16 18 20 22 24 26 28 30 32 34 36 38 40\n",
+          "output": "0",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-n-queens-count",
+      "title": "Xếp N quân hậu có ô bị chặn",
+      "shortDescription": "Đếm số cách đặt N quân hậu lên bàn cờ N×N có ô bị chặn sao cho không có hai quân hậu nào ăn nhau.",
+      "statement": "Cho một bàn cờ vuông kích thước $N \\times N$. Mỗi ô trên bàn cờ thuộc một trong hai loại:\n- `.`: ô trống, có thể đặt quân hậu.\n- `*`: ô bị chặn, **không** được đặt quân hậu lên ô này.\n\nLưu ý rằng ô bị chặn `*` chỉ ngăn không cho đặt quân hậu tại đúng ô đó, chứ **không cản đường tấn công** của các quân hậu khác.\n\nHãy đếm số cách đặt đúng $N$ quân hậu lên bàn cờ sao cho:\n1. Không có quân hậu nào đặt trên ô `*`.\n2. Không có hai quân hậu nào cùng hàng, cùng cột, hoặc cùng đường chéo (chính hay phụ).\n\n### Dữ liệu vào\n- Dòng 1: một số nguyên dương $N$.\n- $N$ dòng tiếp theo: mỗi dòng là một xâu độ dài $N$ chỉ gồm các ký tự `.` và `*`.\n\n### Dữ liệu ra\n- Một số nguyên duy nhất là số cách đặt $N$ quân hậu thoả mãn.\n\n### Ràng buộc\n- $1 \\le N \\le 12$",
+      "difficulty": "medium",
+      "estimatedTime": 25,
+      "skillId": "algo.backtracking_pruning",
+      "tags": [
+        "quay lui",
+        "cắt nhánh",
+        "tầng 2"
+      ],
+      "sampleInput": "4\n....\n....\n....\n....",
+      "sampleOutput": "2",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nSử dụng quay lui theo từng hàng kết hợp bitmask quản lý cột và hai đường chéo giúp chạy cực nhanh ngay cả khi $N = 12$ không có ô bị chặn.",
+      "hints": "### Gợi ý 1\nVì mỗi hàng phải chứa đúng $1$ quân hậu, ta quay lui theo chỉ số hàng `row` từ $0$ đến $N - 1$ và chọn cột `col` chưa bị khống chế để đặt quân hậu.\n\n### Gợi ý 2\nHai ô $(r_1, c_1)$ và $(r_2, c_2)$ cùng đường chéo chính khi $r_1 - c_1 = r_2 - c_2$, cùng đường chéo phụ khi $r_1 + c_1 = r_2 + c_2$. Ta có thể đánh dấu cột và hai loại đường chéo bằng mảng boolean hoặc bằng $3$ mặt nạ bit (bitmask).\n\n### Gợi ý 3\nVới bitmask: tại hàng `row`, tập cột hợp lệ là `avail = full_mask & ~(cols | d1 | d2 | blocked[row])`. Khi chọn cột `bit = avail & -avail` và sang hàng `row + 1`:\n- `cols` trở thành `cols | bit`\n- đường chéo dịch trái trở thành `((d1 | bit) << 1) & full_mask`\n- đường chéo dịch phải trở thành `(d2 | bit) >> 1`.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint n, full_mask;\nint blocked[15];\n\nlong long dfs(int row, int cols, int d1, int d2) {\n    if (row == n) return 1;\n    int avail = full_mask & ~(cols | d1 | d2 | blocked[row]);\n    long long ans = 0;\n    while (avail) {\n        int bit = avail & -avail;\n        avail ^= bit;\n        ans += dfs(row + 1, cols | bit, ((d1 | bit) << 1) & full_mask, (d2 | bit) >> 1);\n    }\n    return ans;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    if (!(cin >> n)) return 0;\n    full_mask = (1 << n) - 1;\n    for (int i = 0; i < n; ++i) {\n        string row;\n        cin >> row;\n        int mask = 0;\n        for (int j = 0; j < n; ++j) {\n            if (row[j] == '*') mask |= (1 << j);\n        }\n        blocked[i] = mask;\n    }\n    cout << dfs(0, 0, 0, 0) << '\\n';\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    n = int(data[0])\n    full_mask = (1 << n) - 1\n    blocked = [0] * n\n    for i in range(n):\n        row = data[1 + i]\n        mask = 0\n        for j, ch in enumerate(row):\n            if ch == \"*\":\n                mask |= 1 << j\n        blocked[i] = mask\n\n    def dfs(row, cols, d1, d2):\n        if row == n:\n            return 1\n        avail = full_mask & ~(cols | d1 | d2 | blocked[row])\n        ans = 0\n        while avail:\n            bit = avail & -avail\n            avail ^= bit\n            ans += dfs(row + 1, cols | bit, ((d1 | bit) << 1) & full_mask, (d2 | bit) >> 1)\n        return ans\n\n    print(dfs(0, 0, 0, 0))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "4\n....\n....\n....\n....\n",
+          "output": "2",
+          "hidden": false
+        },
+        {
+          "input": "4\n.*..\n....\n....\n....\n",
+          "output": "1",
+          "hidden": false
+        },
+        {
+          "input": "8\n........\n........\n........\n........\n........\n........\n........\n........\n",
+          "output": "92",
+          "hidden": false
+        },
+        {
+          "input": "1\n.\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "1\n*\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "2\n..\n..\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "3\n...\n...\n...\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "8\n........\n........\n........\n********\n........\n........\n........\n........\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "6\n......\n.*....\n....*.\n......\n......\n*.*..*\n",
+          "output": "3",
+          "hidden": true
+        },
+        {
+          "input": "7\n*......\n.*.....\n..*....\n...*...\n....*..\n.....*.\n......*\n",
+          "output": "4",
+          "hidden": true
+        },
+        {
+          "input": "8\n..*.....\n.*....**\n.*..*..*\n........\n........\n........\n.....*.*\n....*...\n",
+          "output": "12",
+          "hidden": true
+        },
+        {
+          "input": "9\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n.........\n",
+          "output": "352",
+          "hidden": true
+        },
+        {
+          "input": "10\n.*...*....\n..*.......\n......*...\n..*.......\n.......*.*\n.....*.*..\n........*.\n...*......\n.........*\n..........\n",
+          "output": "230",
+          "hidden": true
+        },
+        {
+          "input": "11\n...........\n..*.....*..\n*........**\n..*........\n...........\n...........\n..*.....*..\n...*.....**\n...........\n....*......\n.**........\n",
+          "output": "668",
+          "hidden": true
+        },
+        {
+          "input": "12\n........**..\n.....*......\n..*.........\n....*.......\n.*......*...\n.......*.**.\n............\n............\n.*.........*\n............\n.*....*....*\n...*........\n",
+          "output": "3544",
+          "hidden": true
+        },
+        {
+          "input": "12\n............\n............\n............\n............\n............\n............\n............\n............\n............\n............\n............\n............\n",
+          "output": "14200",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-grid-hamiltonian-paths",
+      "title": "Đường đi Hamilton trên lưới",
+      "shortDescription": "Đếm số đường đi 4 hướng từ S đến E đi qua mọi ô không phải vật cản trên lưới đúng một lần.",
+      "statement": "Cho một lưới ô vuông kích thước $R \\times C$, mỗi ô là một trong bốn ký tự:\n- `S`: ô xuất phát (xuất hiện đúng $1$ lần).\n- `E`: ô đích (xuất hiện đúng $1$ lần).\n- `.`: ô trống có thể đi qua.\n- `#`: vật cản không thể đi vào.\n\nTại mỗi bước, bạn có thể di chuyển sang một trong $4$ ô kề cạnh (lên, xuống, trái, phải) nằm trong lưới và không phải vật cản `#`. Hãy đếm số đường đi bắt đầu từ `S`, kết thúc tại `E` sao cho **đi qua mọi ô không phải `#` (gồm `S`, tất cả các ô `.`, và `E`) đúng một lần**.\n\n### Dữ liệu vào\n- Dòng 1: hai số nguyên dương $R$ và $C$.\n- $R$ dòng tiếp theo: mỗi dòng là một xâu độ dài $C$ gồm các ký tự `S`, `E`, `.`, `#`.\n\n### Dữ liệu ra\n- Một số nguyên duy nhất là số đường đi Hamilton thoả mãn.\n\n### Ràng buộc\n- $1 \\le R, C \\le 6$\n- $2 \\le R \\cdot C \\le 25$\n- Đảm bảo có đúng $1$ ô `S` và $1$ ô `E`.",
+      "difficulty": "medium",
+      "estimatedTime": 25,
+      "skillId": "algo.backtracking_pruning",
+      "tags": [
+        "quay lui",
+        "cắt nhánh",
+        "lưới",
+        "tầng 2"
+      ],
+      "sampleInput": "3 4\nS...\n....\n..E#",
+      "sampleOutput": "2",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nVới $R \\cdot C \\le 25$, quay lui thuần có thể chậm trên lưới trống $5 \\times 5$; cần cắt nhánh theo tính chẵn lẻ (tô màu bàn cờ) và bậc các ô kề chưa thăm (ngõ cụt / bước bắt buộc).",
+      "hints": "### Gợi ý 1\nKhông bao giờ được đi vào `E` trước khi đã đi qua toàn bộ `total - 1` ô còn lại. Ngoài ra, vì mỗi bước đi đổi tính chẵn lẻ của $(r + c)$, ta có thể kiểm tra ngay số lượng ô chẵn/lẻ so với tính chẵn lẻ của `S` và `E` (kiểm tra tô màu bàn cờ).\n\n### Gợi ý 2\nDuy trì `deg[u]` là số ô **chưa thăm** kề với ô `u`. Mọi ô `v` chưa thăm khác `E` đều phải được đi vào từ $1$ hướng rồi đi ra theo $1$ hướng khác trong phần đường đi còn lại.\n\n### Gợi ý 3\nKhi đang đứng tại `u` (đã đánh dấu thăm `u` và giảm `deg` các ô kề):\n- Nếu `deg[E] == 0` khi chưa đến bước cuối $\\rightarrow$ cắt nhánh ngay!\n- Xét mọi ô kề chưa thăm `v != E` của `u`:\n  - Nếu `deg[v] == 0`: dù đi sang `v` cũng không có lối ra $\\rightarrow$ cắt nhánh!\n  - Nếu `deg[v] == 1`: ta **bắt buộc** phải đi ngay sang `v` (nếu bỏ qua, sau này vào `v` sẽ không thể thoát ra). Nếu có từ $2$ ô như vậy $\\rightarrow$ cắt nhánh!",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint total_cells, start_id, end_id;\nvector<int> adj[30];\nint deg[30];\nbool vis[30];\n\nlong long dfs(int u, int visited_cnt) {\n    if (visited_cnt == total_cells - 1) {\n        for (int v : adj[u]) {\n            if (v == end_id) return 1;\n        }\n        return 0;\n    }\n    if (deg[end_id] == 0) return 0;\n\n    int forced = -1;\n    for (int v : adj[u]) {\n        if (vis[v] || v == end_id) continue;\n        if (deg[v] == 0) return 0;\n        if (deg[v] == 1) {\n            if (forced != -1) return 0;\n            forced = v;\n        }\n    }\n\n    long long ans = 0;\n    auto go = [&](int v) {\n        vis[v] = true;\n        for (int w : adj[v]) {\n            if (!vis[w]) --deg[w];\n        }\n        ans += dfs(v, visited_cnt + 1);\n        for (int w : adj[v]) {\n            if (!vis[w]) ++deg[w];\n        }\n        vis[v] = false;\n    };\n\n    if (forced != -1) {\n        go(forced);\n    } else {\n        for (int v : adj[u]) {\n            if (!vis[v] && v != end_id) {\n                go(v);\n            }\n        }\n    }\n    return ans;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int R, C;\n    if (!(cin >> R >> C)) return 0;\n    vector<string> g(R);\n    for (int i = 0; i < R; ++i) cin >> g[i];\n\n    int id[7][7];\n    memset(id, -1, sizeof(id));\n    total_cells = 0;\n    int sr = -1, sc = -1, er = -1, ec = -1;\n    int parity_cnt[2] = {0, 0};\n\n    for (int r = 0; r < R; ++r) {\n        for (int c = 0; c < C; ++c) {\n            if (g[r][c] == '#') continue;\n            id[r][c] = total_cells;\n            parity_cnt[(r + c) & 1]++;\n            if (g[r][c] == 'S') { start_id = total_cells; sr = r; sc = c; }\n            if (g[r][c] == 'E') { end_id = total_cells; er = r; ec = c; }\n            ++total_cells;\n        }\n    }\n\n    int sp = (sr + sc) & 1;\n    int ep = (er + ec) & 1;\n    if (total_cells % 2 == 1) {\n        if (ep != sp || parity_cnt[sp] != parity_cnt[1 - sp] + 1) {\n            cout << 0 << '\\n';\n            return 0;\n        }\n    } else {\n        if (ep == sp || parity_cnt[0] != parity_cnt[1]) {\n            cout << 0 << '\\n';\n            return 0;\n        }\n    }\n\n    const int dr[4] = {-1, 1, 0, 0};\n    const int dc[4] = {0, 0, -1, 1};\n    for (int r = 0; r < R; ++r) {\n        for (int c = 0; c < C; ++c) {\n            int u = id[r][c];\n            if (u == -1) continue;\n            for (int d = 0; d < 4; ++d) {\n                int nr = r + dr[d], nc = c + dc[d];\n                if (nr >= 0 && nr < R && nc >= 0 && nc < C && id[nr][nc] != -1) {\n                    adj[u].push_back(id[nr][nc]);\n                }\n            }\n            deg[u] = (int)adj[u].size();\n        }\n    }\n\n    for (int u = 0; u < total_cells; ++u) {\n        int need = (u == start_id || u == end_id) ? 1 : 2;\n        if (deg[u] < need) {\n            cout << 0 << '\\n';\n            return 0;\n        }\n    }\n\n    // Connectivity check via BFS\n    vector<bool> seen(total_cells, false);\n    queue<int> q;\n    q.push(start_id);\n    seen[start_id] = true;\n    int reached = 0;\n    while (!q.empty()) {\n        int u = q.front();\n        q.pop();\n        ++reached;\n        for (int v : adj[u]) {\n            if (!seen[v]) {\n                seen[v] = true;\n                q.push(v);\n            }\n        }\n    }\n    if (reached != total_cells) {\n        cout << 0 << '\\n';\n        return 0;\n    }\n\n    vis[start_id] = true;\n    for (int w : adj[start_id]) --deg[w];\n    cout << dfs(start_id, 1) << '\\n';\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\nfrom collections import deque\n\n\ndef main():\n    data = sys.stdin.read().split()\n    if not data:\n        return\n    R, C = int(data[0]), int(data[1])\n    grid = data[2 : 2 + R]\n\n    cell_id = [[-1] * C for _ in range(R)]\n    total = 0\n    start_id = end_id = -1\n    sr = sc = er = ec = 0\n    parity_cnt = [0, 0]\n\n    for r in range(R):\n        for c in range(C):\n            ch = grid[r][c]\n            if ch == \"#\":\n                continue\n            cell_id[r][c] = total\n            parity_cnt[(r + c) & 1] += 1\n            if ch == \"S\":\n                start_id, sr, sc = total, r, c\n            elif ch == \"E\":\n                end_id, er, ec = total, r, c\n            total += 1\n\n    sp = (sr + sc) & 1\n    ep = (er + ec) & 1\n    if total & 1:\n        if ep != sp or parity_cnt[sp] != parity_cnt[1 - sp] + 1:\n            print(0)\n            return\n    else:\n        if ep == sp or parity_cnt[0] != parity_cnt[1]:\n            print(0)\n            return\n\n    adj = [[] for _ in range(total)]\n    for r in range(R):\n        for c in range(C):\n            u = cell_id[r][c]\n            if u == -1:\n                continue\n            for dr, dc in ((-1, 0), (1, 0), (0, -1), (0, 1)):\n                nr, nc = r + dr, c + dc\n                if 0 <= nr < R and 0 <= nc < C and cell_id[nr][nc] != -1:\n                    adj[u].append(cell_id[nr][nc])\n\n    deg = [len(adj[u]) for u in range(total)]\n    for u in range(total):\n        need = 1 if (u == start_id or u == end_id) else 2\n        if deg[u] < need:\n            print(0)\n            return\n\n    # Connectivity check\n    seen = [False] * total\n    seen[start_id] = True\n    q = deque([start_id])\n    reached = 0\n    while q:\n        u = q.popleft()\n        reached += 1\n        for v in adj[u]:\n            if not seen[v]:\n                seen[v] = True\n                q.append(v)\n    if reached != total:\n        print(0)\n        return\n\n    vis = [False] * total\n    vis[start_id] = True\n    for w in adj[start_id]:\n        deg[w] -= 1\n\n    end_adj = set(adj[end_id])\n    target_cnt = total - 1\n\n    def dfs(u, visited_cnt):\n        if visited_cnt == target_cnt:\n            return 1 if u in end_adj else 0\n        if deg[end_id] == 0:\n            return 0\n\n        forced = -1\n        for v in adj[u]:\n            if vis[v] or v == end_id:\n                continue\n            dv = deg[v]\n            if dv == 0:\n                return 0\n            if dv == 1:\n                if forced != -1:\n                    return 0\n                forced = v\n\n        ans = 0\n        if forced != -1:\n            v = forced\n            vis[v] = True\n            for w in adj[v]:\n                if not vis[w]:\n                    deg[w] -= 1\n            ans += dfs(v, visited_cnt + 1)\n            for w in adj[v]:\n                if not vis[w]:\n                    deg[w] += 1\n            vis[v] = False\n        else:\n            for v in adj[u]:\n                if vis[v] or v == end_id:\n                    continue\n                vis[v] = True\n                for w in adj[v]:\n                    if not vis[w]:\n                        deg[w] -= 1\n                ans += dfs(v, visited_cnt + 1)\n                for w in adj[v]:\n                    if not vis[w]:\n                        deg[w] += 1\n                vis[v] = False\n        return ans\n\n    print(dfs(start_id, 1))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "3 4\nS...\n....\n..E#\n",
+          "output": "2",
+          "hidden": false
+        },
+        {
+          "input": "3 4\nS...\n....\n...E\n",
+          "output": "4",
+          "hidden": false
+        },
+        {
+          "input": "2 2\nS.\n.E\n",
+          "output": "0",
+          "hidden": false
+        },
+        {
+          "input": "1 2\nSE\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "1 5\nS...E\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "2 3\nS#E\n...\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "2 3\nS.E\n...\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "3 3\nSE.\n.#.\n...\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "3 5\nS..#.\n.....\n.#..E\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "4 4\nS...\n....\n....\n..E.\n",
+          "output": "4",
+          "hidden": true
+        },
+        {
+          "input": "4 4\nS...\n.#..\n..#.\n...E\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "4 5\nS..#.\n.#...\n...#.\n.#..E\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "4 5\nS....\n.....\n.....\n...E.\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "5 5\nS....\n..#..\n.....\n.#.#.\n....E\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "4 6\nS.....\n..#...\n...#..\n.....E\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "5 5\nS....\n.....\n.....\n.....\n....E\n",
+          "output": "104",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-partition-k-equal-subsets",
+      "title": "Chia mảng thành K tập con có tổng bằng nhau",
+      "shortDescription": "Kiểm tra xem có thể chia N số nguyên dương vào đúng K tập con rời nhau không rỗng có tổng bằng nhau hay không.",
+      "statement": "Cho $T$ bộ test độc lập. Mỗi bộ test gồm một dãy $N$ số nguyên dương $a_1, a_2, \\dots, a_N$ và một số nguyên dương $K$.\n\nHãy kiểm tra xem có tồn tại cách phân hoạch toàn bộ $N$ phần tử vào đúng $K$ tập con rời nhau, không rỗng sao cho tổng các phần tử trong mỗi tập con đều bằng nhau hay không.\n\n### Dữ liệu vào\n- Dòng 1: số nguyên dương $T$ là số lượng bộ test.\n- Với mỗi bộ test gồm $2$ dòng:\n  - Dòng 1: hai số nguyên dương $N$ và $K$.\n  - Dòng 2: $N$ số nguyên dương $a_1, a_2, \\dots, a_N$.\n\n### Dữ liệu ra\n- Gồm $T$ dòng, mỗi dòng in `YES` nếu có thể phân hoạch, ngược lại in `NO`.\n\n### Ràng buộc\n- $1 \\le T \\le 20$\n- $1 \\le K \\le N \\le 16$\n- $1 \\le a_i \\le 10^4$",
+      "difficulty": "hard",
+      "estimatedTime": 30,
+      "skillId": "algo.backtracking_pruning",
+      "tags": [
+        "quay lui",
+        "cắt nhánh",
+        "tối ưu",
+        "tầng 2"
+      ],
+      "sampleInput": "2\n7 4\n4 3 2 3 5 2 1\n4 3\n1 2 3 4",
+      "sampleOutput": "YES\nNO",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nCần kết hợp nhiều kỹ thuật cắt nhánh mạnh (sắp giảm dần, bỏ qua phần tử trùng giá trị, cố định phần tử đầu cho nhóm mới và đánh dấu trạng thái thất bại bằng bitmask) để xử lý cả các bộ test `NO` khó với $N = 16, T = 20$.",
+      "hints": "### Gợi ý 1\nTrước khi quay lui, kiểm tra điều kiện cần: tổng $S = \\sum a_i$ phải chia hết cho $K$, đặt $\\text{target} = S / K$, và mọi $a_i \\le \\text{target}$. Sắp xếp mảng $a$ **giảm dần** để các số lớn nhanh chóng lấp đầy nhóm và phát hiện nhánh sai sớm nhất.\n\n### Gợi ý 2\nLấp đầy từng nhóm một theo tổng hiện tại `cur` (từ $0$ lên `target`):\n- Khi `cur == 0` (bắt đầu một nhóm mới): mọi nhóm rỗng còn lại đều bình đẳng nhau, nên ta chỉ cần cố định đưa **phần tử chưa dùng lớn nhất** vào nhóm mới này mà không cần thử các phần tử khác.\n- Khi `cur > 0`: bỏ qua các phần tử trùng giá trị vừa thử thất bại ở cùng mức đệ quy.\n\n### Gợi ý 3\nTập các phần tử đã chọn được biểu diễn bằng một bitmask `mask` ($0 \\le \\text{mask} < 2^N \\le 65\\,536$). Vì `cur` được xác định duy nhất bởi `sum(mask) % target`, nếu một `mask` đã được chứng minh không thể hoàn thiện lời giải thì đánh dấu `bad[mask] = true` để không bao giờ duyệt lại.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint n, k, target, full_mask;\nvector<int> a;\nvector<char> bad;\n\nbool dfs(int mask, int cur) {\n    if (mask == full_mask) return true;\n    if (bad[mask]) return false;\n\n    if (cur == 0) {\n        for (int i = 0; i < n; ++i) {\n            if (!(mask & (1 << i))) {\n                int ncur = (a[i] == target) ? 0 : a[i];\n                if (dfs(mask | (1 << i), ncur)) return true;\n                break;\n            }\n        }\n        bad[mask] = 1;\n        return false;\n    }\n\n    int prev = -1;\n    for (int i = 0; i < n; ++i) {\n        if (mask & (1 << i)) continue;\n        if (a[i] == prev) continue;\n        if (cur + a[i] > target) continue;\n        prev = a[i];\n        int ncur = cur + a[i];\n        if (ncur == target) ncur = 0;\n        if (dfs(mask | (1 << i), ncur)) return true;\n    }\n\n    bad[mask] = 1;\n    return false;\n}\n\nbool solve_case() {\n    cin >> n >> k;\n    a.resize(n);\n    int total = 0;\n    for (int i = 0; i < n; ++i) {\n        cin >> a[i];\n        total += a[i];\n    }\n    if (total % k != 0) return false;\n    target = total / k;\n    sort(a.begin(), a.end(), greater<int>());\n    if (a[0] > target) return false;\n    if (k == 1) return true;\n\n    full_mask = (1 << n) - 1;\n    bad.assign(1 << n, 0);\n    return dfs(0, 0);\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int T;\n    if (!(cin >> T)) return 0;\n    while (T--) {\n        cout << (solve_case() ? \"YES\\n\" : \"NO\\n\");\n    }\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef solve_case(n, k, a):\n    total = sum(a)\n    if total % k != 0:\n        return False\n    target = total // k\n    a.sort(reverse=True)\n    if a[0] > target:\n        return False\n    if k == 1:\n        return True\n\n    full_mask = (1 << n) - 1\n    bad = bytearray(1 << n)\n\n    def dfs(mask, cur):\n        if mask == full_mask:\n            return True\n        if bad[mask]:\n            return False\n\n        if cur == 0:\n            for i in range(n):\n                if not (mask & (1 << i)):\n                    ncur = 0 if a[i] == target else a[i]\n                    if dfs(mask | (1 << i), ncur):\n                        return True\n                    break\n            bad[mask] = 1\n            return False\n\n        prev = -1\n        for i in range(n):\n            if mask & (1 << i):\n                continue\n            v = a[i]\n            if v == prev or cur + v > target:\n                continue\n            prev = v\n            ncur = cur + v\n            if ncur == target:\n                ncur = 0\n            if dfs(mask | (1 << i), ncur):\n                return True\n\n        bad[mask] = 1\n        return False\n\n    return dfs(0, 0)\n\n\ndef main():\n    data = list(map(int, sys.stdin.read().split()))\n    if not data:\n        return\n    t = data[0]\n    pos = 1\n    out = []\n    for _ in range(t):\n        n = data[pos]\n        k = data[pos + 1]\n        a = data[pos + 2 : pos + 2 + n]\n        pos += 2 + n\n        out.append(\"YES\" if solve_case(n, k, a) else \"NO\")\n    print(\"\\n\".join(out))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "2\n7 4\n4 3 2 3 5 2 1\n4 3\n1 2 3 4\n",
+          "output": "YES\nNO",
+          "hidden": false
+        },
+        {
+          "input": "3\n6 3\n2 2 2 2 3 4\n4 2\n5 5 5 5\n5 5\n7 7 7 7 7\n",
+          "output": "NO\nYES\nYES",
+          "hidden": false
+        },
+        {
+          "input": "2\n6 2\n1 5 11 5 2 2\n5 2\n1 2 3 4 6\n",
+          "output": "YES\nYES",
+          "hidden": false
+        },
+        {
+          "input": "5\n1 1\n42\n5 1\n100 200 300 400 500\n4 4\n9 9 9 9\n4 4\n9 9 8 10\n3 2\n10 1 1\n",
+          "output": "YES\nYES\nYES\nNO\nNO",
+          "hidden": true
+        },
+        {
+          "input": "4\n7 4\n2 2 2 2 3 4 5\n5 3\n1 2 3 4 5\n6 3\n1 2 3 4 5 6\n5 2\n2 2 2 2 3\n",
+          "output": "NO\nYES\nYES\nNO",
+          "hidden": true
+        },
+        {
+          "input": "3\n10 3\n5 4 4 3 3 3 2 2 2 2\n12 3\n10 10 10 7 7 7 7 7 7 6 6 6\n5 2\n4 3 2 2 1\n",
+          "output": "YES\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "3\n8 3\n309 837 1067 449 899 78 128 91\n9 3\n22 38 149 12 266 118 212 33 50\n10 4\n122 110 25 76 163 7 66 173 213 1\n",
+          "output": "YES\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "3\n10 5\n10000 10000 10000 10000 10000 10000 10000 10000 10000 10000\n10 2\n9999 9999 10000 10000 1 1 2 2 3 3\n8 4\n5000 5000 4999 5001 4998 5002 1 9999\n",
+          "output": "YES\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "10\n11 4\n15 815 535 1704 768 39 153 756 1040 975 172\n11 5\n141 258 378 70 27 50 122 378 88 313 65\n11 2\n100 313 28 69 136 239 436 230 254 210 917\n11 5\n538 89 760 1295 21 228 1102 1067 446 757 172\n11 3\n595 92 1277 369 450 204 33 384 265 222 39\n11 3\n1431 536 442 892 750 352 1024 40 36 242 3\n11 5\n13 35 511 1573 916 134 64 1573 1573 1461 12\n11 4\n41 13 178 32 368 22 22 381 80 231 320\n11 4\n104 216 166 64 109 204 231 60 55 53 78\n11 3\n37 774 205 1121 868 140 291 217 245 889 484\n",
+          "output": "YES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "10\n13 2\n622 8 87 13 151 59 62 50 301 194 163 249 185\n13 2\n145 424 134 216 2 48 499 193 117 215 577 115 219\n13 4\n26 94 549 712 321 3 77 116 265 253 27 281 908\n13 5\n2 96 58 94 99 62 21 194 85 102 29 27 111\n13 5\n51 228 92 40 237 310 102 160 72 422 211 87 98\n13 2\n199 81 69 58 38 150 41 80 86 139 58 17 44\n13 3\n125 127 1581 325 746 883 1180 523 284 905 32 586 986\n13 4\n881 667 29 1452 203 1559 1053 1020 15 256 711 604 202\n13 5\n1108 220 819 1625 227 121 887 717 1057 282 21 235 806\n13 2\n357 197 258 393 764 26 45 431 193 739 181 1 147\n",
+          "output": "YES\nYES\nYES\nNO\nYES\nYES\nYES\nNO\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "15\n15 5\n77 103 25 152 171 23 56 9 180 5 9 63 1 242 144\n15 6\n156 927 333 133 860 380 680 280 54 214 874 121 200 567 107\n15 2\n162 102 1145 284 142 150 133 153 181 76 38 633 438 364 83\n15 5\n1511 2045 1360 23 229 524 731 534 1802 71 228 259 433 30 445\n15 5\n295 577 1034 1798 68 764 266 185 77 44 1464 1068 358 880 112\n15 3\n1672 189 546 351 713 980 170 2037 192 387 104 687 90 772 833\n15 6\n97 93 775 45 1016 313 1481 345 229 1202 1826 404 777 527 1826\n15 5\n912 138 802 72 95 1720 588 764 612 1540 78 478 5 1168 318\n15 2\n17 203 13 35 18 40 4 216 34 25 59 3 52 383 692\n15 2\n24 197 37 684 1026 1336 886 1064 124 187 78 91 581 5 324\n15 6\n686 312 1933 901 272 244 254 509 335 128 1933 1933 912 596 650\n15 4\n619 23 668 370 90 464 550 880 215 2 200 8 568 303 1160\n15 4\n56 3 70 44 39 36 28 63 5 30 64 12 146 116 32\n15 3\n38 968 433 181 1288 278 294 495 289 839 147 27 2040 1422 285\n15 5\n107 12 92 74 47 31 45 3 61 55 54 7 64 98 15\n",
+          "output": "YES\nNO\nYES\nNO\nYES\nNO\nYES\nNO\nYES\nYES\nYES\nNO\nYES\nNO\nYES",
+          "hidden": true
+        },
+        {
+          "input": "20\n16 4\n516 739 115 71 101 457 465 535 50 1106 1179 6 90 1062 583 65\n16 4\n530 541 61 75 207 683 693 191 930 1091 130 594 27 622 408 477\n16 4\n277 872 322 115 940 701 170 41 3176 28 1361 195 465 2854 814 373\n16 4\n39 210 86 16 81 365 101 561 66 447 22 372 92 477 361 480\n16 4\n992 349 205 264 225 164 209 56 155 65 34 271 47 67 297 792\n16 4\n89 162 1584 1706 163 117 190 1385 10 749 310 1451 254 208 155 359\n16 4\n251 1654 186 74 474 330 687 1094 641 282 213 1721 118 1284 31 1144\n16 4\n501 189 85 9 9 343 212 15 529 153 75 27 321 116 262 378\n16 4\n461 1540 191 395 581 16 212 944 891 180 760 2591 321 290 700 291\n16 4\n62 371 105 1360 697 230 109 1068 524 423 951 1251 113 235 1489 240\n16 4\n146 144 182 162 84 232 175 861 136 966 1012 14 173 184 529 176\n16 4\n775 53 386 400 614 1113 410 273 1054 16 202 808 183 1953 1719 309\n16 4\n339 83 382 433 217 23 2 734 168 335 24 404 819 120 429 292\n16 4\n2049 213 145 1217 2653 677 660 198 654 154 1162 76 1295 699 801 191\n16 4\n12 611 106 310 155 94 540 232 285 292 139 92 803 140 101 100\n16 4\n81 184 113 215 161 536 107 493 305 397 9 160 312 57 201 181\n16 4\n94 114 169 247 33 259 84 118 373 89 271 69 27 78 590 21\n16 4\n205 172 63 475 169 1042 71 172 543 39 371 355 52 31 28 492\n16 4\n396 514 23 226 229 279 1350 935 569 582 570 1451 158 635 1812 151\n16 4\n148 89 26 487 93 521 359 106 244 282 118 413 41 234 75 148\n",
+          "output": "YES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "20\n16 5\n3522 181 521 515 304 123 2512 312 922 407 146 1932 4037 2646 3871 269\n16 4\n1 1 1 1 2 2 2 2 3 3 3 3 4 4 4 8\n16 4\n10 10 10 7 7 7 7 7 7 6 6 6 5 5 5 5\n16 3\n2 2 2 2 3 4 5 6 7 8 9 10 11 12 13 14\n16 5\n4 4 4 4 4 4 4 4 5 5 5 5 6 6 6 1\n16 3\n235 63 15 74 85 102 226 78 407 54 232 296 723 260 118 161\n16 6\n997 38 504 1159 126 716 288 382 337 125 1197 234 481 45 353 200\n16 5\n827 865 21 287 43 4 209 1435 471 28 1253 1660 2228 309 568 932\n16 4\n83 36 10 164 177 14 104 17 537 108 153 12 265 28 106 334\n16 4\n353 159 687 451 128 1618 768 99 674 133 97 362 151 387 353 52\n16 5\n149 36 58 266 22 461 193 95 497 12 80 19 132 292 69 104\n16 5\n112 32 10 7 13 48 68 28 151 123 9 31 44 1 58 20\n16 5\n282 370 598 772 968 183 312 34 473 1354 334 474 645 799 517 65\n16 5\n200 391 315 570 455 404 1321 642 435 1138 1490 892 492 424 677 64\n16 6\n515 593 579 108 225 984 120 146 64 348 417 299 67 393 1104 662\n16 6\n138 178 919 794 498 651 190 928 4 757 59 258 125 322 221 300\n16 3\n334 26 109 73 79 244 29 2 68 370 81 99 221 173 155 1\n16 4\n722 1594 2206 222 30 493 266 192 1875 1789 152 140 187 118 776 1202\n16 3\n791 134 405 297 345 102 359 15 393 491 653 2 1580 75 52 225\n16 6\n30 153 14 25 47 6 129 52 54 107 236 198 224 17 8 116\n",
+          "output": "YES\nYES\nNO\nNO\nNO\nYES\nYES\nNO\nYES\nNO\nYES\nYES\nNO\nNO\nNO\nNO\nYES\nYES\nYES\nNO",
+          "hidden": true
+        },
+        {
+          "input": "20\n16 8\n574 818 1392 632 159 375 1233 17 385 480 1392 786 1392 912 383 206\n16 7\n936 120 1752 1732 1236 459 382 432 513 1013 357 226 20 1752 518 816\n16 5\n1290 325 172 1063 339 898 108 335 63 52 233 8 1335 115 286 368\n16 8\n84 117 65 36 140 90 89 140 96 100 3 42 182 6 182 84\n16 5\n54 17 114 211 56 248 51 40 76 130 43 62 22 243 1 342\n16 7\n643 330 404 367 738 113 989 218 30 342 183 876 68 617 659 346\n16 5\n613 16 69 178 188 92 87 280 48 255 156 275 48 565 132 63\n16 8\n100 672 682 282 186 432 295 682 214 74 240 682 582 77 250 6\n16 7\n122 27 45 28 109 341 359 277 166 236 98 386 187 16 33 272\n16 8\n534 1110 329 751 442 1214 772 454 473 276 65 1214 1214 437 323 104\n16 7\n178 450 495 464 447 408 205 428 39 198 298 506 36 716 914 616\n16 6\n622 360 13 665 99 140 598 59 1127 565 536 320 556 587 448 109\n16 8\n129 280 118 487 347 1399 1399 805 1126 1399 26 247 495 137 1399 1399\n16 8\n961 1901 957 940 834 611 236 221 295 1274 1618 1889 1665 627 235 944\n16 8\n1412 222 1448 720 419 1634 1215 107 135 1508 186 221 1171 126 914 1634\n16 5\n337 53 181 149 107 492 37 103 114 103 32 11 388 38 294 21\n16 5\n214 155 165 39 397 275 316 421 212 123 102 21 201 111 347 11\n16 8\n295 1247 1979 866 86 403 671 732 1979 710 1979 1694 159 158 1063 1811\n16 8\n567 567 390 205 2 394 142 31 192 77 567 91 88 567 177 479\n16 8\n163 13 144 27 21 39 76 190 177 169 87 20 7 190 7 190\n",
+          "output": "YES\nNO\nYES\nNO\nYES\nYES\nYES\nNO\nYES\nNO\nYES\nNO\nYES\nNO\nYES\nNO\nYES\nNO\nYES\nYES",
+          "hidden": true
+        },
+        {
+          "input": "20\n16 6\n9 18 5 16 5 5 8 9 5 16 19 20 13 17 7 2\n16 2\n9 3 20 17 6 18 13 6 2 15 2 5 14 11 20 11\n16 3\n12 16 12 19 15 13 1 6 20 1 11 4 20 9 17 20\n16 6\n1 9 5 2 10 1 12 17 5 6 8 9 3 11 2 19\n16 3\n11 17 3 4 2 15 14 18 17 18 1 4 8 8 10 17\n16 3\n6 12 3 20 9 4 18 7 15 1 9 4 19 13 7 2\n16 3\n8 12 20 2 19 14 12 19 16 19 6 20 19 14 12 9\n16 6\n18 2 14 6 15 8 19 6 15 14 16 14 3 14 5 2\n16 4\n11 9 5 15 11 8 3 15 17 7 12 7 9 14 10 16\n16 6\n14 12 9 6 11 13 18 1 6 7 17 3 19 5 7 16\n16 4\n1 8 6 12 10 2 3 13 10 14 2 5 15 7 2 18\n16 5\n8 7 8 9 2 1 3 16 13 12 17 4 13 16 17 16\n16 6\n4 6 2 20 17 13 19 15 17 8 15 1 2 16 4 17\n16 2\n12 9 13 8 6 2 1 20 15 8 6 19 17 11 15 1\n16 4\n9 7 1 20 14 6 4 8 2 13 19 17 10 5 15 7\n16 5\n11 20 9 1 6 18 12 16 15 8 1 8 2 3 19 20\n16 4\n14 14 17 12 17 1 12 18 19 2 19 14 11 9 17 5\n16 3\n6 11 7 4 3 17 4 13 14 19 7 12 4 2 16 8\n16 3\n20 9 19 17 17 12 9 6 2 3 15 14 13 13 19 8\n16 6\n4 8 1 11 17 14 18 12 5 18 7 17 6 11 7 4\n",
+          "output": "YES\nYES\nNO\nYES\nNO\nNO\nNO\nNO\nNO\nNO\nYES\nNO\nNO\nNO\nNO\nNO\nNO\nYES\nNO\nNO",
+          "hidden": true
+        },
+        {
+          "input": "20\n16 3\n45 135 474 51 537 1030 2 163 31 275 74 519 109 444 630 128\n16 11\n810 163 287 641 810 810 510 810 74 736 169 13 810 647 810 810\n16 7\n73 257 87 253 282 76 239 72 111 58 179 95 47 90 234 150\n16 8\n669 395 763 227 1914 1908 346 1172 914 1914 1212 1151 702 105 6 1914\n16 2\n37 36 167 7 55 64 149 39 64 50 50 15 57 4 62 20\n16 2\n417 16 321 229 507 119 115 172 412 4 228 289 22 256 81 2\n16 6\n257 728 2080 1281 756 321 465 526 1099 63 799 1759 78 800 1215 253\n16 9\n94 459 126 285 333 459 459 174 459 21 68 344 385 177 214 74\n16 8\n1710 1812 202 1812 437 811 362 883 183 905 1629 116 1812 929 791 102\n16 7\n127 808 502 305 960 1944 167 196 2242 803 2082 13 2249 163 939 2243\n16 12\n358 408 78 408 408 287 408 121 408 408 369 50 39 408 408 330\n16 8\n940 967 96 12 1102 1213 717 58 111 1105 496 215 152 1213 94 1213\n16 7\n15 54 9 48 10 51 27 51 113 77 6 27 36 51 109 114\n16 11\n26 116 116 116 19 49 116 116 116 71 116 54 116 13 1 115\n16 7\n67 40 31 40 17 63 30 4 27 30 36 34 35 3 10 2\n16 3\n83 161 67 13 117 77 57 33 46 2 38 38 33 23 13 9\n16 15\n107 107 107 107 107 107 107 61 107 107 107 107 46 107 107 107\n16 16\n327 327 327 327 327 327 327 327 327 327 327 327 327 327 327 327\n16 4\n562 22 4 336 420 212 172 10 74 22 289 338 631 189 228 171\n16 13\n329 668 458 489 210 668 339 179 668 668 668 668 668 668 668 668\n",
+          "output": "YES\nYES\nYES\nNO\nYES\nYES\nNO\nYES\nYES\nNO\nYES\nYES\nNO\nYES\nYES\nYES\nYES\nYES\nYES\nYES",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-sudoku-solver",
+      "title": "Giải Sudoku 9×9",
+      "shortDescription": "Giải bảng Sudoku 9×9 hợp lệ (có duy nhất một nghiệm) bằng quay lui kết hợp bitmask và chiến lược chọn ô ít khả năng nhất (MRV).",
+      "statement": "Cho một bảng **Sudoku** kích thước $9 \\times 9$ gồm các chữ số từ `0` đến `9`, trong đó `0` biểu thị ô trống cần điền và các chữ số từ `1` đến `9` là các ô đã cho sẵn.\n\nHãy điền vào tất cả các ô trống một chữ số từ `1` đến `9` sao cho:\n1. Mỗi hàng chứa đủ $9$ chữ số từ `1` đến `9` đúng một lần.\n2. Mỗi cột chứa đủ $9$ chữ số từ `1` đến `9` đúng một lần.\n3. Mỗi khối con $3 \\times 3$ (trong $9$ khối không giao nhau chia đều bảng $9 \\times 9$) chứa đủ $9$ chữ số từ `1` đến `9` đúng một lần.\n\nDữ liệu vào đảm bảo bảng Sudoku luôn hợp lệ và có **duy nhất một nghiệm**.\n\n### Dữ liệu vào\n- Gồm $9$ dòng, mỗi dòng chứa $9$ số nguyên trong đoạn $[0, 9]$ cách nhau bởi một dấu cách.\n\n### Dữ liệu ra\n- Gồm $9$ dòng, mỗi dòng in $9$ số nguyên trong đoạn $[1, 9]$ cách nhau bởi một dấu cách là bảng Sudoku đã giải hoàn chỉnh.\n\n### Ràng buộc\n- Kích thước bảng cố định $9 \\times 9$.\n- Luôn tồn tại duy nhất một nghiệm hợp lệ (kể cả với các bảng Sudoku siêu khó ít gợi ý).",
+      "difficulty": "hard",
+      "estimatedTime": 30,
+      "skillId": "algo.backtracking_pruning",
+      "tags": [
+        "quay lui",
+        "cắt nhánh",
+        "cài đặt",
+        "tầng 2"
+      ],
+      "sampleInput": "5 3 0 0 7 0 0 0 0\n6 0 0 1 9 5 0 0 0\n0 9 8 0 0 0 0 6 0\n8 0 0 0 6 0 0 0 3\n4 0 0 8 0 3 0 0 1\n7 0 0 0 2 0 0 0 6\n0 6 0 0 0 0 2 8 0\n0 0 0 4 1 9 0 0 5\n0 0 0 0 8 0 0 7 9",
+      "sampleOutput": "5 3 4 6 7 8 9 1 2\n6 7 2 1 9 5 3 4 8\n1 9 8 3 4 2 5 6 7\n8 5 9 7 6 1 4 2 3\n4 2 6 8 5 3 7 9 1\n7 1 3 9 2 4 8 5 6\n9 6 1 5 3 7 2 8 4\n2 8 7 4 1 9 6 3 5\n3 4 5 2 8 6 1 7 9",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nLưu ý: Bộ test bao gồm cả các bảng Sudoku rất khó (như bảng 17 gợi ý hoặc bảng của Arto Inkala), nên quay lui thuần theo thứ tự từ trên xuống dưới có thể bị TLE nếu không kết hợp chiến lược chọn ô ít khả năng nhất (MRV).",
+      "hints": "### Gợi ý 1\nQuản lý tập chữ số đã xuất hiện trên từng hàng `rmask[9]`, từng cột `cmask[9]` và từng khối `bmask[9]` (chỉ số khối của ô $(r, c)$ là `(r / 3) * 3 + (c / 3)`) bằng $3$ mảng bitmask $9$-bit.\n\n### Gợi ý 2\nKhi đó, tập các chữ số có thể điền vào ô trống $(r, c)$ chỉ cần đúng một phép toán bit:\n`avail = 0x1FF & ~(rmask[r] | cmask[c] | bmask[b])`.\nNếu tồn tại bất kỳ ô trống nào có `avail == 0`, lập tức quay lui (cắt nhánh ngay!).\n\n### Gợi ý 3\nÁp dụng heuristic **MRV (Minimum Remaining Values)**: tại mỗi bước, chọn ô trống có **số bit $1$ trong `avail` nhỏ nhất** (đặc biệt dừng tìm ngay nếu gặp ô có đúng $1$ lựa chọn). Kỹ thuật này giúp giải cả những bảng Sudoku khó nhất thế giới trong vài mili-giây.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nint g[9][9];\nint rmask[9], cmask[9], bmask[9];\nvector<pair<int, int>> empties;\n\nbool dfs(int k) {\n    if (k == (int)empties.size()) return true;\n\n    int best_i = -1, best_cnt = 10, best_avail = 0;\n    for (int i = k; i < (int)empties.size(); ++i) {\n        int r = empties[i].first, c = empties[i].second;\n        int b = (r / 3) * 3 + (c / 3);\n        int avail = 0x1FF & ~(rmask[r] | cmask[c] | bmask[b]);\n        if (avail == 0) return false;\n        int cnt = __builtin_popcount(avail);\n        if (cnt < best_cnt) {\n            best_cnt = cnt;\n            best_i = i;\n            best_avail = avail;\n            if (cnt == 1) break;\n        }\n    }\n\n    swap(empties[k], empties[best_i]);\n    int r = empties[k].first, c = empties[k].second;\n    int b = (r / 3) * 3 + (c / 3);\n    int avail = best_avail;\n\n    while (avail) {\n        int bit = avail & -avail;\n        avail ^= bit;\n        int d = __builtin_ctz(bit) + 1;\n        g[r][c] = d;\n        rmask[r] |= bit;\n        cmask[c] |= bit;\n        bmask[b] |= bit;\n        if (dfs(k + 1)) return true;\n        rmask[r] ^= bit;\n        cmask[c] ^= bit;\n        bmask[b] ^= bit;\n        g[r][c] = 0;\n    }\n\n    swap(empties[k], empties[best_i]);\n    return false;\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    for (int r = 0; r < 9; ++r) {\n        for (int c = 0; c < 9; ++c) {\n            if (!(cin >> g[r][c])) return 0;\n            if (g[r][c] == 0) {\n                empties.push_back({r, c});\n            } else {\n                int bit = 1 << (g[r][c] - 1);\n                int b = (r / 3) * 3 + (c / 3);\n                rmask[r] |= bit;\n                cmask[c] |= bit;\n                bmask[b] |= bit;\n            }\n        }\n    }\n    dfs(0);\n    for (int r = 0; r < 9; ++r) {\n        for (int c = 0; c < 9; ++c) {\n            if (c) cout << ' ';\n            cout << g[r][c];\n        }\n        cout << '\\n';\n    }\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\n\n\ndef main():\n    vals = list(map(int, sys.stdin.read().split()))\n    if len(vals) < 81:\n        return\n    g = [vals[i * 9 : (i + 1) * 9] for i in range(9)]\n    rmask = [0] * 9\n    cmask = [0] * 9\n    bmask = [0] * 9\n    empties = []\n\n    for r in range(9):\n        for c in range(9):\n            v = g[r][c]\n            if v == 0:\n                empties.append((r, c))\n            else:\n                bit = 1 << (v - 1)\n                b = (r // 3) * 3 + (c // 3)\n                rmask[r] |= bit\n                cmask[c] |= bit\n                bmask[b] |= bit\n\n    n_emp = len(empties)\n\n    def dfs(k):\n        if k == n_emp:\n            return True\n        best_i = -1\n        best_cnt = 10\n        best_avail = 0\n        for i in range(k, n_emp):\n            r, c = empties[i]\n            b = (r // 3) * 3 + (c // 3)\n            avail = 0x1FF & ~(rmask[r] | cmask[c] | bmask[b])\n            if avail == 0:\n                return False\n            cnt = avail.bit_count()\n            if cnt < best_cnt:\n                best_cnt = cnt\n                best_i = i\n                best_avail = avail\n                if cnt == 1:\n                    break\n\n        empties[k], empties[best_i] = empties[best_i], empties[k]\n        r, c = empties[k]\n        b = (r // 3) * 3 + (c // 3)\n        avail = best_avail\n\n        while avail:\n            bit = avail & -avail\n            avail ^= bit\n            g[r][c] = bit.bit_length()\n            rmask[r] |= bit\n            cmask[c] |= bit\n            bmask[b] |= bit\n            if dfs(k + 1):\n                return True\n            rmask[r] ^= bit\n            cmask[c] ^= bit\n            bmask[b] ^= bit\n            g[r][c] = 0\n\n        empties[k], empties[best_i] = empties[best_i], empties[k]\n        return False\n\n    dfs(0)\n    print(\"\\n\".join(\" \".join(map(str, row)) for row in g))\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "5 3 0 0 7 0 0 0 0\n6 0 0 1 9 5 0 0 0\n0 9 8 0 0 0 0 6 0\n8 0 0 0 6 0 0 0 3\n4 0 0 8 0 3 0 0 1\n7 0 0 0 2 0 0 0 6\n0 6 0 0 0 0 2 8 0\n0 0 0 4 1 9 0 0 5\n0 0 0 0 8 0 0 7 9\n",
+          "output": "5 3 4 6 7 8 9 1 2\n6 7 2 1 9 5 3 4 8\n1 9 8 3 4 2 5 6 7\n8 5 9 7 6 1 4 2 3\n4 2 6 8 5 3 7 9 1\n7 1 3 9 2 4 8 5 6\n9 6 1 5 3 7 2 8 4\n2 8 7 4 1 9 6 3 5\n3 4 5 2 8 6 1 7 9",
+          "hidden": false
+        },
+        {
+          "input": "0 0 3 0 2 0 6 0 0\n9 0 0 3 0 5 0 0 1\n0 0 1 8 0 6 4 0 0\n0 0 8 1 0 2 9 0 0\n7 0 0 0 0 0 0 0 8\n0 0 6 7 0 8 2 0 0\n0 0 2 6 0 9 5 0 0\n8 0 0 2 0 3 0 0 9\n0 0 5 0 1 0 3 0 0\n",
+          "output": "4 8 3 9 2 1 6 5 7\n9 6 7 3 4 5 8 2 1\n2 5 1 8 7 6 4 9 3\n5 4 8 1 3 2 9 7 6\n7 2 9 5 6 4 1 3 8\n1 3 6 7 9 8 2 4 5\n3 7 2 6 8 9 5 1 4\n8 1 4 2 5 3 7 6 9\n6 9 5 4 1 7 3 8 2",
+          "hidden": false
+        },
+        {
+          "input": "0 0 0 0 0 0 8 3 0\n0 8 0 0 0 6 0 0 0\n5 9 1 0 0 4 7 2 0\n1 2 0 0 0 0 3 6 0\n6 0 8 2 0 0 0 4 0\n4 0 0 0 6 8 2 0 7\n7 0 3 0 9 0 0 0 5\n0 0 5 6 7 0 1 9 0\n0 0 0 4 0 0 6 7 3\n",
+          "output": "2 7 6 9 5 1 8 3 4\n3 8 4 7 2 6 9 5 1\n5 9 1 8 3 4 7 2 6\n1 2 7 5 4 9 3 6 8\n6 3 8 2 1 7 5 4 9\n4 5 9 3 6 8 2 1 7\n7 6 3 1 9 2 4 8 5\n8 4 5 6 7 3 1 9 2\n9 1 2 4 8 5 6 7 3",
+          "hidden": false
+        },
+        {
+          "input": "3 9 4 8 6 7 1 5 2\n1 2 5 9 3 4 6 7 8\n6 8 7 2 1 5 3 4 9\n7 6 2 1 5 9 4 8 3\n4 3 8 6 7 2 5 9 1\n5 1 9 3 4 8 7 2 6\n9 5 3 4 8 6 2 1 7\n8 4 6 7 2 1 9 3 5\n2 7 1 5 9 3 8 6 4\n",
+          "output": "3 9 4 8 6 7 1 5 2\n1 2 5 9 3 4 6 7 8\n6 8 7 2 1 5 3 4 9\n7 6 2 1 5 9 4 8 3\n4 3 8 6 7 2 5 9 1\n5 1 9 3 4 8 7 2 6\n9 5 3 4 8 6 2 1 7\n8 4 6 7 2 1 9 3 5\n2 7 1 5 9 3 8 6 4",
+          "hidden": true
+        },
+        {
+          "input": "3 9 4 8 6 7 1 5 2\n1 2 5 9 3 4 6 7 8\n6 8 7 2 1 5 3 4 9\n7 6 2 1 5 9 4 8 3\n4 3 8 6 0 2 5 9 1\n5 1 9 3 4 8 7 2 6\n9 5 3 4 8 6 2 1 7\n8 4 6 7 2 1 9 3 5\n2 7 1 5 9 3 8 6 4\n",
+          "output": "3 9 4 8 6 7 1 5 2\n1 2 5 9 3 4 6 7 8\n6 8 7 2 1 5 3 4 9\n7 6 2 1 5 9 4 8 3\n4 3 8 6 7 2 5 9 1\n5 1 9 3 4 8 7 2 6\n9 5 3 4 8 6 2 1 7\n8 4 6 7 2 1 9 3 5\n2 7 1 5 9 3 8 6 4",
+          "hidden": true
+        },
+        {
+          "input": "0 0 0 0 0 0 0 0 0\n5 8 6 1 3 7 9 2 4\n1 7 3 9 2 4 6 8 5\n6 5 8 3 7 1 2 4 9\n3 1 7 2 4 9 8 5 6\n9 4 2 6 8 5 3 7 1\n2 9 4 8 5 6 7 1 3\n7 3 1 4 9 2 5 6 8\n8 6 5 7 1 3 4 9 2\n",
+          "output": "4 2 9 5 6 8 1 3 7\n5 8 6 1 3 7 9 2 4\n1 7 3 9 2 4 6 8 5\n6 5 8 3 7 1 2 4 9\n3 1 7 2 4 9 8 5 6\n9 4 2 6 8 5 3 7 1\n2 9 4 8 5 6 7 1 3\n7 3 1 4 9 2 5 6 8\n8 6 5 7 1 3 4 9 2",
+          "hidden": true
+        },
+        {
+          "input": "7 9 1 3 2 6 4 5 8\n4 5 8 1 9 7 2 3 6\n6 2 3 5 4 8 7 9 1\n8 4 5 0 0 0 6 2 3\n3 6 2 0 0 0 1 7 9\n1 7 9 0 0 0 8 4 5\n5 8 4 7 1 9 3 6 2\n2 3 6 8 5 4 9 1 7\n9 1 7 6 3 2 5 8 4\n",
+          "output": "7 9 1 3 2 6 4 5 8\n4 5 8 1 9 7 2 3 6\n6 2 3 5 4 8 7 9 1\n8 4 5 9 7 1 6 2 3\n3 6 2 4 8 5 1 7 9\n1 7 9 2 6 3 8 4 5\n5 8 4 7 1 9 3 6 2\n2 3 6 8 5 4 9 1 7\n9 1 7 6 3 2 5 8 4",
+          "hidden": true
+        },
+        {
+          "input": "0 0 0 0 0 0 0 1 0\n4 0 0 0 0 0 0 0 0\n0 2 0 0 0 0 0 0 0\n0 0 0 0 5 0 4 0 7\n0 0 8 0 0 0 3 0 0\n0 0 1 0 9 0 0 0 0\n3 0 0 4 0 0 2 0 0\n0 5 0 1 0 0 0 0 0\n0 0 0 8 0 6 0 0 0\n",
+          "output": "6 9 3 7 8 4 5 1 2\n4 8 7 5 1 2 9 3 6\n1 2 5 9 6 3 8 7 4\n9 3 2 6 5 1 4 8 7\n5 6 8 2 4 7 3 9 1\n7 4 1 3 9 8 6 2 5\n3 1 9 4 7 5 2 6 8\n8 5 6 1 2 9 7 4 3\n2 7 4 8 3 6 1 5 9",
+          "hidden": true
+        },
+        {
+          "input": "0 4 0 0 8 0 6 7 0\n8 0 0 6 2 0 0 0 1\n0 6 7 4 0 3 9 5 0\n0 3 2 0 4 0 0 0 0\n9 7 0 3 0 0 5 0 0\n4 0 1 0 0 0 0 2 0\n0 8 0 0 7 0 0 0 0\n7 2 0 0 3 6 0 0 0\n0 0 0 0 0 0 2 9 0\n",
+          "output": "1 4 3 9 8 5 6 7 2\n8 9 5 6 2 7 4 3 1\n2 6 7 4 1 3 9 5 8\n6 3 2 5 4 1 7 8 9\n9 7 8 3 6 2 5 1 4\n4 5 1 7 9 8 3 2 6\n5 8 4 2 7 9 1 6 3\n7 2 9 1 3 6 8 4 5\n3 1 6 8 5 4 2 9 7",
+          "hidden": true
+        },
+        {
+          "input": "0 0 7 3 0 0 0 0 0\n0 0 3 8 0 0 7 0 5\n0 0 0 0 0 0 0 0 3\n6 8 0 1 0 0 9 0 2\n7 5 0 0 0 9 0 0 6\n3 0 0 0 0 0 0 0 0\n0 6 8 5 0 7 0 0 0\n2 0 0 4 6 0 0 0 1\n0 0 5 0 0 3 8 0 0\n",
+          "output": "5 1 7 3 9 2 6 4 8\n9 2 3 8 4 6 7 1 5\n8 4 6 7 5 1 2 9 3\n6 8 4 1 7 5 9 3 2\n7 5 1 2 3 9 4 8 6\n3 9 2 6 8 4 1 5 7\n4 6 8 5 1 7 3 2 9\n2 3 9 4 6 8 5 7 1\n1 7 5 9 2 3 8 6 4",
+          "hidden": true
+        },
+        {
+          "input": "0 0 0 0 5 0 0 4 0\n5 8 2 0 7 0 0 3 1\n0 0 0 0 0 0 0 0 8\n0 0 0 0 4 6 3 0 5\n3 0 0 0 0 0 4 6 0\n0 9 0 0 0 1 0 0 0\n0 0 0 0 0 0 0 0 0\n8 4 7 0 0 0 1 0 2\n0 3 0 0 0 5 8 0 0\n",
+          "output": "9 1 3 8 5 2 7 4 6\n5 8 2 6 7 4 9 3 1\n7 6 4 1 9 3 5 2 8\n2 7 8 9 4 6 3 1 5\n3 5 1 7 2 8 4 6 9\n4 9 6 5 3 1 2 8 7\n1 2 5 4 8 7 6 9 3\n8 4 7 3 6 9 1 5 2\n6 3 9 2 1 5 8 7 4",
+          "hidden": true
+        },
+        {
+          "input": "0 0 0 0 0 0 0 0 5\n4 0 7 0 3 0 0 0 2\n0 0 0 1 0 0 6 0 0\n0 0 0 0 0 0 2 0 0\n7 0 8 0 0 9 0 3 1\n0 5 3 0 0 7 0 0 0\n3 0 0 0 1 0 0 0 0\n0 0 0 0 7 0 0 4 3\n0 0 2 0 9 0 1 0 8\n",
+          "output": "2 8 1 7 6 4 3 9 5\n4 6 7 9 3 5 8 1 2\n5 3 9 1 8 2 6 7 4\n9 4 6 3 5 1 2 8 7\n7 2 8 6 4 9 5 3 1\n1 5 3 8 2 7 4 6 9\n3 9 4 5 1 8 7 2 6\n8 1 5 2 7 6 9 4 3\n6 7 2 4 9 3 1 5 8",
+          "hidden": true
+        },
+        {
+          "input": "1 0 0 0 0 7 0 9 0\n0 3 0 0 2 0 0 0 8\n0 0 9 6 0 0 5 0 0\n0 0 5 3 0 0 9 0 0\n0 1 0 0 8 0 0 0 2\n6 0 0 0 0 4 0 0 0\n3 0 0 0 0 0 0 1 0\n0 4 0 0 0 0 0 0 7\n0 0 7 0 0 0 3 0 0\n",
+          "output": "1 6 2 8 5 7 4 9 3\n5 3 4 1 2 9 6 7 8\n7 8 9 6 4 3 5 2 1\n4 7 5 3 1 2 9 8 6\n9 1 3 5 8 6 7 4 2\n6 2 8 7 9 4 1 3 5\n3 5 6 4 7 8 2 1 9\n2 4 1 9 3 5 8 6 7\n8 9 7 2 6 1 3 5 4",
+          "hidden": true
+        },
+        {
+          "input": "8 0 0 0 0 0 0 0 0\n0 0 3 6 0 0 0 0 0\n0 7 0 0 9 0 2 0 0\n0 5 0 0 0 7 0 0 0\n0 0 0 0 4 5 7 0 0\n0 0 0 1 0 0 0 3 0\n0 0 1 0 0 0 0 6 8\n0 0 8 5 0 0 0 1 0\n0 9 0 0 0 0 4 0 0\n",
+          "output": "8 1 2 7 5 3 6 4 9\n9 4 3 6 8 2 1 7 5\n6 7 5 4 9 1 2 8 3\n1 5 4 2 3 7 8 9 6\n3 6 9 8 4 5 7 2 1\n2 8 7 1 6 9 5 3 4\n5 2 1 9 7 4 3 6 8\n4 3 8 5 2 6 9 1 7\n7 9 6 3 1 8 4 5 2",
+          "hidden": true
+        },
+        {
+          "input": "0 0 0 0 0 0 0 0 0\n0 0 0 0 0 3 0 8 5\n0 0 1 0 2 0 0 0 0\n0 0 0 5 0 7 0 0 0\n0 0 4 0 0 0 1 0 0\n0 9 0 0 0 0 0 0 0\n5 0 0 0 0 0 0 7 3\n0 0 2 0 1 0 0 0 0\n0 0 0 0 4 0 0 0 9\n",
+          "output": "9 8 7 6 5 4 3 2 1\n2 4 6 1 7 3 9 8 5\n3 5 1 9 2 8 7 4 6\n1 2 8 5 3 7 6 9 4\n6 3 4 8 9 2 1 5 7\n7 9 5 4 6 1 8 3 2\n5 1 9 2 8 6 4 7 3\n4 7 2 3 1 9 5 6 8\n8 6 3 7 4 5 2 1 9",
+          "hidden": true
+        },
+        {
+          "input": "0 1 0 7 0 0 0 6 0\n0 0 7 5 0 6 0 0 3\n0 0 0 0 3 0 0 0 4\n0 0 0 0 0 4 0 0 8\n5 0 6 0 8 0 0 3 0\n0 0 0 2 0 0 0 0 5\n0 0 3 0 0 0 0 5 0\n0 7 0 0 1 0 0 0 2\n0 0 0 0 2 8 4 0 0\n",
+          "output": "3 1 8 7 4 2 5 6 9\n4 2 7 5 9 6 8 1 3\n9 6 5 8 3 1 7 2 4\n7 3 2 6 5 4 1 9 8\n5 4 6 1 8 9 2 3 7\n8 9 1 2 7 3 6 4 5\n2 8 3 4 6 7 9 5 1\n6 7 4 9 1 5 3 8 2\n1 5 9 3 2 8 4 7 6",
+          "hidden": true
+        }
+      ]
+    },
+    {
+      "slug": "cp07-meet-in-the-middle-subset-sum",
+      "title": "Đếm tập con có tổng bằng S (Meet-in-the-Middle)",
+      "shortDescription": "Đếm số tập con trong 2^N tập con của dãy N ≤ 34 số nguyên dương có tổng đúng bằng S bằng kỹ thuật Meet-in-the-Middle.",
+      "statement": "Cho một dãy gồm $N$ số nguyên dương $a_1, a_2, \\dots, a_N$ và một số nguyên không âm $S$.\n\nTrong tổng số $2^N$ tập con các chỉ số của $\\{1, 2, \\dots, N\\}$ (bao gồm cả tập rỗng có tổng bằng $0$), hãy đếm xem có bao nhiêu tập con có tổng các phần tử đúng bằng $S$.\n\nLưu ý: Hai tập con khác nhau về tập chỉ số được tính là **khác nhau**, ngay cả khi các phần tử được chọn có giá trị giống nhau.\n\n### Dữ liệu vào\n- Dòng 1: hai số nguyên $N$ và $S$.\n- Dòng 2: $N$ số nguyên dương $a_1, a_2, \\dots, a_N$.\n\n### Dữ liệu ra\n- Một số nguyên duy nhất là số tập con có tổng đúng bằng $S$.\n\n### Ràng buộc\n- $1 \\le N \\le 34$\n- $1 \\le a_i \\le 10^9$\n- $0 \\le S \\le 10^{11}$",
+      "difficulty": "hard",
+      "estimatedTime": 30,
+      "skillId": "algo.backtracking_pruning",
+      "tags": [
+        "quay lui",
+        "meet in the middle",
+        "tìm kiếm nhị phân",
+        "tối ưu",
+        "tầng 2"
+      ],
+      "sampleInput": "4 5\n1 2 3 2",
+      "sampleOutput": "3",
+      "requirementsText": "Time: 1s\nMemory: 256MB\nNguồn: CodeClass CP Pack — Đệ quy & Quay lui\nLưu ý: Cả tổng phần tử lẫn đáp án đều có thể vượt quá $2^{31} - 1$ (ví dụ $\\binom{34}{17} = 2\\,333\\,606\\,220$), cần dùng kiểu số nguyên 64-bit (`long long`).",
+      "hints": "### Gợi ý 1\nDuyệt toàn bộ $2^N$ tập con tốn tới $2^{34} \\approx 1.7 \\times 10^{10}$ phép tính (quá chậm), còn quy hoạch động theo tổng $S \\le 10^{11}$ lại bất khả thi về bộ nhớ. Hãy áp dụng kỹ thuật **Meet-in-the-Middle (Chia đôi tập)**.\n\n### Gợi ý 2\nChia mảng thành $2$ nửa gần bằng nhau: nửa trái $L$ gồm $\\lfloor N/2 \\rfloor \\le 17$ phần tử và nửa phải $R$ gồm $\\lceil N/2 \\rceil \\le 17$ phần tử. Dùng quay lui sinh toàn bộ tổng tập con không vượt quá $S$ của mỗi nửa — mỗi nửa chỉ có tối đa $2^{17} = 131\\,072$ tổng!\n\n### Gợi ý 3\nVới mỗi tổng $x$ ở nửa trái, ta cần đếm số lần xuất hiện của $S - x$ ở nửa phải. Có thể dùng bảng băm (trong Python dùng `Counter`) hoặc sắp xếp cả $2$ danh sách rồi dùng **hai con trỏ / tìm kiếm nhị phân** (`equal_range`) trong $O(2^{N/2} \\cdot N)$.",
+      "teacherSolution": "#include <bits/stdc++.h>\nusing namespace std;\n\nvoid gen(int idx, int end_idx, long long cur, long long limit, const vector<long long>& a, vector<long long>& out) {\n    if (cur > limit) return;\n    if (idx == end_idx) {\n        out.push_back(cur);\n        return;\n    }\n    gen(idx + 1, end_idx, cur, limit, a, out);\n    gen(idx + 1, end_idx, cur + a[idx], limit, a, out);\n}\n\nint main() {\n    ios::sync_with_stdio(false);\n    cin.tie(nullptr);\n    int n;\n    long long s;\n    if (!(cin >> n >> s)) return 0;\n    vector<long long> a(n);\n    for (int i = 0; i < n; ++i) cin >> a[i];\n\n    int mid = n / 2;\n    vector<long long> L, R;\n    L.reserve(1 << mid);\n    R.reserve(1 << (n - mid));\n    gen(0, mid, 0, s, a, L);\n    gen(mid, n, 0, s, a, R);\n\n    sort(L.begin(), L.end());\n    sort(R.begin(), R.end());\n\n    long long ans = 0;\n    int i = 0, j = (int)R.size() - 1;\n    while (i < (int)L.size() && j >= 0) {\n        long long sum = L[i] + R[j];\n        if (sum < s) {\n            ++i;\n        } else if (sum > s) {\n            --j;\n        } else {\n            long long valL = L[i], valR = R[j];\n            long long cntL = 0, cntR = 0;\n            while (i < (int)L.size() && L[i] == valL) {\n                ++cntL;\n                ++i;\n            }\n            while (j >= 0 && R[j] == valR) {\n                ++cntR;\n                --j;\n            }\n            ans += cntL * cntR;\n        }\n    }\n\n    cout << ans << '\\n';\n    return 0;\n}\n/* === CODECLASS_PYTHON_SOLUTION === */\nimport sys\nfrom collections import Counter\n\n\ndef gen_sums(arr, limit):\n    sums = [0]\n    for x in arr:\n        if x <= limit:\n            sums += [v + x for v in sums if v + x <= limit]\n    return sums\n\n\ndef main():\n    data = list(map(int, sys.stdin.read().split()))\n    if not data:\n        return\n    n, s = data[0], data[1]\n    a = data[2 : 2 + n]\n\n    mid = n // 2\n    left = gen_sums(a[:mid], s)\n    right = gen_sums(a[mid:], s)\n\n    cnt = Counter(left)\n    ans = 0\n    for v in right:\n        need = s - v\n        if need in cnt:\n            ans += cnt[need]\n    print(ans)\n\n\nif __name__ == \"__main__\":\n    main()\n",
+      "testCases": [
+        {
+          "input": "4 5\n1 2 3 2\n",
+          "output": "3",
+          "hidden": false
+        },
+        {
+          "input": "3 0\n5 10 15\n",
+          "output": "1",
+          "hidden": false
+        },
+        {
+          "input": "5 10\n2 4 6 8 10\n",
+          "output": "3",
+          "hidden": false
+        },
+        {
+          "input": "1 7\n7\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "1 7\n8\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "1 0\n1000000000\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "6 100000000000\n1000000000 1000000000 1000000000 1000000000 1000000000 1000000000\n",
+          "output": "0",
+          "hidden": true
+        },
+        {
+          "input": "10 5\n1 1 1 1 1 1 1 1 1 1\n",
+          "output": "252",
+          "hidden": true
+        },
+        {
+          "input": "14 38\n4 17 3 13 14 3 15 9 14 13 16 11 2 20\n",
+          "output": "65",
+          "hidden": true
+        },
+        {
+          "input": "16 206\n2 36 33 39 8 22 28 22 21 28 8 4 37 34 2 2\n",
+          "output": "360",
+          "hidden": true
+        },
+        {
+          "input": "17 5956392246\n846279151 552013307 671312432 697235596 984118282 766957998 749399859 910448047 852342314 619533315 520832863 905422134 569854003 557281378 770253633 866559568 591562076\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "24 107147776\n13843811 8613007 14267095 18835818 6583540 10079855 6204708 10041811 8658100 13125527 8590739 4834186 19139197 3960516 1985622 13836230 5014331 10915953 11044813 10719938 4481005 17939897 17580821 15716772\n",
+          "output": "2",
+          "hidden": true
+        },
+        {
+          "input": "30 14032605086\n849936037 883766800 977571348 675770451 577978241 685205704 504050466 905999595 635584902 715609105 938995565 925329146 791019468 828448850 529465552 964188932 809448444 938192115 696110224 711935915 605463714 864424014 855662796 556214709 845945314 798367278 663297045 802776239 950066177 740727386\n",
+          "output": "1",
+          "hidden": true
+        },
+        {
+          "input": "34 17000000000\n1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000 1000000000\n",
+          "output": "2333606220",
+          "hidden": true
+        },
+        {
+          "input": "34 9404147066\n418648208 746409550 607085775 490869745 752264721 241874344 482065106 328289750 580576298 51864151 363878419 332044708 694261747 465206332 470805296 757751504 22975976 944954123 527888016 552758278 584995528 162975622 913955450 690973920 840485551 413264021 783929817 69670576 656441585 327199478 770260180 133340939 636001287 81147601\n",
+          "output": "2",
+          "hidden": true
+        },
+        {
+          "input": "34 44820\n132 3370 2232 2237 318 224 4863 4013 1515 4272 3476 3424 3729 2439 4823 3324 3214 4841 1716 2245 3633 1413 1023 4762 2819 69 1374 4816 1228 4910 3312 311 3517 47\n",
+          "output": "752923",
+          "hidden": true
+        }
+      ]
+    }
+  ]
+}

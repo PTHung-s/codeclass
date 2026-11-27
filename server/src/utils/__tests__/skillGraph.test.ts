@@ -21,7 +21,7 @@ function check(name: string, condition: boolean): void {
 
 console.log("\n── Skill graph taxonomy ──");
 const canonicalIds = new Set(SKILL_SEEDS.map((skill) => skill.skillId));
-check("canonical catalog has 71 skills", SKILL_SEEDS.length === 71);
+check("canonical catalog has 105 skills", SKILL_SEEDS.length === 105);
 check("skill IDs are unique", canonicalIds.size === SKILL_SEEDS.length);
 check("skill order indexes are contiguous", SKILL_SEEDS.every((skill, index) => skill.orderIndex === index));
 check("skill IDs use a known namespace prefix", SKILL_SEEDS.every((s) => /^(py|cpp|algo)\./.test(s.skillId)));
@@ -37,9 +37,9 @@ check(
     new Set(TOPICS.map((t) => t.sequenceNo)).size === TOPICS.length,
 );
 check(
-  "algorithm course namespace covers its 10 curriculum chapters",
-  TOPICS.filter((t) => t.topicId.startsWith("t") && t.topicName.startsWith("Thuật toán:")).length === 10 &&
-    SKILL_SEEDS.filter((s) => s.skillId.startsWith("algo.")).length === 27,
+  "algorithm course namespace covers all 20 curriculum + CP tiers 1-4 chapters",
+  TOPICS.filter((t) => t.topicId.startsWith("t") && t.topicName.startsWith("Thuật toán:")).length === 20 &&
+    SKILL_SEEDS.filter((s) => s.skillId.startsWith("algo.")).length === 61,
 );
 
 const orderById = new Map(SKILL_SEEDS.map((s) => [s.skillId, s.orderIndex]));

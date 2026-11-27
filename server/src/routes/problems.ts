@@ -3,6 +3,7 @@ import { authenticate } from "../middleware/auth";
 import { requireRole } from "../middleware/rbac";
 import prisma from "../utils/prisma";
 import { param, query, paginate, publicTestCases, sanitizeProblemForStudent, formatProblemPreview } from "../utils/routeHelpers";
+import { importProblemPack, listBuiltInPacks, loadBuiltInPack } from "../services/problemPackService";
 
 const router = Router();
 
@@ -118,6 +119,56 @@ router.post("/", authenticate, requireRole("admin", "teacher"), async (req: Requ
     res.status(201).json(problem);
   } catch {
     res.status(500).json({ error: "Failed to create problem" });
+  }
+});
+
+// ─── Teacher: danh sách & import gói đề lập trình thi đấu ───
+router.get("/packs", authenticate, requireRole("admin", "teacher"), async (_req: Request, res: Response) => {
+  try {
+    const packs = await listBuiltInPacks();
+    res.json({ packs });
+  } catch {
+    res.status(500).json({ error: "Không thể tải danh sách gói đề" });
+  }
+});
+
+router.post("/import-pack", authenticate, requireRole("admin", "teacher"), async (req: Request, res: Response) => {
+  try {
+    const { packId, packIds, pack, mode, publish } = req.body || {};
+    const importMode = mode === "upsert" ? "upsert" : "skip";
+    const shouldPublish = publish !== false;
+    const authorId = req.user!.userId;
+
+    const results = [];
+    if (Array.isArray(packIds) && packIds.length > 0) {
+      for (const pid of packIds) {
+        if (typeof pid !== "string") continue;
+        const loaded = loadBuiltInPack(pid);
+        results.push(await importProblemPack(loaded, authorId, { mode: importMode, publish: shouldPublish }));
+      }
+    } else if (typeof packId === "string" && packId.trim()) {
+      const loaded = loadBuiltInPack(packId.trim());
+      results.push(await importProblemPack(loaded, authorId, { mode: importMode, publish: shouldPublish }));
+    } else if (pack) {
+      results.push(await importProblemPack(pack, authorId, { mode: importMode, publish: shouldPublish }));
+    } else {
+      res.status(400).json({ error: "Cần truyền packId, packIds hoặc nội dung gói đề JSON (pack)" });
+      return;
+    }
+
+    const summary = results.reduce(
+      (acc, r) => ({
+        total: acc.total + r.total,
+        created: acc.created + r.created,
+        updated: acc.updated + r.updated,
+        skipped: acc.skipped + r.skipped,
+      }),
+      { total: 0, created: 0, updated: 0, skipped: 0 },
+    );
+
+    res.json({ ok: true, results, summary });
+  } catch (err: any) {
+    res.status(400).json({ error: err?.message || "Import gói đề thất bại" });
   }
 });
 
