@@ -3,8 +3,8 @@
 
 FROM node:20-alpine
 
-# Python + C++ compiler required by the code judge.
-RUN apk add --no-cache python3 g++
+# Python + C++ compiler + prlimit (util-linux) + optional bwrap required by the code judge.
+RUN apk add --no-cache python3 g++ util-linux bubblewrap
 
 WORKDIR /app
 RUN mkdir -p /app/testcases
@@ -35,4 +35,4 @@ ENV PORT=3001
 # regenerate Prisma client, then start the API. A destructive schema change stops deployment
 # instead of risking production data.
 RUN cp -r /app/server/prisma /app/server-prisma-snapshot
-CMD ["sh", "-c", "cp /app/server-prisma-snapshot/schema.prisma /app/server/prisma/schema.prisma && npx prisma db push --skip-generate --schema prisma/schema.prisma && npx prisma generate --schema prisma/schema.prisma && node dist/index.js"]
+CMD ["sh", "-c", "cp /app/server-prisma-snapshot/schema.prisma /app/server/prisma/schema.prisma && chmod 700 /app/server/prisma && ([ -f /app/server/.env ] && chmod 600 /app/server/.env || true) && npx prisma db push --skip-generate --schema prisma/schema.prisma && npx prisma generate --schema prisma/schema.prisma && node dist/index.js"]

@@ -45,13 +45,21 @@ export function releaseSandboxSlot(): void {
   if (next) next();
 }
 
-export type SandboxMode = "bwrap+prlimit" | "prlimit" | "python-audit+rlimit" | "process-guard";
+export type SandboxMode =
+  | "bwrap+prlimit"
+  | "preload+prlimit"
+  | "preload-guard"
+  | "prlimit"
+  | "python-audit+rlimit"
+  | "process-guard";
 
 interface SandboxCapabilities {
   checked: boolean;
   hasPrlimit: boolean;
   hasBwrap: boolean;
   bwrapUsable: boolean;
+  preloadPath: string | null;
+  preloadUsable: boolean;
   mode: SandboxMode;
 }
 
@@ -60,10 +68,263 @@ const caps: SandboxCapabilities = {
   hasPrlimit: false,
   hasBwrap: false,
   bwrapUsable: false,
+  preloadPath: null,
+  preloadUsable: false,
   mode: process.platform === "linux" ? "python-audit+rlimit" : "process-guard",
 };
 
 let probePromise: Promise<SandboxCapabilities> | null = null;
+
+const PRELOAD_GUARD_C_SOURCE = `
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <limits.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+static void deny_msg(const char *why) {
+    const char *p = "SANDBOX_BLOCKED: ";
+    (void)write(2, p, strlen(p));
+    (void)write(2, why, strlen(why));
+    (void)write(2, "\\n", 1);
+}
+
+static int path_allowed(const char *pathname, int is_write) {
+    if (!pathname || !*pathname) return 0;
+    if (strstr(pathname, "..") != NULL) return 0;
+
+    char resolved[PATH_MAX];
+    const char *work = getenv("SANDBOX_WORK_DIR");
+    if (pathname[0] != '/') {
+        if (!work || !*work) return 0;
+        snprintf(resolved, sizeof(resolved), "%s/%s", work, pathname);
+    } else {
+        snprintf(resolved, sizeof(resolved), "%s", pathname);
+    }
+
+    if (work && *work) {
+        size_t wlen = strlen(work);
+        if (strncmp(resolved, work, wlen) == 0 && (resolved[wlen] == '\\0' || resolved[wlen] == '/')) {
+            return 1;
+        }
+    }
+
+    if (is_write) return 0;
+
+    const char *ro_prefixes[] = {
+        "/lib/",
+        "/lib64/",
+        "/usr/lib/",
+        "/etc/ld",
+        "/proc/self/",
+        NULL
+    };
+    for (int i = 0; ro_prefixes[i]; i++) {
+        if (strncmp(resolved, ro_prefixes[i], strlen(ro_prefixes[i])) == 0) {
+            return 1;
+        }
+    }
+    if (strcmp(resolved, "/dev/null") == 0 ||
+        strcmp(resolved, "/dev/urandom") == 0 ||
+        strcmp(resolved, "/dev/zero") == 0) {
+        return 1;
+    }
+    return 0;
+}
+
+int socket(int domain, int type, int protocol) {
+    (void)domain; (void)type; (void)protocol;
+    deny_msg("network socket disabled");
+    errno = EACCES;
+    return -1;
+}
+int socketpair(int domain, int type, int protocol, int sv[2]) {
+    (void)domain; (void)type; (void)protocol; (void)sv;
+    deny_msg("network socketpair disabled");
+    errno = EACCES;
+    return -1;
+}
+int connect(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    (void)sockfd; (void)addr; (void)addrlen;
+    deny_msg("network connect disabled");
+    errno = EACCES;
+    return -1;
+}
+int bind(int sockfd, const struct sockaddr *addr, socklen_t addrlen) {
+    (void)sockfd; (void)addr; (void)addrlen;
+    deny_msg("network bind disabled");
+    errno = EACCES;
+    return -1;
+}
+int listen(int sockfd, int backlog) {
+    (void)sockfd; (void)backlog;
+    deny_msg("network listen disabled");
+    errno = EACCES;
+    return -1;
+}
+int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen) {
+    (void)sockfd; (void)addr; (void)addrlen;
+    deny_msg("network accept disabled");
+    errno = EACCES;
+    return -1;
+}
+int getaddrinfo(const char *node, const char *service, const void *hints, void **res) {
+    (void)node; (void)service; (void)hints; (void)res;
+    deny_msg("network dns disabled");
+    errno = EACCES;
+    return -11;
+}
+
+int system(const char *command) {
+    (void)command;
+    deny_msg("system disabled");
+    errno = EACCES;
+    return -1;
+}
+FILE *popen(const char *command, const char *type) {
+    (void)command; (void)type;
+    deny_msg("popen disabled");
+    errno = EACCES;
+    return NULL;
+}
+int execve(const char *pathname, char *const argv[], char *const envp[]) {
+    (void)pathname; (void)argv; (void)envp;
+    deny_msg("execve disabled");
+    errno = EACCES;
+    return -1;
+}
+int execvp(const char *file, char *const argv[]) {
+    (void)file; (void)argv;
+    deny_msg("execvp disabled");
+    errno = EACCES;
+    return -1;
+}
+int execv(const char *path, char *const argv[]) {
+    (void)path; (void)argv;
+    deny_msg("execv disabled");
+    errno = EACCES;
+    return -1;
+}
+pid_t fork(void) {
+    deny_msg("fork disabled");
+    errno = EACCES;
+    return -1;
+}
+void *dlopen(const char *filename, int flags) {
+    (void)filename; (void)flags;
+    deny_msg("dlopen disabled");
+    errno = EACCES;
+    return NULL;
+}
+
+int open(const char *pathname, int flags, ...) {
+    static int (*real_open)(const char *, int, ...) = NULL;
+    if (!real_open) real_open = (int (*)(const char *, int, ...))dlsym(RTLD_NEXT, "open");
+    int is_write = (flags & O_ACCMODE) != O_RDONLY || (flags & (O_CREAT | O_TRUNC | O_APPEND));
+    if (!path_allowed(pathname, is_write)) {
+        deny_msg("filesystem access denied");
+        errno = EACCES;
+        return -1;
+    }
+    mode_t mode = 0;
+    if (flags & O_CREAT) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+        return real_open(pathname, flags, mode);
+    }
+    return real_open(pathname, flags);
+}
+
+int openat(int dirfd, const char *pathname, int flags, ...) {
+    static int (*real_openat)(int, const char *, int, ...) = NULL;
+    if (!real_openat) real_openat = (int (*)(int, const char *, int, ...))dlsym(RTLD_NEXT, "openat");
+    int is_write = (flags & O_ACCMODE) != O_RDONLY || (flags & (O_CREAT | O_TRUNC | O_APPEND));
+    if ((dirfd != AT_FDCWD && pathname && pathname[0] != '/') || !path_allowed(pathname, is_write)) {
+        deny_msg("filesystem openat denied");
+        errno = EACCES;
+        return -1;
+    }
+    mode_t mode = 0;
+    if (flags & O_CREAT) {
+        va_list ap;
+        va_start(ap, flags);
+        mode = (mode_t)va_arg(ap, int);
+        va_end(ap);
+        return real_openat(dirfd, pathname, flags, mode);
+    }
+    return real_openat(dirfd, pathname, flags);
+}
+
+FILE *fopen(const char *pathname, const char *mode) {
+    static FILE *(*real_fopen)(const char *, const char *) = NULL;
+    if (!real_fopen) real_fopen = (FILE *(*)(const char *, const char *))dlsym(RTLD_NEXT, "fopen");
+    int is_write = mode && (strchr(mode, 'w') || strchr(mode, 'a') || strchr(mode, '+'));
+    if (!path_allowed(pathname, is_write)) {
+        deny_msg("filesystem fopen denied");
+        errno = EACCES;
+        return NULL;
+    }
+    return real_fopen(pathname, mode);
+}
+
+int unlink(const char *pathname) {
+    (void)pathname;
+    deny_msg("unlink disabled");
+    errno = EACCES;
+    return -1;
+}
+int rename(const char *oldpath, const char *newpath) {
+    (void)oldpath; (void)newpath;
+    deny_msg("rename disabled");
+    errno = EACCES;
+    return -1;
+}
+`;
+
+async function ensurePreloadGuardSo(): Promise<string | null> {
+  if (process.platform !== "linux") return null;
+  const candidates = [
+    "/usr/local/lib/codeclass_guard.so",
+    path.join(os.tmpdir(), "codeclass_guard.so"),
+  ];
+  for (const p of candidates) {
+    if (fs.existsSync(p)) return p;
+  }
+
+  const target = candidates[1];
+  const srcPath = path.join(os.tmpdir(), "codeclass_guard.c");
+  try {
+    await fsp.writeFile(srcPath, PRELOAD_GUARD_C_SOURCE, "utf-8");
+    const ok = await new Promise<boolean>((resolve) => {
+      const child = spawn(
+        "g++",
+        ["-shared", "-fPIC", "-O2", "-x", "c", srcPath, "-ldl", "-o", target],
+        { windowsHide: true, stdio: "ignore" },
+      );
+      const t = setTimeout(() => {
+        try { child.kill("SIGKILL"); } catch { /* ignore */ }
+        resolve(false);
+      }, 8000);
+      child.on("error", () => { clearTimeout(t); resolve(false); });
+      child.on("close", (code) => { clearTimeout(t); resolve(code === 0); });
+    });
+    if (ok && fs.existsSync(target)) {
+      await fsp.chmod(target, 0o755).catch(() => {});
+      return target;
+    }
+  } catch {
+    /* compiler unavailable */
+  }
+  return null;
+}
 
 function execProbe(cmd: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
@@ -88,9 +349,10 @@ export async function detectSandboxCapabilities(): Promise<SandboxCapabilities> 
       return caps;
     }
 
-    const [hasPrlimit, hasBwrap] = await Promise.all([
+    const [hasPrlimit, hasBwrap, preloadPath] = await Promise.all([
       execProbe("prlimit", ["--version"]),
       execProbe("bwrap", ["--version"]),
+      ensurePreloadGuardSo(),
     ]);
 
     let bwrapUsable = false;
@@ -104,15 +366,22 @@ export async function detectSandboxCapabilities(): Promise<SandboxCapabilities> 
       ]);
     }
 
+    const preloadUsable = Boolean(preloadPath);
     caps.hasPrlimit = hasPrlimit;
     caps.hasBwrap = hasBwrap;
     caps.bwrapUsable = bwrapUsable;
+    caps.preloadPath = preloadPath;
+    caps.preloadUsable = preloadUsable;
     caps.mode =
       bwrapUsable && hasPrlimit
         ? "bwrap+prlimit"
-        : hasPrlimit
-          ? "prlimit"
-          : "python-audit+rlimit";
+        : preloadUsable && hasPrlimit
+          ? "preload+prlimit"
+          : preloadUsable
+            ? "preload-guard"
+            : hasPrlimit
+              ? "prlimit"
+              : "python-audit+rlimit";
     caps.checked = true;
     return caps;
   })();
@@ -121,11 +390,25 @@ export async function detectSandboxCapabilities(): Promise<SandboxCapabilities> 
 }
 
 export function getSandboxStatus() {
+  const cppIsolation =
+    process.platform !== "linux"
+      ? "process-guard"
+      : caps.bwrapUsable
+        ? "bwrap+prlimit"
+        : caps.preloadUsable
+          ? caps.hasPrlimit
+            ? "preload+nobody+prlimit"
+            : "preload+nobody"
+          : "blocked-no-isolation";
+
   return {
     platform: process.platform,
     mode: caps.mode,
     hasPrlimit: caps.hasPrlimit,
     bwrapUsable: caps.bwrapUsable,
+    preloadUsable: caps.preloadUsable,
+    cppIsolation,
+    pythonIsolation: process.platform === "linux" ? "python-audit+rlimit" : "python-audit",
     activeExecutions,
     queuedExecutions: slotWaiters.length,
     maxConcurrent: MAX_CONCURRENT_SANDBOX,
@@ -175,10 +458,31 @@ export async function wrapCommandForSandbox(
   cmd: string,
   args: string[],
   opts: SandboxWrapOptions,
-): Promise<{ command: string; args: string[]; cwd: string; wrappedInBwrap: boolean }> {
+): Promise<{
+  command: string;
+  args: string[];
+  cwd: string;
+  wrappedInBwrap: boolean;
+  preloadPath: string | null;
+  dropPrivileges: boolean;
+}> {
   const cap = await detectSandboxCapabilities();
   if (process.platform !== "linux") {
-    return { command: cmd, args, cwd: opts.workDir, wrappedInBwrap: false };
+    return {
+      command: cmd,
+      args,
+      cwd: opts.workDir,
+      wrappedInBwrap: false,
+      preloadPath: null,
+      dropPrivileges: false,
+    };
+  }
+
+  // Fail-closed for native student binaries on Linux: refuse to run bare without isolation.
+  if (opts.isNativeBinary && !cap.bwrapUsable && !cap.preloadUsable) {
+    throw new Error(
+      "SANDBOX_UNAVAILABLE: Sandbox C++ chưa sẵn sàng (thiếu cả Bubblewrap namespace lẫn thư viện LD_PRELOAD guard).",
+    );
   }
 
   const cpuSec = Math.max(1, Math.ceil(opts.timeLimitMs / 1000) + 1);
@@ -191,6 +495,8 @@ export async function wrapCommandForSandbox(
   let finalArgs = args;
   let finalCwd = opts.workDir;
   let wrappedInBwrap = false;
+  let preloadPath: string | null = null;
+  let dropPrivileges = false;
 
   if (cap.hasPrlimit) {
     finalArgs = [
@@ -206,8 +512,6 @@ export async function wrapCommandForSandbox(
     finalCmd = "prlimit";
   }
 
-  // Only wrap native C++ binaries or explicit CLI commands in bwrap (Python already runs inside _runner.py audit hook,
-  // and bwrap also works cleanly when /work is mounted if standard /usr & /lib exist).
   if (cap.bwrapUsable && opts.isNativeBinary) {
     const bwrapArgs: string[] = [
       "--unshare-net",
@@ -221,7 +525,6 @@ export async function wrapCommandForSandbox(
         bwrapArgs.push("--ro-bind", ro, ro);
       }
     }
-    // Remap binary if it lives inside workDir
     const rewrittenTail = [finalCmd, ...finalArgs].map((tok) =>
       tok.startsWith(opts.workDir) ? "/work" + tok.slice(opts.workDir.length) : tok,
     );
@@ -235,8 +538,11 @@ export async function wrapCommandForSandbox(
     );
     finalCmd = "bwrap";
     finalArgs = bwrapArgs;
-    finalCwd = "/work"; // ignored by spawn when using host cwd -> pass opts.workDir on host!
+    finalCwd = "/work";
     wrappedInBwrap = true;
+  } else if (opts.isNativeBinary && cap.preloadUsable) {
+    preloadPath = cap.preloadPath;
+    dropPrivileges = typeof process.getuid === "function" && process.getuid() === 0;
   }
 
   return {
@@ -244,6 +550,8 @@ export async function wrapCommandForSandbox(
     args: finalArgs,
     cwd: wrappedInBwrap ? opts.workDir : finalCwd,
     wrappedInBwrap,
+    preloadPath,
+    dropPrivileges,
   };
 }
 
@@ -381,6 +689,8 @@ export async function runSandboxedProcess(opts: {
   timeLimitMs: number;
   maxOutputBytes?: number;
   outputFilePath?: string;
+  uid?: number;
+  gid?: number;
 }): Promise<SandboxedExecResult> {
   const maxOut = Math.max(4096, opts.maxOutputBytes ?? 2_000_000);
   const timeoutMs = Math.max(250, Math.min(15_000, opts.timeLimitMs));
@@ -392,6 +702,8 @@ export async function runSandboxedProcess(opts: {
       env: opts.env,
       windowsHide: true,
       detached: process.platform !== "win32",
+      ...(typeof opts.uid === "number" ? { uid: opts.uid } : {}),
+      ...(typeof opts.gid === "number" ? { gid: opts.gid } : {}),
     });
 
     let stdout = "";

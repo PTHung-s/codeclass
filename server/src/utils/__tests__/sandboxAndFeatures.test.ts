@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { compareOutputs, computeJudgeScore } from "../judgeChecker";
 import { judgePythonCode, runPythonCode } from "../pythonRunner";
+import { runCppCode, validateCppCode } from "../cppRunner";
 import { getSandboxStatus } from "../codeSandbox";
 import { detectPlagiarismPairs } from "../../services/plagiarismService";
 import { buildCpRoadmap, getProblemNeighbors } from "../../services/cpRoadmapService";
@@ -192,6 +193,44 @@ def dijkstra(n, adj):
     "getProblemNeighbors returns pack context & next problem",
     Boolean(neighbors && neighbors.packTitle && neighbors.next && neighbors.position === 1),
   );
+
+  console.log("\n── 6. C++ Sandbox Isolation Guards ──");
+  check(
+    "validateCppCode blocks <sys/socket.h>, <dlfcn.h> and direct syscall()",
+    Boolean(
+      validateCppCode("#include <sys/socket.h>\nint main(){}") &&
+        validateCppCode("#include <dlfcn.h>\nint main(){}") &&
+        validateCppCode("int main(){ return syscall(1); }"),
+    ),
+  );
+  check(
+    "validateCppCode allows standard CP C++17 headers",
+    validateCppCode("#include <iostream>\n#include <vector>\nint main(){ int a,b; std::cin>>a>>b; std::cout<<a+b; }") === null,
+  );
+  const stNow = getSandboxStatus();
+  check(
+    "getSandboxStatus reports cppIsolation & pythonIsolation",
+    typeof stNow.cppIsolation === "string" && typeof stNow.pythonIsolation === "string",
+  );
+
+  if (process.platform === "linux") {
+    const cppOk = await runCppCode("#include <iostream>\nint main(){int a,b;std::cin>>a>>b;std::cout<<a+b;}", "9 13");
+    check("C++ A+B passes inside Linux sandbox", cppOk.status === "success" && cppOk.stdout.trim() === "22");
+
+    // Test network isolation even if static validator is bypassed via forward declaration
+    const cppNet = await runCppCode(
+      'extern "C" int socket(int,int,int);\nint main(){ int fd = socket(2, 1, 0); return fd >= 0 ? 0 : 1; }',
+      "",
+    );
+    check("C++ sandbox blocks network socket() at runtime", cppNet.status === "blocked" || cppNet.exitCode !== 0);
+
+    // Test filesystem isolation even on normal fopen/ifstream
+    const cppFs = await runCppCode(
+      '#include <cstdio>\nint main(){ FILE* f = fopen("/etc/passwd", "r"); return f ? 0 : 1; }',
+      "",
+    );
+    check("C++ sandbox blocks reading /etc/passwd at runtime", cppFs.status === "blocked" || cppFs.exitCode !== 0);
+  }
 
   await prisma.$disconnect();
   console.log(`\nsandboxAndFeatures tests: ${pass} passed, ${fail} failed`);

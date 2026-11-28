@@ -80,17 +80,20 @@ function trimOutput(value: string, max = MAX_OUTPUT_LENGTH) {
   return `${value.slice(0, max)}\n... output truncated ...`;
 }
 
-function validateCppCode(code: string): string | null {
+export function validateCppCode(code: string): string | null {
   const blockedPatterns = [
-    /\b#include\s*<\s*thread\s*>/,
-    /\b#include\s*<\s*filesystem\s*>/,
-    /\b#include\s*<\s*socket\s*>/,
-    /\b#include\s*<\s*net\s*>/,
-    /\b#include\s*["<][^">]*(?:\.\.|\/etc\/|\/proc\/|dev\.db)/i,
+    /#\s*include\s*<\s*thread\s*>/,
+    /#\s*include\s*<\s*filesystem\s*>/,
+    /#\s*include\s*<\s*socket\s*>/,
+    /#\s*include\s*<\s*net\s*>/,
+    /#\s*include\s*<\s*(?:sys\/socket\.h|netinet\/|arpa\/|netdb\.h|dlfcn\.h|sys\/syscall\.h|syscall\.h)/i,
+    /#\s*include\s*["<][^">]*(?:\.\.|\/etc\/|\/proc\/|dev\.db)/i,
     /\bsystem\s*\(/,
     /\bpopen\s*\(/,
     /\bfork\s*\(/,
     /\bexec[lvpe]*\s*\(/,
+    /\bsyscall\s*\(/,
+    /\bdlopen\s*\(/,
     /\b(?:asm|__asm__|__asm)\b/,
   ];
 
@@ -292,15 +295,27 @@ export async function runCppCode(
       isNativeBinary: true,
     });
 
+    if (wrapped.dropPrivileges) {
+      await fs.chmod(workDir, 0o755);
+      await fs.chmod(binaryPath, 0o755);
+      await fs.chmod(inputPath, 0o644);
+      await fs.chown(workDir, 65534, 65534);
+    }
+
+    const extraEnv = wrapped.preloadPath
+      ? { LD_PRELOAD: wrapped.preloadPath, SANDBOX_WORK_DIR: workDir }
+      : undefined;
+
     const exec = await runSandboxedProcess({
       command: wrapped.command,
       args: wrapped.args,
       cwd: wrapped.cwd,
-      env: buildSafeEnv(workDir),
+      env: buildSafeEnv(workDir, extraEnv),
       stdin: normalizedStdin,
       timeLimitMs,
       maxOutputBytes: maxOut,
       outputFilePath: outputPath,
+      ...(wrapped.dropPrivileges ? { uid: 65534, gid: 65534 } : {}),
     });
 
     const output =
@@ -319,8 +334,9 @@ export async function runCppCode(
     };
   } catch (err: any) {
     const msg = err?.message || "Không tạo được sandbox C++.";
+    const isUnavailable = typeof msg === "string" && msg.includes("SANDBOX_UNAVAILABLE");
     return {
-      status: "runtime_error",
+      status: isUnavailable ? "blocked" : "runtime_error",
       stdout: "",
       stderr: msg,
       output: msg,
@@ -423,13 +439,43 @@ export async function judgeCppCode(
       };
     }
 
-    const wrapped = await wrapCommandForSandbox(binaryPath, [], {
-      workDir,
-      timeLimitMs,
-      memoryLimitMb,
-      isNativeBinary: true,
-    });
-    const safeEnv = buildSafeEnv(workDir);
+    let wrapped: Awaited<ReturnType<typeof wrapCommandForSandbox>>;
+    try {
+      wrapped = await wrapCommandForSandbox(binaryPath, [], {
+        workDir,
+        timeLimitMs,
+        memoryLimitMb,
+        isNativeBinary: true,
+      });
+    } catch (err: any) {
+      const msg = err?.message || "Sandbox C++ chưa sẵn sàng.";
+      return {
+        passedCount: 0,
+        totalTests: testCases.length,
+        score: 0,
+        results: testCases.map((tc, i) => ({
+          testNum: i + 1,
+          passed: false,
+          hidden: Boolean(tc.hidden),
+          status: "blocked" as const,
+          stderr: msg,
+          durationMs: 0,
+          subtask: tc.subtask,
+        })),
+        status: "partial",
+      };
+    }
+
+    if (wrapped.dropPrivileges) {
+      await fs.chmod(workDir, 0o755);
+      await fs.chmod(binaryPath, 0o755);
+      await fs.chown(workDir, 65534, 65534);
+    }
+
+    const extraEnv = wrapped.preloadPath
+      ? { LD_PRELOAD: wrapped.preloadPath, SANDBOX_WORK_DIR: workDir }
+      : undefined;
+    const safeEnv = buildSafeEnv(workDir, extraEnv);
     let consecutiveHeavyFails = 0;
 
     for (let i = 0; i < testCases.length; i += 1) {
@@ -455,6 +501,9 @@ export async function judgeCppCode(
 
       const normIn = normalizeStdin(tc.input || "");
       await fs.writeFile(inputPath, normIn, "utf-8");
+      if (wrapped.dropPrivileges) {
+        await fs.chmod(inputPath, 0o644);
+      }
       await fs.rm(outputPath, { force: true }).catch(() => {});
 
       const exec = await runSandboxedProcess({
@@ -466,6 +515,7 @@ export async function judgeCppCode(
         timeLimitMs,
         maxOutputBytes: MAX_OUTPUT_LENGTH,
         outputFilePath: outputPath,
+        ...(wrapped.dropPrivileges ? { uid: 65534, gid: 65534 } : {}),
       });
 
       if (
