@@ -4,10 +4,32 @@ import { requireRole } from "../middleware/rbac";
 import prisma from "../utils/prisma";
 import { param, query, paginate, publicTestCases, sanitizeProblemForStudent, formatProblemPreview } from "../utils/routeHelpers";
 import { importProblemPack, listBuiltInPacks, loadBuiltInPack } from "../services/problemPackService";
-import { buildCpRoadmap } from "../services/cpRoadmapService";
+import { buildCpRoadmap, getProblemNeighbors } from "../services/cpRoadmapService";
 import { normalizeCheckerType } from "../utils/judgeChecker";
 
 const router = Router();
+
+const TIER_TAGS = ["tầng 1", "tầng 2", "tầng 3", "tầng 4"];
+const TIER_TAG_SET = new Set(TIER_TAGS);
+
+const LIST_PROBLEM_SELECT = {
+  id: true,
+  title: true,
+  shortDescription: true,
+  difficulty: true,
+  estimatedTime: true,
+  status: true,
+  skillId: true,
+  timeLimitMs: true,
+  memoryLimitMb: true,
+  checkerType: true,
+  createdAt: true,
+  updatedAt: true,
+  createdById: true,
+  createdBy: { select: { id: true, fullName: true } },
+  tags: { select: { tag: true } },
+  _count: { select: { problemSubmissions: true } },
+} as const;
 
 function sanitizeProblemForList(problem: any) {
   return {
@@ -16,17 +38,33 @@ function sanitizeProblemForList(problem: any) {
   };
 }
 
+function parseCsvParam(raw?: string): string[] {
+  if (!raw) return [];
+  return Array.from(
+    new Set(
+      raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter((s) => s.length > 0 && s !== "all"),
+    ),
+  );
+}
+
 router.get("/", authenticate, async (req: Request, res: Response) => {
   try {
-    const search = query(req, "search");
-    const difficulty = query(req, "difficulty");
-    const tag = query(req, "tag");
+    const search = query(req, "search")?.trim();
+    const difficulties = parseCsvParam(query(req, "difficulties") ?? query(req, "difficulty"));
+    const tags = parseCsvParam(query(req, "tags") ?? query(req, "tag"));
+    const tier = query(req, "tier")?.trim();
+    const solved = query(req, "solved")?.trim();
+    const sort = query(req, "sort")?.trim() || "default";
     const status = query(req, "status");
-    const { role } = req.user!;
+    const { role, userId } = req.user!;
     // Opt-in pagination: only when page and/or limit is present (keeps legacy array clients working).
     const pg = paginate(req, { defaultLimit: 30, maxLimit: 100 });
 
     const where: any = {};
+    const andClauses: any[] = [];
 
     if (role === "student") {
       where.status = "published";
@@ -40,35 +78,91 @@ router.get("/", authenticate, async (req: Request, res: Response) => {
     }
 
     if (search) {
-      where.OR = [
-        { title: { contains: search } },
-        { shortDescription: { contains: search } },
-        { statement: { contains: search } },
-      ];
+      andClauses.push({
+        OR: [
+          { title: { contains: search } },
+          { shortDescription: { contains: search } },
+          { statement: { contains: search } },
+        ],
+      });
     }
 
-    if (difficulty && difficulty !== "all") {
-      where.difficulty = difficulty;
+    if (difficulties.length === 1) {
+      where.difficulty = difficulties[0];
+    } else if (difficulties.length > 1) {
+      where.difficulty = { in: difficulties };
     }
 
-    if (tag) {
-      where.tags = { some: { tag } };
+    for (const tag of tags) {
+      andClauses.push({ tags: { some: { tag } } });
     }
+
+    if (tier && TIER_TAG_SET.has(tier.toLowerCase())) {
+      andClauses.push({ tags: { some: { tag: tier.toLowerCase() } } });
+    }
+
+    if (role === "student" && (solved === "solved" || solved === "unsolved")) {
+      const solvedRows = await prisma.problemSubmission.findMany({
+        where: { studentId: userId, passed: true },
+        select: { problemId: true },
+        distinct: ["problemId"],
+      });
+      const solvedIds = solvedRows.map((r) => r.problemId);
+      if (solved === "solved") {
+        if (solvedIds.length === 0) {
+          res.json(pg.hasPagination ? pg.envelope("problems", [], 0) : []);
+          return;
+        }
+        where.id = { in: solvedIds };
+      } else if (solvedIds.length > 0) {
+        where.id = { notIn: solvedIds };
+      }
+    }
+
+    if (andClauses.length > 0) {
+      where.AND = andClauses;
+    }
+
+    if (sort === "difficulty") {
+      // Difficulty is stored as string ("easy" | "medium" | "hard"); sort lightweight metadata before slicing page.
+      const allRows = await prisma.problem.findMany({
+        where,
+        select: LIST_PROBLEM_SELECT,
+      });
+      const rank: Record<string, number> = { easy: 1, medium: 2, hard: 3 };
+      allRows.sort(
+        (a, b) =>
+          (rank[a.difficulty] ?? 99) - (rank[b.difficulty] ?? 99) ||
+          a.title.localeCompare(b.title, "vi"),
+      );
+      const total = allRows.length;
+      const sliced = pg.hasPagination
+        ? allRows.slice(pg.skip, pg.skip + pg.limit)
+        : allRows;
+      const mapped = sliced.map(sanitizeProblemForList);
+      res.json(pg.hasPagination ? pg.envelope("problems", mapped, total) : mapped);
+      return;
+    }
+
+    const orderBy: any =
+      sort === "title_asc"
+        ? [{ title: "asc" }]
+        : sort === "title_desc"
+          ? [{ title: "desc" }]
+          : sort === "time_asc"
+            ? [{ estimatedTime: "asc" }, { createdAt: "desc" }]
+            : sort === "time_desc"
+              ? [{ estimatedTime: "desc" }, { createdAt: "desc" }]
+              : [{ createdAt: "desc" }];
 
     const problems = await prisma.problem.findMany({
       where,
-      include: {
-        createdBy: { select: { id: true, fullName: true } },
-        tags: { select: { tag: true } },
-      },
-      orderBy: { createdAt: "desc" },
+      select: LIST_PROBLEM_SELECT,
+      orderBy,
       ...pg.clause,
     });
 
-    const mapped =
-      role === "student"
-        ? problems.map((problem) => sanitizeProblemForList(sanitizeProblemForStudent(problem, false)))
-        : problems.map(sanitizeProblemForList);
+    const mapped = problems.map(sanitizeProblemForList);
 
     if (pg.hasPagination) {
       const total = await prisma.problem.count({ where });
@@ -135,6 +229,58 @@ router.post("/", authenticate, requireRole("admin", "teacher"), async (req: Requ
   }
 });
 
+// ─── Global Problem Bank Tags & Tier Counts ───
+router.get("/tags", authenticate, async (req: Request, res: Response) => {
+  try {
+    const status = query(req, "status");
+    const { role } = req.user!;
+    const where: any =
+      role === "student"
+        ? { status: "published" }
+        : status
+          ? { status }
+          : { status: { not: "archived" } };
+
+    const problems = await prisma.problem.findMany({
+      where,
+      select: { difficulty: true, tags: { select: { tag: true } } },
+    });
+
+    const difficulties = { easy: 0, medium: 0, hard: 0 };
+    const tagMap = new Map<string, number>();
+    const tierMap = new Map<string, number>(TIER_TAGS.map((t) => [t, 0]));
+
+    for (const p of problems) {
+      if (p.difficulty === "easy") difficulties.easy++;
+      else if (p.difficulty === "hard") difficulties.hard++;
+      else difficulties.medium++;
+
+      const seen = new Set<string>();
+      for (const row of p.tags) {
+        const t = row.tag.trim();
+        if (!t || seen.has(t)) continue;
+        seen.add(t);
+        const low = t.toLowerCase();
+        if (TIER_TAG_SET.has(low)) {
+          tierMap.set(low, (tierMap.get(low) || 0) + 1);
+        } else {
+          tagMap.set(t, (tagMap.get(t) || 0) + 1);
+        }
+      }
+    }
+
+    const tiers = TIER_TAGS.map((tag) => ({ tag, count: tierMap.get(tag) || 0 })).filter((x) => x.count > 0);
+    const tags = Array.from(tagMap.entries())
+      .map(([tag, count]) => ({ tag, count }))
+      .sort((a, b) => b.count - a.count || a.tag.localeCompare(b.tag, "vi"))
+      .slice(0, 35);
+
+    res.json({ total: problems.length, difficulties, tiers, tags });
+  } catch {
+    res.status(500).json({ error: "Không thể tải danh sách chủ đề" });
+  }
+});
+
 // ─── CP Roadmap (4 Tiers across 190+ problems) ───
 router.get("/roadmap", authenticate, async (req: Request, res: Response) => {
   try {
@@ -143,6 +289,21 @@ router.get("/roadmap", authenticate, async (req: Request, res: Response) => {
   } catch (err) {
     console.error("cp roadmap error:", err);
     res.status(500).json({ error: "Không thể tải lộ trình CP" });
+  }
+});
+
+// ─── Prev / Next Neighbor Navigation for a Problem ───
+router.get("/:id/neighbors", authenticate, async (req: Request, res: Response) => {
+  try {
+    const id = param(req, "id");
+    const neighbors = await getProblemNeighbors(id, req.user!.role);
+    if (!neighbors) {
+      res.status(404).json({ error: "Problem not found" });
+      return;
+    }
+    res.json(neighbors);
+  } catch {
+    res.status(500).json({ error: "Không thể tải bài kế tiếp" });
   }
 });
 

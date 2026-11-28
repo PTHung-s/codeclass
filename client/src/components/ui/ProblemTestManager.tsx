@@ -8,6 +8,8 @@ interface TestRow {
   input: string;
   output: string;
   hidden: boolean;
+  subtask?: number | "";
+  points?: number | "";
 }
 
 export default function ProblemTestManager({ problemId }: { problemId: string }) {
@@ -23,12 +25,29 @@ export default function ProblemTestManager({ problemId }: { problemId: string })
 
   useEffect(() => {
     if (testsQuery.data && !dirty) {
-      setRows(testsQuery.data.map((t) => ({ input: t.input || "", output: t.output || "", hidden: !!t.hidden })));
+      setRows(
+        testsQuery.data.map((t) => ({
+          input: t.input || "",
+          output: t.output || "",
+          hidden: !!t.hidden,
+          subtask: typeof t.subtask === "number" && t.subtask > 0 ? t.subtask : "",
+          points: typeof t.points === "number" && t.points > 0 ? t.points : "",
+        })),
+      );
     }
   }, [testsQuery.data, dirty]);
 
   const saveMutation = useMutation({
-    mutationFn: () => api.put(`/problems/${problemId}/tests`, { tests: rows }).then((r) => r.data),
+    mutationFn: () => {
+      const payload = rows.map((row) => ({
+        input: row.input,
+        output: row.output,
+        hidden: row.hidden,
+        ...(typeof row.subtask === "number" && row.subtask > 0 ? { subtask: Math.floor(row.subtask) } : {}),
+        ...(typeof row.points === "number" && row.points > 0 ? { points: row.points } : {}),
+      }));
+      return api.put(`/problems/${problemId}/tests`, { tests: payload }).then((r) => r.data);
+    },
     onSuccess: (data: { count: number }) => {
       qc.invalidateQueries({ queryKey: ["problemTests", problemId] });
       qc.invalidateQueries({ queryKey: ["problem", problemId] });
@@ -73,7 +92,7 @@ export default function ProblemTestManager({ problemId }: { problemId: string })
         <p className="text-sm font-semibold text-foreground">Bộ test của đề ({rows.length} test)</p>
         <p className="mt-1 text-xs leading-5 text-muted-foreground">
           Hai test đầu không ẩn đóng vai trò ví dụ hiển thị cho học sinh. Test còn lại nên ẩn.
-          Output sẽ được tự cắt khoảng trắng thừa ở cuối.
+          Nếu đặt cùng mã <span className="font-semibold text-foreground">Subtask</span> (1, 2, 3...) và <span className="font-semibold text-foreground">Điểm</span>, hệ thống tự động chấm kiểu IOI all-or-nothing.
         </p>
       </div>
 
@@ -85,19 +104,55 @@ export default function ProblemTestManager({ problemId }: { problemId: string })
         {rows.map((row, index) => (
           <div key={index} className={`rounded-xl border p-3 ${row.hidden ? "border-border bg-card" : "border-emerald-500/40 bg-emerald-500/[0.04]"}`}>
             <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-              <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
-                <input
-                  type="checkbox"
-                  checked={!row.hidden}
-                  onChange={(e) => updateRow(index, { hidden: !e.target.checked })}
-                  className="h-3.5 w-3.5 accent-emerald-600"
-                />
-                {row.hidden ? (
-                  <span className="inline-flex items-center gap-1 text-muted-foreground"><EyeOff className="h-3 w-3" /> Test ẩn</span>
-                ) : (
-                  <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><Eye className="h-3 w-3" /> Hiển thị cho học sinh</span>
-                )}
-              </label>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-xs font-semibold tabular-nums text-muted-foreground">#{index + 1}</span>
+                <label className="inline-flex cursor-pointer items-center gap-2 text-xs font-medium text-foreground">
+                  <input
+                    type="checkbox"
+                    checked={!row.hidden}
+                    onChange={(e) => updateRow(index, { hidden: !e.target.checked })}
+                    className="h-3.5 w-3.5 accent-emerald-600"
+                  />
+                  {row.hidden ? (
+                    <span className="inline-flex items-center gap-1 text-muted-foreground"><EyeOff className="h-3 w-3" /> Test ẩn</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-emerald-700 dark:text-emerald-400"><Eye className="h-3 w-3" /> Hiển thị cho học sinh</span>
+                  )}
+                </label>
+                <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                  <label className="inline-flex items-center gap-1">
+                    <span>Subtask:</span>
+                    <input
+                      type="number"
+                      min={1}
+                      max={20}
+                      placeholder="-"
+                      value={row.subtask ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : Math.max(1, Math.min(20, Math.floor(Number(e.target.value))));
+                        updateRow(index, { subtask: Number.isFinite(val as number) ? val : "" });
+                      }}
+                      className="h-6 w-12 rounded border border-input bg-background px-1.5 text-center font-mono text-[11px] text-foreground outline-none focus:border-ring"
+                    />
+                  </label>
+                  <label className="inline-flex items-center gap-1">
+                    <span>Điểm:</span>
+                    <input
+                      type="number"
+                      min={0.5}
+                      step={0.5}
+                      max={100}
+                      placeholder="-"
+                      value={row.points ?? ""}
+                      onChange={(e) => {
+                        const val = e.target.value === "" ? "" : Math.max(0.5, Number(e.target.value));
+                        updateRow(index, { points: Number.isFinite(val as number) ? val : "" });
+                      }}
+                      className="h-6 w-14 rounded border border-input bg-background px-1.5 text-center font-mono text-[11px] text-foreground outline-none focus:border-ring"
+                    />
+                  </label>
+                </div>
+              </div>
               <button
                 type="button"
                 onClick={() => removeRow(index)}

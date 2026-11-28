@@ -10,9 +10,22 @@ interface LatexRendererProps {
   className?: string;
 }
 
+const GENUINE_HTML_RE =
+  /<\/?(?:p|div|br|hr|ul|ol|li|table|thead|tbody|tr|td|th|h[1-6]|strong|em|b|i|u|blockquote|pre|img|a|span|sub|sup)\b[^>]*>/i;
+
+export function looksLikeHtml(text: string): boolean {
+  if (!text) return false;
+  const stripped = text
+    .replace(/```[\s\S]*?```/g, "")
+    .replace(/`[^`]*`/g, "")
+    .replace(/\$\$[\s\S]*?\$\$/g, "")
+    .replace(/\$[^$\n]+?\$/g, "");
+  return GENUINE_HTML_RE.test(stripped);
+}
+
 export default function LatexRenderer({ text, className = "" }: LatexRendererProps) {
   if (!text) return null;
-  const hasHtml = /<\/?[a-z][\s\S]*>/i.test(text);
+  const hasHtml = looksLikeHtml(text);
   const normalizedMarkdown = hasHtml ? text : normalizeMarkdown(text);
 
   return (

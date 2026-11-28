@@ -3,11 +3,14 @@ import path from "node:path";
 import prisma from "../utils/prisma";
 import { SKILL_SEEDS } from "../utils/skillGraph";
 import { syncSkillCatalog } from "./skillMastery";
+import { CheckerType, normalizeCheckerType } from "../utils/judgeChecker";
 
 export interface ProblemPackTestCase {
   input: string;
   output: string;
   hidden?: boolean;
+  subtask?: number;
+  points?: number;
 }
 
 export interface ProblemPackItem {
@@ -26,7 +29,44 @@ export interface ProblemPackItem {
   rubric?: string | null;
   hints?: string | null;
   teacherSolution?: string | null;
+  timeLimitMs?: number;
+  memoryLimitMb?: number;
+  checkerType?: CheckerType;
   testCases: ProblemPackTestCase[];
+}
+
+export function parseLimitsFromRequirements(requirementsText?: string | null): {
+  timeLimitMs?: number;
+  memoryLimitMb?: number;
+} {
+  if (!requirementsText || typeof requirementsText !== "string") return {};
+  const result: { timeLimitMs?: number; memoryLimitMb?: number } = {};
+  for (const rawLine of requirementsText.split(/\r?\n/)) {
+    const line = rawLine.trim();
+    if (!result.timeLimitMs) {
+      const m = line.match(/^(?:time|giới hạn thời gian|thời gian)\s*[:\-]\s*([\d.]+)\s*(ms|s|giây)?/i);
+      if (m) {
+        const val = Number(m[1]);
+        const unit = (m[2] || "s").toLowerCase();
+        if (Number.isFinite(val) && val > 0) {
+          const ms = unit === "ms" ? val : val * 1000;
+          result.timeLimitMs = Math.max(500, Math.min(10_000, Math.round(ms)));
+        }
+      }
+    }
+    if (!result.memoryLimitMb) {
+      const m = line.match(/^(?:memory|giới hạn bộ nhớ|bộ nhớ)\s*[:\-]\s*([\d.]+)\s*(mb|gb|m|g)?/i);
+      if (m) {
+        const val = Number(m[1]);
+        const unit = (m[2] || "mb").toLowerCase();
+        if (Number.isFinite(val) && val > 0) {
+          const mb = unit.startsWith("g") ? val * 1024 : val;
+          result.memoryLimitMb = Math.max(64, Math.min(512, Math.round(mb)));
+        }
+      }
+    }
+  }
+  return result;
 }
 
 export interface ProblemPackFile {
@@ -94,6 +134,12 @@ function cleanTests(rawTests: unknown, title: string): ProblemPackTestCase[] {
       input: t.input.replace(/\r\n/g, "\n"),
       output: String(t.output).replace(/\r\n/g, "\n").replace(/\n+$/, ""),
       hidden: Boolean(t.hidden),
+      ...(typeof t.subtask === "number" && Number.isFinite(t.subtask) && t.subtask > 0
+        ? { subtask: Math.floor(t.subtask) }
+        : {}),
+      ...(typeof t.points === "number" && Number.isFinite(t.points) && t.points > 0
+        ? { points: t.points }
+        : {}),
     });
   }
   return cleaned;
@@ -144,6 +190,15 @@ export function validateProblemPack(raw: unknown): ProblemPackFile {
 
     const firstPublic = testCases.find((t) => !t.hidden) || testCases[0];
 
+    const reqText = typeof item.requirementsText === "string" ? item.requirementsText.trim() : null;
+    const inferredLimits = parseLimitsFromRequirements(reqText);
+    const timeLimitMs = Number.isFinite(Number(item.timeLimitMs))
+      ? Math.max(500, Math.min(10_000, Math.round(Number(item.timeLimitMs))))
+      : (inferredLimits.timeLimitMs ?? 2000);
+    const memoryLimitMb = Number.isFinite(Number(item.memoryLimitMb))
+      ? Math.max(64, Math.min(512, Math.round(Number(item.memoryLimitMb))))
+      : (inferredLimits.memoryLimitMb ?? 256);
+
     return {
       slug: typeof item.slug === "string" ? item.slug.trim() : undefined,
       title,
@@ -170,12 +225,14 @@ export function validateProblemPack(raw: unknown): ProblemPackFile {
           : firstPublic
             ? firstPublic.output
             : null,
-      requirementsText:
-        typeof item.requirementsText === "string" ? item.requirementsText.trim() : null,
+      requirementsText: reqText,
       rubric: typeof item.rubric === "string" ? item.rubric.trim() : null,
       hints: typeof item.hints === "string" ? item.hints.trim() : null,
       teacherSolution:
         typeof item.teacherSolution === "string" ? item.teacherSolution : null,
+      timeLimitMs,
+      memoryLimitMb,
+      checkerType: normalizeCheckerType(item.checkerType),
       testCases,
     };
   });
@@ -312,6 +369,9 @@ export async function importProblemPack(
               hints: item.hints,
               teacherSolution: item.teacherSolution,
               testCases: testCasesJson,
+              timeLimitMs: item.timeLimitMs ?? 2000,
+              memoryLimitMb: item.memoryLimitMb ?? 256,
+              checkerType: item.checkerType ?? "exact",
               status: publish ? "published" : "draft",
               ...(item.skillId
                 ? { skillId: item.skillId, skillTagStatus: "approved" }
@@ -337,6 +397,9 @@ export async function importProblemPack(
             hints: item.hints,
             teacherSolution: item.teacherSolution,
             testCases: testCasesJson,
+            timeLimitMs: item.timeLimitMs ?? 2000,
+            memoryLimitMb: item.memoryLimitMb ?? 256,
+            checkerType: item.checkerType ?? "exact",
             status: publish ? "published" : "draft",
             createdById,
             skillId: item.skillId,

@@ -3,7 +3,8 @@ import { compareOutputs, computeJudgeScore } from "../judgeChecker";
 import { judgePythonCode, runPythonCode } from "../pythonRunner";
 import { getSandboxStatus } from "../codeSandbox";
 import { detectPlagiarismPairs } from "../../services/plagiarismService";
-import { buildCpRoadmap } from "../../services/cpRoadmapService";
+import { buildCpRoadmap, getProblemNeighbors } from "../../services/cpRoadmapService";
+import { parseLimitsFromRequirements } from "../../services/problemPackService";
 import prisma from "../../utils/prisma";
 
 async function run() {
@@ -174,6 +175,22 @@ def dijkstra(n, adj):
   check(
     "roadmap covers all 4 tiers and all 190 pack problems",
     roadmap.tiers.length === 4 && roadmap.summary.totalPackProblems === 190,
+  );
+
+  console.log("\n── 5. Problem Bank Limits & Neighbors ──");
+  const lim1 = parseLimitsFromRequirements("Time: 1s\nMemory: 512MB");
+  const lim2 = parseLimitsFromRequirements("Giới hạn thời gian: 1.5 giây\nGiới hạn bộ nhớ: 128 MB");
+  check(
+    "parseLimitsFromRequirements parses seconds, decimals & MB accurately",
+    lim1.timeLimitMs === 1000 && lim1.memoryLimitMb === 512 && lim2.timeLimitMs === 1500 && lim2.memoryLimitMb === 128,
+  );
+
+  const firstImportedProbId = roadmap.tiers[0]?.packs[0]?.problems.find((p) => p.problemId)?.problemId;
+  assert.ok(firstImportedProbId, "Expected first imported problem in roadmap");
+  const neighbors = await getProblemNeighbors(firstImportedProbId, "student");
+  check(
+    "getProblemNeighbors returns pack context & next problem",
+    Boolean(neighbors && neighbors.packTitle && neighbors.next && neighbors.position === 1),
   );
 
   await prisma.$disconnect();

@@ -652,12 +652,11 @@ html { transition: color 0.2s ease, background-color 0.2s ease; }
 }
 
 /* ── Problem statement typography (md-body) ──
-   Dùng chung cho đề bài render qua LatexRenderer (cả nhánh Markdown lẫn HTML).
-   Nhẹ hơn .lesson-content một bậc vì đề bài đã có heading section riêng. */
+   VNOJ / Codeforces clean contest paper style */
 .md-body {
-  color: hsl(var(--foreground) / 0.88);
+  color: hsl(var(--foreground) / 0.9);
   font-size: 0.9375rem;
-  line-height: 1.75;
+  line-height: 1.72;
   word-wrap: break-word;
 }
 .md-body > :first-child { margin-top: 0 !important; }
@@ -666,15 +665,24 @@ html { transition: color 0.2s ease, background-color 0.2s ease; }
   color: hsl(var(--foreground));
   font-weight: 700;
   line-height: 1.35;
+  letter-spacing: -0.01em;
 }
-.md-body h1 { font-size: 1.25rem; margin: 1.75rem 0 0.75rem; }
+.md-body h1 { font-size: 1.25rem; margin: 1.5rem 0 0.65rem; }
 .md-body h2 {
-  font-size: 1.075rem; margin: 1.75rem 0 0.625rem; padding-bottom: 0.4rem;
-  border-bottom: 1px solid hsl(var(--border));
+  font-size: 1.05rem;
+  margin: 1.5rem 0 0.55rem;
+  padding: 0.15rem 0 0.35rem 0.65rem;
+  border-left: 3px solid hsl(var(--primary) / 0.7);
+  border-bottom: 1px solid hsl(var(--border) / 0.65);
 }
-.md-body h3 { font-size: 1rem; margin: 1.375rem 0 0.5rem; }
+.md-body h3 {
+  font-size: 0.975rem;
+  margin: 1.25rem 0 0.45rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px dashed hsl(var(--border) / 0.7);
+}
 .md-body h4, .md-body h5, .md-body h6 {
-  font-size: 0.9375rem; margin: 1.25rem 0 0.5rem;
+  font-size: 0.9375rem; margin: 1.1rem 0 0.4rem;
   color: hsl(var(--foreground) / 0.92);
 }
 .md-body p { margin: 0.7rem 0; }
@@ -743,3 +751,13 @@ html { transition: color 0.2s ease, background-color 0.2s ease; }
 /* GFM task list */
 .md-body li.task-list-item { list-style: none; }
 .md-body li.task-list-item input[type="checkbox"] { margin-right: 0.45rem; }
+
+@media print {
+  .no-print, aside, nav, header {
+    display: none !important;
+  }
+  body {
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+}

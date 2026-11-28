@@ -301,3 +301,68 @@ export async function buildCpRoadmap(userId: string, role: string): Promise<CpRo
     recommendations,
   };
 }
+
+export interface ProblemNeighborNode {
+  id: string;
+  title: string;
+  difficulty: string;
+}
+
+export interface ProblemNeighborsPayload {
+  packTitle: string | null;
+  tierLabel: string | null;
+  position: number | null;
+  totalInGroup: number | null;
+  prev: ProblemNeighborNode | null;
+  next: ProblemNeighborNode | null;
+}
+
+export async function getProblemNeighbors(
+  problemId: string,
+  role: string,
+): Promise<ProblemNeighborsPayload | null> {
+  const where = role === "student" ? { status: "published" } : { status: { not: "archived" } };
+  const dbProblems = await prisma.problem.findMany({
+    where,
+    select: { id: true, title: true, difficulty: true, createdAt: true },
+    orderBy: { createdAt: "desc" },
+  });
+
+  const current = dbProblems.find((p) => p.id === problemId);
+  if (!current) return null;
+
+  const dbByTitle = new Map(dbProblems.map((p) => [normalizeKey(p.title), p]));
+  const packsMeta = loadPackMetadataIndex();
+
+  for (const meta of packsMeta) {
+    const importedInPack: ProblemNeighborNode[] = [];
+    for (const item of meta.problems) {
+      const match = dbByTitle.get(normalizeKey(item.title));
+      if (match) {
+        importedInPack.push({ id: match.id, title: match.title, difficulty: match.difficulty });
+      }
+    }
+    const idx = importedInPack.findIndex((p) => p.id === problemId);
+    if (idx !== -1) {
+      const tierDef = tierForPackFile(meta.filename);
+      return {
+        packTitle: meta.title,
+        tierLabel: tierDef.label,
+        position: idx + 1,
+        totalInGroup: importedInPack.length,
+        prev: idx > 0 ? importedInPack[idx - 1] : null,
+        next: idx < importedInPack.length - 1 ? importedInPack[idx + 1] : null,
+      };
+    }
+  }
+
+  const fallbackIdx = dbProblems.findIndex((p) => p.id === problemId);
+  return {
+    packTitle: null,
+    tierLabel: null,
+    position: fallbackIdx !== -1 ? fallbackIdx + 1 : null,
+    totalInGroup: dbProblems.length,
+    prev: fallbackIdx > 0 ? { id: dbProblems[fallbackIdx - 1].id, title: dbProblems[fallbackIdx - 1].title, difficulty: dbProblems[fallbackIdx - 1].difficulty } : null,
+    next: fallbackIdx !== -1 && fallbackIdx < dbProblems.length - 1 ? { id: dbProblems[fallbackIdx + 1].id, title: dbProblems[fallbackIdx + 1].title, difficulty: dbProblems[fallbackIdx + 1].difficulty } : null,
+  };
+}
